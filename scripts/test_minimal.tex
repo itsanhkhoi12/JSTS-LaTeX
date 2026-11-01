@@ -1,0 +1,53 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[vietnamese]{babel}
+\usepackage{fontspec}
+
+% Cấu hình font cục bộ
+\setmainfont{SVN-Times New Roman 2}[
+    Path           = fonts/,
+    Extension      = .ttf,
+    UprightFont    = *,
+    BoldFont       = * bold,
+    ItalicFont     = * italic,
+    BoldItalicFont = * bold italic
+]
+
+\usepackage{minted}
+
+\begin{document}
+
+\section*{Kiểm tra môi trường Tiếng Việt \& Mã nguồn}
+
+Tài liệu này kiểm tra:
+\begin{enumerate}
+    \item Hiển thị tiếng Việt có dấu: \textbf{Cộng hòa Xã hội Chủ nghĩa Việt Nam}.
+    \item Font chữ: Times New Roman cục bộ từ thư mục \texttt{fonts/}.
+    \item Tô màu cú pháp JavaScript và TypeScript bằng gói \texttt{minted}.
+\end{enumerate}
+
+\subsection*{JavaScript Snippet}
+\begin{minted}[frame=lines,linenos]{javascript}
+// Function to compute factorial
+function factorial(n) {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
+}
+console.log(`Factorial of 5: ${factorial(5)}`);
+\end{minted}
+
+\subsection*{TypeScript Snippet}
+\begin{minted}[frame=lines,linenos]{typescript}
+interface User {
+  readonly id: number;
+  name: string;
+  role: 'admin' | 'member';
+}
+
+const currentUser: User = {
+  id: 101,
+  name: "Nguyen Van A",
+  role: "admin"
+};
+\end{minted}
+
+\end{document}

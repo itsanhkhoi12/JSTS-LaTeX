@@ -1,0 +1,230 @@
+% ==============================================================================
+% PREAMBLE CONFIGURATION (XeLaTeX)
+% ==============================================================================
+% Cấu hình chuẩn cho tài liệu kỹ thuật tiếng Việt, hỗ trợ XeLaTeX, font chữ cục bộ
+% và tô màu cú pháp mã nguồn JavaScript / TypeScript bằng gói minted.
+% ==============================================================================
+
+% ------------------------------------------------------------------------------
+% 1. HỖ TRỢ NGÔN NGỮ TIẾNG VIỆT
+% ------------------------------------------------------------------------------
+% XeLaTeX xử lý trực tiếp mã hóa UTF-8; không dùng inputenc/fontenc(T5) để tránh xung đột.
+\usepackage[vietnamese]{babel}
+
+% ------------------------------------------------------------------------------
+% 2. TYPOGRAPHY & FONT CONFIGURATION (fontspec)
+% ------------------------------------------------------------------------------
+\usepackage{fontspec}
+
+% Cấu hình Times New Roman từ thư mục fonts/ nội bộ của dự án
+\setmainfont{SVN-Times New Roman 2}[
+    Path           = fonts/,
+    Extension      = .ttf,
+    UprightFont    = *,
+    BoldFont       = * bold,
+    ItalicFont     = * italic,
+    BoldItalicFont = * bold italic
+]
+
+% Font đơn khoảng (monospace) cho code block (có fallback an toàn)
+\IfFontExistsTF{DejaVu Sans Mono}{%
+    \setmonofont{DejaVu Sans Mono}[Scale=0.9]%
+}{%
+    \IfFontExistsTF{Consolas}{%
+        \setmonofont{Consolas}[Scale=0.9]%
+    }{%
+        % Mặc định font monospace của hệ thống TeX
+    }%
+}
+
+% ------------------------------------------------------------------------------
+% 3. CĂN LỀ & BỐ CỤC TRANG (GEOMETRY & SPACING)
+% ------------------------------------------------------------------------------
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    top=20mm,
+    bottom=20mm,
+    left=30mm,
+    right=20mm
+}
+
+\usepackage{setspace}
+\setstretch{1.2} % Giãn dòng chuẩn báo cáo học thuật (1.2 - 1.3)
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{1.27cm} % Thụt đầu dòng 1.27cm (0.5 inch) theo chuẩn
+
+% ------------------------------------------------------------------------------
+% 4. TIÊU ĐỀ, HEADER & FOOTER
+% ------------------------------------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Định dạng trang đầu chương / trang đặc biệt dùng plain style
+\fancypagestyle{plain}{%
+    \fancyhf{}%
+    \fancyfoot[C]{\small\thepage}%
+    \renewcommand{\headrulewidth}{0pt}%
+}
+
+\usepackage{titlesec}
+% Tùy biến định dạng tiêu đề chương và mục
+\titleformat{\chapter}[hang]
+    {\normalfont\LARGE\bfseries}{\thechapter.}{0.8em}{}
+\titlespacing*{\chapter}{0pt}{-10pt}{15pt}
+
+\titleformat{\section}
+    {\normalfont\Large\bfseries}{\thesection}{0.8em}{}
+\titlespacing*{\section}{0pt}{10pt}{6pt}
+
+\titleformat{\subsection}
+    {\normalfont\large\bfseries}{\thesubsection}{0.8em}{}
+\titlespacing*{\subsection}{0pt}{8pt}{4pt}
+
+% ------------------------------------------------------------------------------
+% 5. ĐỒ HỌA, MÀU SẮC & VẼ HÌNH
+% ------------------------------------------------------------------------------
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{calc, arrows.meta, positioning}
+
+% Bảng màu thương hiệu và ghi chú
+\definecolor{primaryBlue}{RGB}{0, 72, 144}
+\definecolor{codeBackground}{RGB}{247, 248, 250}
+\definecolor{codeBorder}{RGB}{220, 224, 230}
+
+% ------------------------------------------------------------------------------
+% 6. BẢNG BIỂU & CHÚ THÍCH HÌNH ẢNH
+% ------------------------------------------------------------------------------
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{
+    font=small,
+    labelfont=bf,
+    labelsep=colon,
+    skip=6pt
+}
+
+% ------------------------------------------------------------------------------
+% 7. TOÁN HỌC & MÔI TRƯỜNG ĐỊNH NGHĨA / VÍ DỤ
+% ------------------------------------------------------------------------------
+\usepackage{amsmath, amssymb, amsfonts, amsthm}
+
+\theoremstyle{definition}
+\newtheorem{example}{Ví dụ}[chapter]
+\newtheorem{definition}{Định nghĩa}[chapter]
+
+% ------------------------------------------------------------------------------
+% 8. TÔ MÀU CÚ PHÁP MÃ NGUỒN (MINTED 3.x)
+% ------------------------------------------------------------------------------
+\usepackage{minted}
+\usepackage{tcolorbox}
+\tcbuselibrary{minted, skins, breakable}
+
+% Cấu hình mặc định cho minted
+\setminted{
+    fontsize=\small,
+    breaklines=true,
+    breakanywhere=false,
+    tabsize=2,
+    linenos=true,
+    numbersep=6pt,
+    frame=none,
+    framesep=2mm
+}
+
+% Môi trường tiện ích chuẩn cho JavaScript & TypeScript
+\newminted{javascript}{
+    linenos=true,
+    fontsize=\small,
+    breaklines=true,
+    frame=lines,
+    framesep=2mm
+}
+
+\newminted{typescript}{
+    linenos=true,
+    fontsize=\small,
+    breaklines=true,
+    frame=lines,
+    framesep=2mm
+}
+
+% Lệnh chèn code inline nhanh
+\newcommand{\jscode}[1]{\mintinline{javascript}{#1}}
+\newcommand{\tscode}[1]{\mintinline{typescript}{#1}}
+
+% Môi trường khối mã nguồn có viền đẹp với tcolorbox (JavaScript & TypeScript)
+\newtcblisting{jsbox}[2][]{%
+    enhanced,
+    breakable,
+    colback=codeBackground,
+    colframe=codeBorder,
+    arc=3pt,
+    outer arc=3pt,
+    boxrule=0.8pt,
+    title={\small\textbf{#2}},
+    coltitle=black,
+    attach boxed title to top left={yshift=-2mm, xshift=5mm},
+    boxed title style={colback=white, boxrule=0.5pt, colframe=codeBorder},
+    minted language=javascript,
+    minted options={
+        fontsize=\small,
+        breaklines=true,
+        linenos=true,
+        numbersep=6pt,
+        tabsize=2
+    },
+    #1
+}
+
+\newtcblisting{tsbox}[2][]{%
+    enhanced,
+    breakable,
+    colback=codeBackground,
+    colframe=codeBorder,
+    arc=3pt,
+    outer arc=3pt,
+    boxrule=0.8pt,
+    title={\small\textbf{#2}},
+    coltitle=black,
+    attach boxed title to top left={yshift=-2mm, xshift=5mm},
+    boxed title style={colback=white, boxrule=0.5pt, colframe=codeBorder},
+    minted language=typescript,
+    minted options={
+        fontsize=\small,
+        breaklines=true,
+        linenos=true,
+        numbersep=6pt,
+        tabsize=2
+    },
+    #1
+}
+
+% ------------------------------------------------------------------------------
+% 9. DANH SÁCH & HYPERLINKS
+% ------------------------------------------------------------------------------
+\usepackage{enumitem}
+\setlist{nosep} % Giảm khoảng cách thừa trong danh sách itemize / enumerate
+
+\usepackage{microtype}
+\usepackage{hyperref}
+\hypersetup{
+    unicode=true,
+    colorlinks=true,
+    linkcolor=primaryBlue,
+    citecolor=green!50!black,
+    urlcolor=primaryBlue,
+    bookmarksnumbered=true,
+    pdfstartview={FitH}
+}

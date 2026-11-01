@@ -1,0 +1,30 @@
+{
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk",
+      "command": "latexmk",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-outdir=build",
+        "%DOC%"
+      ],
+      "env": {}
+    }
+  ],
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk (XeLaTeX -> build/)",
+      "tools": [
+        "latexmk"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipe.default": "first",
+  "latex-workshop.latex.outDir": "%DIR%/build",
+  "latex-workshop.latex.rootFile.useWorkspace": true,
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.latex.clean.subfolder.enabled": true
+}
+

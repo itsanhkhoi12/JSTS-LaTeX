@@ -329,3 +329,11 @@ TSWLatexianTemp*
 # option is specified. Footnotes are the stored in a file with suffix Notes.bib.
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
+## Project specific: sensitive metadata and build output
+metadata.tex
+!metadata.example.tex
+build/
+*.synctex(busy)
+
+# PDF
+*.pdf

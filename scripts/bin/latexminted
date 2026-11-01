@@ -1,0 +1,13 @@
+#!/bin/sh
+# Portable shim for environments where default python3 (e.g. 3.14+) has incompatible argparse with latexminted 0.6.0
+if command -v python3.12 >/dev/null 2>&1; then
+    exec python3.12 /usr/bin/latexminted "$@"
+elif command -v python3.13 >/dev/null 2>&1; then
+    exec python3.13 /usr/bin/latexminted "$@"
+elif command -v python3.11 >/dev/null 2>&1; then
+    exec python3.11 /usr/bin/latexminted "$@"
+elif command -v python3.10 >/dev/null 2>&1; then
+    exec python3.10 /usr/bin/latexminted "$@"
+else
+    exec python3 /usr/bin/latexminted "$@"
+fi
