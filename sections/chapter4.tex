@@ -1,56 +1,787 @@
 % ==============================================================================
-% CHƯƠNG 4: THIẾT KẾ DATA PIPELINE VÀ AI SUBSYSTEM
+% CHƯƠNG 4: THIẾT KẾ LUỒNG DỮ LIỆU VÀ PHÂN HỆ TÍCH HỢP AI
 % ==============================================================================
 
-\chapter{Thiết kế Luồng dữ liệu và Hệ thống phụ tích hợp AI}
+\chapter{Thiết kế Luồng dữ liệu và Phân hệ tích hợp AI}
 \label{chap:data-pipeline-ai}
+
+% Style dùng chung cho các sơ đồ TikZ trong Chương 4
+\tikzset{
+    ragbox/.style={
+        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!5,
+        thick, minimum height=0.8cm, align=center, font=\small, inner sep=5pt
+    },
+    ragdb/.style={
+        cylinder, shape border rotate=90, aspect=0.25, draw=primaryBlue, fill=primaryBlue!8,
+        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
+    },
+    ragdecision/.style={
+        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
+        thick, align=center, font=\small, inner sep=2pt
+    },
+    raggroup/.style={
+        rectangle, rounded corners=4pt, draw=primaryBlue!50, dashed, fill=primaryBlue!2,
+        inner sep=8pt
+    },
+    ragarrow/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!80!black
+    },
+    ragdashed/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
+    }
+}
 
 \section{Phân tích nguồn dữ liệu và đặc điểm dữ liệu arXiv}
 \label{sec:nguon-du-lieu-arxiv}
 
-% Nội dung phần 4.1
+Kho khoa học phục vụ hệ thống RAG (gồm 70.590 bài báo, 913.205 đoạn văn bản tính trên chỉ mục vector và 136.823 đối tượng nguồn như đã xác định ở Chương~\ref{chap:phan-tich-yeu-cau}) không được thu thập trực tiếp từ ứng dụng phục vụ người dùng, mà kế thừa từ một phân hệ khai phá dữ liệu học thuật chạy độc lập ở thượng nguồn. Phân hệ này tổng hợp tài liệu từ các kho học thuật mở nhằm bảo đảm đồng thời tính cập nhật của nghiên cứu mới lẫn chiều sâu lịch sử của các công trình nền tảng, trong đó arXiv giữ vai trò nguồn xương sống. Bảng~\ref{tab:nguon-du-lieu-thuong-nguon} tóm tắt các nguồn dữ liệu chính và vai trò tương ứng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các nguồn dữ liệu học thuật thượng nguồn và vai trò trong hệ thống.}
+    \label{tab:nguon-du-lieu-thuong-nguon}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.8cm}>{\raggedright\arraybackslash}p{4.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Nguồn dữ liệu} & \textbf{Dạng dữ liệu cung cấp} & \textbf{Vai trò chính} \\
+        \midrule
+        arXiv RSS Feeds và OAI-PMH API & Siêu dữ liệu chuẩn Dublin Core và danh sách bản tiền ấn (preprint) mới cập nhật & Nguồn chủ lực cung cấp bài báo thuộc các nhóm ngành Khoa học Máy tính và Thống kê; hỗ trợ phân trang tuần tự qua \texttt{resumptionToken} \\
+        arXiv HTML5 / ar5iv & Toàn văn định dạng HTML5 ngữ nghĩa chuyển đổi từ mã nguồn TeX (qua LaTeXML) & Nguồn trích xuất toàn văn ưu tiên nhằm giữ cấu trúc đề mục và bảo toàn công thức toán học LaTeX \\
+        CVF Open Access & Bài báo hội nghị chuyên ngành Thị giác máy tính (CVPR, ICCV, WACV và workshop) & Bổ trợ nguồn công bố hội nghị có phản biện cho nhánh thị giác máy tính \\
+        Semantic Scholar & Siêu dữ liệu học thuật và danh mục công trình có ảnh hưởng lớn & Bổ sung các bài báo nền tảng lịch sử (landmark papers) cho đồ thị tri thức \\
+        Nguồn mở rộng (OpenAlex, OpenReview, Zenodo) & Liên kết trích dẫn, bài báo hội nghị (ICLR, NeurIPS) và tài liệu bổ trợ & Định hướng mở rộng độ phủ siêu dữ liệu học thuật; nội dung bình duyệt (review, rebuttal) không đưa vào ngữ cảnh RAG hiện tại \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Từ quá trình khai thác nguồn tài liệu trên, dữ liệu bài báo khoa học arXiv thuộc các chuyên ngành cốt lõi về trí tuệ nhân tạo và khoa học dữ liệu (\texttt{cs.LG}, \texttt{cs.CV}, \texttt{cs.CL}, \texttt{cs.RO}, \texttt{cs.AI}, \texttt{stat.ML}, \texttt{eess.IV}) bộc lộ bốn đặc điểm định hình trực tiếp đến thiết kế xử lý và truy hồi ở các mục tiếp theo:
+
+\begin{itemize}
+    \item[--] \textbf{Cấu trúc học thuật chặt chẽ và mật độ công thức toán học bất đối xứng}: Bài báo khoa học tuân theo bố cục đề mục rõ ràng (tóm tắt, giới thiệu, phương pháp, thực nghiệm, kết luận) và chứa hàm lượng ký hiệu toán học lớn, phân bố rất lệch giữa các nhánh ngành. Các nhóm thiên về lý thuyết như \texttt{stat.ML} và \texttt{cs.LG} có mật độ công thức dày đặc, trong khi \texttt{cs.CV} và \texttt{cs.CL} thiên nhiều hơn về mô tả kiến trúc hệ thống và bảng thực nghiệm. Nếu bóc tách từ tệp PDF thô, ký hiệu ma trận, đạo hàm và phương trình thường bị vỡ thành chuỗi ký tự vô nghĩa; đây là lý do quy trình xử lý ưu tiên nguồn HTML5/ar5iv thay cho PDF thuần.
+    \item[--] \textbf{Tính liên ngành và hiện tượng đồng xuất hiện nhãn chuyên ngành}: Các công trình AI hiện đại hiếm khi nằm gọn trong một chuyên ngành đơn lẻ mà thường mang đồng thời nhiều nhãn phân loại. Riêng \texttt{cs.AI} ít xuất hiện độc lập mà đóng vai trò nhãn giao thoa trung chuyển (umbrella tag), liên kết chặt với \texttt{cs.LG}, \texttt{cs.CL} và \texttt{cs.CV}. Đặc trưng này là cơ sở thực tiễn để khai phá luật kết hợp phục vụ mở rộng truy vấn ở các chặng sau.
+    \item[--] \textbf{Biến động độ dài lớn và tính không đồng nhất giữa các nguồn}: Quy mô tài liệu trải rộng từ bài thông báo ngắn vài trang đến chuyên khảo dài hàng chục nghìn từ kèm hàng nghìn công thức. Bên cạnh đó, siêu dữ liệu thu thập từ các nguồn khác nhau có thể thiếu trường quan trọng (như tóm tắt, danh sách tác giả hoặc mã định danh arXiv), còn cùng một công trình trên arXiv thường phát hành nhiều phiên bản cập nhật (\texttt{v1}, \texttt{v2}...) dễ gây trùng lặp nếu không chuẩn hoá định danh.
+    \item[--] \textbf{Thiên lệch phân bố thời gian theo đợt thu thập}: Quá trình thu thập theo lô và bị ràng buộc bởi ngân sách lưu trữ khiến mật độ bài báo không phân bố đều theo trục thời gian. Do đó, kho dữ liệu được định vị phục vụ tra cứu ngữ nghĩa và hỏi đáp có căn cứ, không sử dụng như tập mẫu thống kê để suy diễn tốc độ tăng trưởng toàn ngành.
+\end{itemize}
 
 \section{Thiết kế quy trình thu thập và xử lý dữ liệu bài báo khoa học}
 \label{sec:thu-thap-du-lieu}
 
-% Nội dung phần 4.2
+Để vừa cập nhật kịp thời các công trình mới công bố, vừa tích luỹ được các bài báo nền tảng mà vẫn kiểm soát được giới hạn lưu trữ và tốc độ truy vấn tới nguồn ngoài, phân hệ thu thập thượng nguồn áp dụng chiến lược thu thập ba tầng (Three-Tier Harvesting) tóm tắt ở Bảng~\ref{tab:chien-luoc-thu-thap}.
 
-\section{Thiết kế quy trình chuẩn hóa và lưu trữ dữ liệu}
+\begin{table}[htbp]
+    \centering
+    \caption{Chiến lược thu thập dữ liệu ba tầng của phân hệ thượng nguồn.}
+    \label{tab:chien-luoc-thu-thap}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tầng thu thập} & \textbf{Tần suất và phạm vi} & \textbf{Nguồn và phương thức chính} & \textbf{Mục tiêu thiết kế} \\
+        \midrule
+        Tầng 1: Luồng cập nhật hàng ngày (Real-Time Stream) & Chạy định kỳ mỗi ngày trên 5 nhóm ngành cốt lõi (\texttt{cs.AI}, \texttt{cs.LG}, \texttt{cs.CV}, \texttt{cs.CL}, \texttt{stat.ML}) & Quét arXiv RSS Feeds & Bắt kịp các bản tiền ấn mới công bố trong ngày để sớm sẵn sàng cho truy vấn thời sự \\
+        Tầng 2: Thu thập quá khứ gần (Near-Past Harvest) & Chạy định kỳ hàng ngày theo lô, dừng khi chạm ngân sách lưu trữ & Luân phiên giữa arXiv OAI-PMH (đi ngược theo ngày bằng con trỏ, tuân thủ \texttt{Retry-After}) và CVF Open Access & Mở rộng độ phủ kho dữ liệu theo hướng cân bằng giữa các nhóm ngành và nguồn thu thập \\
+        Tầng 3: Bổ sung công trình nền tảng (Historical Landmark Archive) & Kích hoạt thủ công theo nhu cầu & Semantic Scholar kết hợp bổ sung siêu dữ liệu từ arXiv & Lấp khoảng trống các công trình kinh điển có tầm ảnh hưởng lớn trong lịch sử nghiên cứu \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Về mặt kiến trúc tổng quan, các tác vụ thu thập theo lịch được điều phối bởi Apache Airflow và giao tiếp bất đồng bộ với tiến trình xử lý thông qua hàng đợi thông điệp RabbitMQ, giúp tách rời nhịp thu thập từ mạng ngoài khỏi khâu bóc tách và lập chỉ mục nặng tính toán. Dữ liệu trung gian được tổ chức theo mô hình Medallion Lakehouse trên kho lưu trữ đối tượng MinIO S3 với hai tầng đầu gồm tầng Bronze (lưu nguyên bản JSON siêu dữ liệu và HTML5 thô) và tầng Silver (lưu bản ghi bài báo đã làm sạch ở định dạng cột Apache Parquet phân vùng theo năm). Hình~\ref{fig:luong-thu-thap-tien-xu-ly} minh hoạ luồng thu thập và tiền xử lý tổng quan từ nguồn mở đến tầng dữ liệu sạch trung gian.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[font=\small]
+        % Cột 1: Nguồn học thuật mở
+        \node[ragbox, text width=3.3cm] (S1) at (0, 0.75) {arXiv RSS /\\OAI-PMH};
+        \node[ragbox, text width=3.3cm] (S3) at (0, -0.75) {CVF \& Semantic\\Scholar};
+        \node[ragbox, text width=3.3cm] (S2) at (0, -2.9) {arXiv HTML5 /\\ar5iv};
+
+        % Cột 2: Điều phối và thu thập
+        \node[ragbox, text width=3.2cm] (AF) at (4.5, 0.0) {Apache Airflow\\(Thu thập 3 tầng)};
+        \node[ragbox, text width=4.3cm] (MQ) at (9.1, 0.0) {Hàng đợi RabbitMQ\\(\texttt{backpressure} \& \texttt{DLQ})};
+        \node[ragbox, text width=4.3cm] (FW) at (9.1, -2.9) {Tiến trình Fetch \&\\{\footnotesize\texttt{AcademicHTMLParser}}};
+
+        % Cột 3: Lưu trữ trung gian (MinIO S3)
+        \node[ragdb, text width=2.9cm] (BR) at (15.8, -0.8) {Tầng Bronze\\JSON \& HTML5 thô};
+        \node[ragdb, text width=2.9cm] (SV) at (15.8, -3.2) {Tầng Silver\\Parquet theo năm};
+
+        % Đầu ra chuyển tiếp
+        \node[ragbox, text width=3.9cm, fill=green!8, draw=green!50!black] (OUT) at (15.8, -5.3) {Đầu vào Mục~\ref{sec:chuan-hoa-luu-tru}:\\Chuẩn hoá \& nạp kho khoa học};
+
+        \begin{scope}[on background layer]
+            \node[raggroup, fit=(S1)(S3)(S2), label={[font=\small\bfseries, text=primaryBlue]above:Nguồn học thuật mở}] {};
+            \node[raggroup, fit=(AF)(MQ)(FW), label={[font=\small\bfseries, text=primaryBlue]above:Điều phối và thu thập}] {};
+            \node[raggroup, fit=(BR)(SV), label={[font=\small\bfseries, text=primaryBlue]above:Lưu trữ trung gian (MinIO S3)}] {};
+        \end{scope}
+
+        \draw[ragarrow] (S1.east) -- (AF.north west);
+        \draw[ragarrow] (S3.east) -- (AF.south west);
+        \draw[ragarrow] (AF) -- (MQ);
+        \draw[ragarrow] (MQ) -- (FW);
+        \draw[ragarrow] (S2) -- (FW);
+        \draw[ragarrow] (FW.north east) -- node[above, sloped, pos=0.52, font=\scriptsize] {lưu nguyên bản} (BR.west);
+        \draw[ragarrow] (FW.east) -- node[below, font=\scriptsize, align=center] {khử trùng, bóc tách\\\& compaction} (SV.west);
+        \draw[ragarrow] (SV) -- (OUT);
+    \end{tikzpicture}%
+    }
+    \caption{Tổng quan luồng thu thập và tiền xử lý dữ liệu bài báo khoa học ở phân hệ thượng nguồn.}
+    \label{fig:luong-thu-thap-tien-xu-ly}
+\end{figure}
+
+Trong đường ống trên, ba cơ chế xử lý cốt lõi bảo đảm chất lượng dữ liệu đầu vào trước khi chuyển giao sang hệ thống RAG:
+
+\begin{itemize}
+    \item[--] \textbf{Bóc tách văn bản học thuật và bảo toàn công thức toán}: Thành phần phân tích HTML học thuật (\texttt{AcademicHTMLParser}) lọc bỏ các thẻ giao diện nhiễu (script, định kiểu, thanh điều hướng, tiêu đề và chân trang web), giữ nguyên cấu trúc đoạn văn và phân loại từng đề mục vào nhóm chuẩn (\texttt{abstract}, \texttt{introduction}, \texttt{related\_work}, \texttt{methodology}, \texttt{experiments}, \texttt{discussion}, \texttt{conclusion}, \texttt{appendix}). Đối với phương trình toán học, bộ phân tích ưu tiên trích xuất chuỗi LaTeX gốc từ thẻ chú thích toán học (\texttt{annotation}) hoặc thuộc tính \texttt{alttext}, và chỉ dùng văn bản hiển thị làm fallback khi tài liệu nguồn thiếu siêu dữ liệu toán học. Cách làm này giữ lại khung ngữ nghĩa và ký hiệu toán học làm tiền đề cho bước phân đoạn ở Mục~\ref{sec:chunking-retrieval}.
+    \item[--] \textbf{Chuẩn hoá định danh và khử trùng lặp sơ cấp}: Mã arXiv được chuẩn hoá bằng cách lược bỏ tiền tố URL và hậu tố phiên bản để gom các lần tái phát hành của cùng một công trình về một mã thống nhất. Đồng thời, hệ thống tính mã băm SHA-256 (\texttt{abstract\_\allowbreak hash}) trên nội dung tóm tắt sau khi chuẩn hoá Unicode NFKC, chuyển chữ thường và loại bỏ thẻ HTML, dấu câu cùng khoảng trắng thừa (dùng tiêu đề thay thế nếu bài báo thiếu tóm tắt) nhằm loại bản ghi trùng ngay từ khâu thu thập. Khi gộp tệp định kỳ (compaction) ở tầng Silver, các bản ghi có cùng \texttt{paper\_id} được hợp nhất theo quy tắc bản ghi mới nhất ghi đè (last-write-wins).
+    \item[--] \textbf{Tách tầng bất biến và cơ chế chịu lỗi bất đồng bộ}: Tầng Bronze lưu nguyên bản tệp tải về ở trạng thái bất biến, cho phép tái chạy toàn bộ bước bóc tách mỗi khi nâng cấp bộ phân tích mà không phải cào lại từ nguồn ngoài. Tầng Silver lưu tập bản ghi sạch kèm siêu dữ liệu truy vết nguồn gốc và được gộp tệp định kỳ để phục vụ đọc theo lô hiệu quả. Trên kênh hàng đợi, tiến trình thu thập áp dụng điều tiết lưu lượng (backpressure -- tạm chờ khi hàng đợi kế tiếp vượt ngưỡng), chỉ gửi tín hiệu xác nhận hoàn tất (ACK) sau khi đầu ra đã ghi bền vững, và chuyển các bản ghi lỗi vượt số lần thử lại sang hàng đợi lỗi (Dead Letter Queue -- DLQ) để cách ly và xử lý sau.
+\end{itemize}
+
+Toàn bộ quy trình thu thập và tiền xử lý này vận hành tách biệt hoàn toàn với ứng dụng phục vụ người dùng, giữ đúng bất biến ứng dụng chỉ đọc đã thiết lập ở Chương~\ref{chap:thiet-ke-kien-truc}. Từ nguồn bản ghi sạch tại tầng Silver và các hiện vật khai phá liên quan của phân hệ thượng nguồn, Mục~\ref{sec:chuan-hoa-luu-tru} trình bày quy trình chuẩn hoá lược đồ, kiểm tra tính toàn vẹn và nạp vào kho khoa học phục vụ trực tiếp cho hệ thống RAG.
+
+\section{Thiết kế quy trình chuẩn hoá và lưu trữ dữ liệu}
 \label{sec:chuan-hoa-luu-tru}
 
-% Nội dung phần 4.3
+Kho khoa học là nơi duy nhất giữ bản gốc chuẩn của toàn bộ nội dung văn bản, và vì vậy nó phải là một cơ sở dữ liệu riêng, tách khỏi cơ sở dữ liệu ứng dụng \texttt{rag\_ts}. Việc tách này không phải lựa chọn hình thức: cơ sở dữ liệu ứng dụng chỉ chứa tài khoản, phiên và tin nhắn với tập dữ liệu hoạt động (working set) rất nhỏ, trong khi kho khoa học chứa 913.205 bản ghi đoạn được ghi hàng loạt theo lô. Nếu dùng chung một cơ sở dữ liệu, một đợt nạp hơn chín trăm nghìn tài liệu sẽ làm sai lệch thống kê phân bố dữ liệu mà đường đọc của ứng dụng phụ thuộc vào.
+
+Ứng dụng truy cập kho khoa học bằng một kết nối riêng với tài khoản chỉ có quyền đọc và không phải tài khoản quản trị gốc. Chỉ đường ống nạp mới được quyền ghi, và chỉ đường ống nạp mới có mã nguồn ghi vào kho. Điều này giữ nguyên bất biến P-2 đã nêu ở Bảng~\ref{tab:muoi-nguyen-tac}: không tồn tại đường dẫn mã nguồn nào trong ứng dụng ghi vào kho khoa học hay chỉ mục vector.
+
+Ba kho lưu trữ phía máy chủ được tóm tắt ở Bảng~\ref{tab:ba-kho-luu-tru}, kèm vai trò sở hữu dữ liệu của từng kho. Trong đó, kho khoa học \texttt{rag\_ts\_corpus} gồm tám tập hợp, mỗi tập hợp mang một vai trò riêng trong đường truy hồi.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ba kho lưu trữ và tám tập hợp của kho khoa học \texttt{rag\_ts\_corpus}.}
+    \label{tab:ba-kho-luu-tru}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.0cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{4.5cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Kho lưu trữ} & \textbf{Chế độ truy cập} & \textbf{Nội dung} & \textbf{Quy mô} \\
+        \midrule
+        Chỉ mục vector \texttt{scientific\_\allowbreak papers\_gold} & Chỉ đọc & Vector 768 chiều và trường lọc của từng đoạn & 913.205 điểm \\
+        Kho khoa học \texttt{rag\_ts\_corpus} & Chỉ đọc & Văn bản đoạn, siêu dữ liệu bài báo, bảng uy tín, luật kết hợp, cây tri thức & 70.590 bài báo, 913.205 đoạn, 120 tác giả, 40 luật, 136.823 đối tượng nguồn \\
+        Cơ sở dữ liệu ứng dụng \texttt{rag\_ts} & Đọc và ghi & Tài khoản, phiên, tin nhắn, nhật ký kiểm toán & Tập dữ liệu hoạt động nhỏ \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bảng~\ref{tab:tam-tap-hop-corpus} liệt kê tám tập hợp của kho khoa học và nguồn dữ liệu của từng tập hợp.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tám tập hợp của kho khoa học \texttt{rag\_ts\_corpus} và nguồn dữ liệu tương ứng.}
+    \label{tab:tam-tap-hop-corpus}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tập hợp} & \textbf{Khoá tự nhiên} & \textbf{Vai trò trong hệ thống} & \textbf{Số lượng đo được} & \textbf{Nguồn dữ liệu} \\
+        \midrule
+        \texttt{papers} & Mã định danh bài báo & Bản gốc chuẩn về siêu dữ liệu bài báo, dùng để dựng chi tiết bài báo & 70.590 & Tầng Silver, \texttt{papers.\allowbreak parquet} theo năm \\
+        \texttt{paper\_chunks} & Mã định danh đoạn & Bản gốc chuẩn về nội dung đoạn, là đầu vào để tái tạo chỉ mục vector & 913.205 & Tầng Silver, \texttt{chunks.\allowbreak parquet} theo năm \\
+        \texttt{source\_objects} & Đường dẫn đối tượng trong kho đối tượng & Truy vết về tệp thô ban đầu, chỉ lưu bản kê, không lưu nội dung & 136.823 & Liệt kê tầng Bronze trong kho đối tượng \\
+        \texttt{authors} & Tên tác giả đã chuẩn hoá & Điểm uy tín PageRank phục vụ xếp hạng lại & 120 & \texttt{graph\_\allowbreak coauthorship.\allowbreak json} \\
+        \texttt{association\_\allowbreak rules} & Cặp tiền đề và kết luận & Luật kết hợp phục vụ mở rộng truy vấn & 40 & \texttt{association\_\allowbreak rules.json} \\
+        \texttt{categories} & Chỉ số danh mục & Danh mục và màu tương ứng cho giao diện & Chưa có dữ liệu & \texttt{categories.\allowbreak json}, tệp chưa có trong kho đối tượng \\
+        \texttt{world\_nodes} & Mã định danh nút cây & Cấu trúc định tuyến và vector trọng tâm & Chưa có dữ liệu & \texttt{tree.json} và tệp trọng tâm, tệp chưa có trong kho đối tượng \\
+        \texttt{datasets} & Phiên bản tập dữ liệu & Hợp đồng đối soát giữa kho khoa học và chỉ mục vector & Chưa có dữ liệu & Đóng dấu bởi tiến trình đối soát, chưa chạy trên toàn bộ tập dữ liệu \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Mọi tập hợp sử dụng khoá chính là chuỗi khoá tự nhiên bên ngoài thay cho \texttt{ObjectId}. Khoá tự nhiên làm cho mỗi tài liệu có thể được đối chiếu trực tiếp với định danh mà chỉ mục vector đang dùng, nên việc phát hiện lệch giữa hai kho không cần bảng ánh xạ trung gian. Mỗi tài liệu còn mang một trường phiên bản lược đồ, cho phép hệ thống biết tài liệu đó được sinh ra theo quy tắc nào.
+
+Một hệ quả của lựa chọn khoá tự nhiên là quy mô hai kho được dùng đúng như một đại lượng duy nhất: chỉ mục vector giữ 913.205 điểm và kho khoa học giữ 913.205 bản ghi đoạn ứng với cùng bộ tài liệu. Vì vậy bảng ánh xạ giữa hai kho không tồn tại, và pha đối soát so sánh trực tiếp theo mã đoạn.
+
+Quy trình nạp được chia thành năm pha, mỗi pha là một tiến trình độc lập, chạy lại an toàn và ghi theo cơ chế upsert theo khoá. Bảng~\ref{tab:nam-pha-nap} trình bày thứ tự các pha và lý do của thứ tự đó.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Năm pha nạp kho khoa học và ràng buộc thứ tự.}
+    \label{tab:nam-pha-nap}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.8cm}>{\raggedright\arraybackslash}p{2.65cm}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}p{4.35cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Pha} & \textbf{Nguồn đầu vào} & \textbf{Đích} & \textbf{Nội dung chính} & \textbf{Ràng buộc thứ tự} \\
+        \midrule
+        1 & Chỉ mục vector & \texttt{paper\_chunks}, \texttt{papers} & Quét toàn bộ điểm, xác minh mã định danh điểm là UUIDv5 của mã đoạn, ghi nhận cấu trúc danh sách bài báo và các đoạn hiện có & Phải chạy trước pha 2 để pha 2 nhìn thấy đủ bộ đoạn của mỗi bài \\
+        2 & Tầng Silver, định dạng Parquet & \texttt{papers}, \texttt{paper\_chunks} & Nguồn chuẩn của nội dung đoạn: văn bản, tổng kiểm tra, chỉ số thứ tự đọc, tiêu đề và loại mục & Chạy sau pha 1; là nơi duy nhất sinh ra nội dung đoạn \\
+        3 & Tệp khai phá và cây tri thức & \texttt{authors}, \texttt{association\_\allowbreak rules}, \texttt{world\_nodes}, \texttt{categories} & Di dời bảng PageRank, luật kết hợp, cây tri thức và danh mục & Độc lập với pha 1 và 2; có thể chạy song song \\
+        4 & Liệt kê tầng Bronze & \texttt{source\_objects} & Ghi bản kê đối tượng thô: đường dẫn, kích thước, kiểu nội dung, thẻ kiểm tra & Chỉ đọc phần danh sách, không tải nội dung đối tượng \\
+        5 & Kho khoa học và chỉ mục vector & \texttt{datasets} & Đối soát hai kho, ghi số lượng sai lệch và tổng kiểm tra tập dữ liệu & Chạy sau tất cả các pha ghi dữ liệu \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Một tiến trình nạp không bao giờ chạy qua kết nối đường hầm (tunnel) của ứng dụng mà kết nối thẳng tới cơ sở dữ liệu. Lý do là thao tác ghi hàng loạt qua đường hầm tốn 15 đến 25 ms cho mỗi lượt khứ hồi mạng như đã phân tích ở Chương~\ref{chap:thiet-ke-kien-truc}; với 913.205 tài liệu, việc tuần tự hoá hay đi vòng qua tunnel ứng dụng sẽ đẩy tổng thời gian nạp lên hàng giờ. Vì vậy, phương án nạp trực tiếp qua ứng dụng bị loại khỏi phạm vi thiết kế, và các pha ghi kết nối thẳng vào cơ sở dữ liệu theo từng lô nhỏ để mỗi sự cố mạng chỉ ảnh hưởng đúng một lô.
+
+Cơ chế kiểm tra tính toàn vẹn là ba mức tổng kiểm tra (checksum) SHA-256 lồng nhau, mỗi mức xác định rõ thứ tự và dấu phân cách để cùng một đầu vào luôn cho cùng một giá trị, bất kể ai tính và theo thứ tự nào các dòng dữ liệu được đọc (Bảng~\ref{tab:ba-muc-checksum}).
+
+\begin{table}[H]
+    \centering
+    \caption{Ba mức tổng kiểm tra của mô hình toàn vẹn kho khoa học.}
+    \label{tab:ba-muc-checksum}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.0cm}>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{2.9cm}@{}}
+        \toprule
+        \textbf{Mức} & \textbf{Trường} & \textbf{Quy tắc tính} & \textbf{Phạm vi kiểm tra} \\
+        \midrule
+        Đoạn & \texttt{paper\_chunks.\allowbreak text\_sha256} & SHA-256 trên các byte UTF-8 của văn bản đoạn & 913.205 đoạn \\
+        Bài báo & \texttt{papers.\allowbreak content\_sha256} & SHA-256 trên chuỗi nối các cặp mã đoạn và tổng kiểm tra đoạn, theo thứ tự \texttt{chunk\_index} tăng dần & 70.590 bài báo \\
+        Tập dữ liệu & \texttt{datasets.\allowbreak content\_sha256} & SHA-256 trên chuỗi nối các cặp mã bài và tổng kiểm tra bài đã sắp xếp, kèm số đếm các tập hợp & Toàn bộ tập dữ liệu \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{tsbox}{Tính tổng kiểm tra SHA-256 ở mức đoạn và bài báo (checksum.ts)}
+/** Chunk-level integrity digest. */
+export function chunkTextSha256(text: string): string {
+  return sha256(text);
+}
+
+/**
+ * Paper-level integrity digest.
+ *
+ * `chunks` MUST already be in reading order (ascending `chunk_index`). The order
+ * is part of the digest by design: reordering chunks changes the paper digest.
+ */
+export function paperContentSha256(chunks: ChunkDigestInput[]): string {
+  const lines = chunks.map((c) => `${c.chunk_id}:${chunkTextSha256(c.text)}`);
+  return sha256(lines.join('\n'));
+}
+\end{tsbox}
+
+Tổng kiểm tra mức bài báo cố ý bao gồm cả thứ tự. Nếu chỉ băm nội dung mà bỏ qua thứ tự, việc hai đoạn bị hoán đổi vị trí sẽ không làm thay đổi giá trị kiểm tra, và lỗi đó chính là loại lỗi mà cơ chế này sinh ra để phát hiện. Khi pha đối soát phát hiện sai lệch, nó chỉ báo cáo số lượng sai lệch chứ không tự sửa, vì việc tự ý ghi đè âm thầm vào chỉ mục vector sẽ che giấu lỗi của đường ống.
+
+Tính toàn vẹn lược đồ được củng cố bằng bộ kiểm tra JSON Schema cài đặt trực tiếp trên cơ sở dữ liệu, ở mức kiểm tra nghiêm ngặt và hành động là từ chối. Một điểm dễ nhầm cần nêu rõ: cơ sở dữ liệu không kiểm tra lại những tài liệu đã tồn tại khi bộ kiểm tra được cài đặt, mà chỉ kiểm tra mọi thao tác ghi về sau. Vì vậy bộ kiểm tra phải chạy sau toàn bộ các pha nạp, nếu không thì chính những lượt ghi lấp đầy kho sẽ bị từ chối.
+
+Bốn quyết định thiết kế đáng chú ý của lớp lưu trữ gồm:
+\begin{itemize}
+    \item[--] \textbf{Định danh kho đối tượng theo đường dẫn đầy đủ}: Khoá của \texttt{source\_objects} là đường dẫn đầy đủ trong kho đối tượng thay vì mã băm nội dung, nhằm tránh gộp nhầm hai bài báo có tệp trùng nhau và làm mất liên kết với tệp riêng.
+    \item[--] \textbf{Lưu thẻ kiểm tra theo phản hồi lưu trữ}: Trường kiểm tra của đối tượng nguồn mang tên là thẻ kiểm tra (\texttt{etag}) vì đó là giá trị do kho đối tượng trả về, dùng mã MD5 với tệp tải lên đơn phần (single-part upload) thay cho SHA-256.
+    \item[--] \textbf{Liên kết một chiều tới bài báo}: Quan hệ giữa đối tượng nguồn và bài báo là một chiều vì cơ sở dữ liệu chạy ở chế độ standalone, không có giao dịch đa tài liệu.
+    \item[--] \textbf{Suy diễn thứ tự đọc từ định danh}: Thứ tự đọc của các đoạn được suy ra trực tiếp từ mã định danh đoạn thay vì sao chép từ thứ tự dòng của tệp Parquet.
+\end{itemize}
 
 \section{Thiết kế cơ chế Chunking và xây dựng dữ liệu phục vụ Retrieval}
 \label{sec:chunking-retrieval}
 
-% Nội dung phần 4.4
+Phân đoạn (chunking) trong hệ thống này bám theo cấu trúc tài liệu học thuật chứ không theo cửa sổ văn bản cố định. Mỗi bài báo được chia theo ranh giới mục và đoạn: một mục không vượt ngưỡng độ dài thì là một đoạn; một mục dài được chia thành nhiều phần, mỗi phần là một đoạn; phần tóm tắt luôn là đoạn đầu tiên của bài.
+
+Lựa chọn này xuất phát từ đặc thù đã nêu ở Mục~\ref{sec:nguon-du-lieu-arxiv}. Một bài báo học thuật có bố cục rõ ràng, và phần lớn câu hỏi của người dùng đều gắn với một loại nội dung cụ thể: phương pháp, kết quả thực nghiệm hay kết luận. Nếu chia theo cửa sổ cố định, một câu trả lời về phương pháp có thể bị cắt làm đôi giữa chừng, và nhãn loại mục của đoạn trở nên vô nghĩa. Chia theo cấu trúc vừa giữ được tính toàn vẹn của một đoạn trả lời, vừa giữ được khả năng trích dẫn theo mục.
+
+Bảng~\ref{tab:quy-tac-phan-doan} trình bày quy tắc phân đoạn và cấu trúc mã định danh sinh ra.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Quy tắc phân đoạn theo cấu trúc tài liệu và ngữ pháp mã định danh đoạn.}
+    \label{tab:quy-tac-phan-doan}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Đơn vị cấu trúc} & \textbf{Điều kiện} & \textbf{Kết quả} & \textbf{Mã định danh sinh ra} \\
+        \midrule
+        Phần tóm tắt & Không tách & Một đoạn đứng đầu & \texttt{<paper\_id>\_abs} \\
+        Phần tóm tắt bị tách & Vượt ngưỡng độ dài & Nhiều đoạn liên tiếp & \texttt{<paper\_id>\_abs\_p2} \\
+        Mục đánh số & Không tách & Một đoạn cho cả mục & \texttt{<paper\_id>\_sec3} \\
+        Mục đánh số bị tách & Vượt ngưỡng độ dài & Nhiều đoạn liên tiếp & \texttt{<paper\_id>\_sec3\_p2} \\
+        Mục phụ & Không tách & Một đoạn cho cả mục phụ & \texttt{<paper\_id>\_sec3\_p1} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Mã định danh đoạn vì vậy mang ba thông tin cùng lúc: mã bài báo, vị trí mục và vị trí phần trong mục. Mã đoạn vừa là khoá của tập hợp lưu trữ, vừa là thứ tự đọc được mã hoá sẵn bên trong, vừa là căn cứ để trích dẫn. Việc mã hoá thứ tự đọc vào chính bộ khoá là điểm cần nhấn mạnh, vì nó loại bỏ hoàn toàn khả năng thứ tự đọc bị sai do sai lệch giữa các lần nạp.
+
+Việc suy ra thứ tự đọc là bắt buộc chứ không phải lựa chọn hình thức, bởi vì thứ tự dòng trong tệp Parquet là thứ tự từ điển. Khi sắp xếp mã định danh theo thứ tự từ điển, mục 10 nằm trước mục 1, và mục 4 phần 10 nằm trước mục 4 phần 2. Đo trên 31.309 bài báo, 91,21\% bài báo tình cờ đã đúng thứ tự, còn 2.752 bài báo còn lại đều xuất hiện nghịch đảo thứ tự đọc thực sự chứ không phải trường hợp đồng hạng. Bộ phân tích ngữ pháp mã định danh được neo ở cuối chuỗi nên không bao giờ khớp nhầm một hậu tố nằm giữa mã; theo phép đo trên 462.471 đoạn thuộc các phân vùng năm 2000, 2024 và 2026, bộ phân tích xử lý chính xác 100\% mã định danh.
+
+\begin{tsbox}{Gán chỉ số thứ tự đọc cho danh sách đoạn (chunk-order.ts)}
+export function assignChunkIndexes(
+  chunks: Array<{ chunk_id: string }>,
+): Map<string, number | null> {
+  const sorted = [...chunks].sort((a, b) =>
+    compareChunkOrder(a.chunk_id, b.chunk_id),
+  );
+  const out = new Map<string, number | null>();
+  let index = 0;
+  for (const chunk of sorted) {
+    if (parseChunkPosition(chunk.chunk_id) === null) {
+      out.set(chunk.chunk_id, null);
+      continue;
+    }
+    out.set(chunk.chunk_id, index);
+    index += 1;
+  }
+  return out;
+}
+\end{tsbox}
+
+Chỉ số thứ tự được gán liên tục và không có lỗ hổng, bắt đầu từ không cho mỗi bài báo. Một mã định danh không phân tích được vẫn được giữ trong kho và sắp xếp theo mã, nhưng không chiếm một vị trí chỉ số nào, vì chiếm vị trí đó sẽ làm lệch chỉ số của mọi đoạn phía sau. Trong toàn bộ đợt nạp thực tế, không có đoạn nào rơi vào trường hợp này.
+
+Nhãn loại mục của đoạn được chuẩn hoá về sáu loại mà giao diện dùng để tô màu: \texttt{abstract}, \texttt{introduction}, \texttt{method}, \texttt{experiment}, \texttt{discussion} và \texttt{other}. Việc chuẩn hoá diễn ra ở lớp trình bày chứ không phải lúc nạp, bởi vì nhãn thô do đường ống thượng nguồn ghi vào có nhiều biến thể không chuẩn (\texttt{body}, \texttt{abstract\_problem}, \texttt{methodology}...), và việc giữ nguyên nhãn thô trong kho bảo toàn khả năng tái tạo chỉ mục vector từ dữ liệu nguồn (Bảng~\ref{tab:anh-xa-nhan-muc}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Quy tắc ánh xạ nhãn loại mục thô sang sáu loại chuẩn.}
+    \label{tab:anh-xa-nhan-muc}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.0cm}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Nhãn thô của đường ống} & \textbf{Loại chuẩn} & \textbf{Điều kiện nhận dạng} \\
+        \midrule
+        \texttt{abstract}, \texttt{abstract\_problem} & \texttt{abstract} & Nhãn bắt đầu bằng \texttt{abstract} \\
+        \texttt{introduction}, \texttt{intro} & \texttt{introduction} & Nhãn bắt đầu bằng \texttt{intro} \\
+        \texttt{method}, \texttt{methodology}, \texttt{approach}, \texttt{architecture} & \texttt{method} & Nhãn bắt đầu bằng \texttt{method} hoặc chứa \texttt{approach}, \texttt{architecture} \\
+        \texttt{experiment}, \texttt{experiments}, \texttt{result}, \texttt{results}, \texttt{evaluation} & \texttt{experiment} & Nhãn bắt đầu bằng \texttt{experiment}, \texttt{result} hoặc chứa \texttt{evaluation} \\
+        \texttt{discussion}, \texttt{conclusion} & \texttt{discussion} & Nhãn bắt đầu bằng \texttt{discussion} hoặc \texttt{conclusion} \\
+        Mọi nhãn còn lại & \texttt{other} & Không khớp quy tắc nào \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Ba quyết định thiết kế còn lại của lớp phân đoạn ảnh hưởng trực tiếp tới chất lượng truy hồi:
+\begin{itemize}
+    \item[--] \textbf{Đính kèm siêu dữ liệu cấu trúc vào từng đoạn}: Mỗi đoạn mang theo tiêu đề mục và nhãn loại mục để bộ chấm điểm và giao diện phân biệt được đoạn phương pháp với đoạn kết quả thực nghiệm mà không cần phân tích lại văn bản.
+    \item[--] \textbf{Lưu nguyên văn đầu vào nhúng}: Văn bản của đoạn được lưu nguyên văn đúng với chuỗi mà bộ nhúng đã dùng, nhờ đó chỉ mục vector có thể dựng lại hoàn toàn từ kho khoa học mà không cần truy ngược tới đường ống thu thập.
+    \item[--] \textbf{Ghi nhận số từ cho phân bổ ngữ cảnh}: Số từ của đoạn được lưu thành một trường riêng nhằm phục vụ lọc theo độ dài và phân bổ ngân sách ngữ cảnh; ngưỡng lọc cụ thể chưa được đo định lượng trong phạm vi đề tài nên chỉ giữ ở mức thông số thiết kế dự kiến.
+\end{itemize}
 
 \section{Thiết kế Embedding và Vector Indexing}
 \label{sec:embedding-vector-indexing}
 
-% Nội dung phần 4.5
+Nhúng văn bản là điểm chuyển đổi giữa không gian ngôn ngữ tự nhiên và không gian vector. Hệ thống dùng mô hình \texttt{nomic-embed-text-v1.5}, sinh vector 768 chiều, áp dụng chuẩn hoá L2 (L2 normalization) và gộp trung bình theo token (mean pooling). Bảng~\ref{tab:thong-so-embedding} tổng hợp các thông số kỹ thuật của lớp nhúng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thông số kỹ thuật của lớp nhúng văn bản.}
+    \label{tab:thong-so-embedding}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.45cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Thông số} & \textbf{Giá trị} & \textbf{Lý do lựa chọn} \\
+        \midrule
+        Mô hình & \texttt{nomic-embed-text-v1.5} & Chạy cục bộ qua ONNX Runtime, không phụ thuộc dịch vụ nhúng bên ngoài; phù hợp ràng buộc hạ tầng nội bộ đã đặt ở Chương~\ref{chap:thiet-ke-kien-truc} \\
+        Số chiều & 768 & Trùng khớp với cấu hình tập hợp \texttt{scientific\_papers\_gold}; ứng dụng kiểm tra chiều vector lúc khởi động và ghi nhận cảnh báo nếu lệch \\
+        Chuẩn hoá & L2, chuẩn hoá trong mô hình & Cho phép dùng tích vô hướng (dot product) thay cho phép tính độ tương đồng cosin đầy đủ \\
+        Gộp token & Trung bình (mean pooling) & Ổn định với đoạn văn bản có độ dài không đồng đều \\
+        Tiền tố tác vụ (task prefix) & Truy vấn: \texttt{search\_query: }; tài liệu: \texttt{search\_document: } & Mô hình Nomic được huấn luyện bất đối xứng khiến vector truy vấn và tài liệu nằm ở hai vùng khác nhau; đường ống thượng nguồn đã dùng \texttt{search\_document: } nên phía truy vấn bắt buộc dùng tiền tố tương ứng \\
+        Bộ nhớ đệm truy vấn & 500 mục, hết hạn sau 10 phút & Truy vấn lặp lại trong phiên hội thoại khá phổ biến; giữ đệm trong bộ nhớ tiến trình để không phát sinh chi phí I/O \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Hai quyết định cần nhấn mạnh ở lớp nhúng. Thứ nhất, tiền tố tác vụ là bắt buộc chứ không phải tuỳ chọn: hệ thống dùng chung một mô hình cho cả hai chiều nhúng, nên bỏ tiền tố ở phía truy vấn sẽ so sánh hai vector thuộc hai vùng phân bố khác nhau, làm suy giảm trực tiếp độ chính xác truy hồi mà không phát sinh tín hiệu lỗi nào. Thứ hai, kiểm tra số chiều được thực hiện ngay lúc khởi động: nếu cấu hình tập hợp khác với kết quả nhúng, ứng dụng ghi cảnh báo \texttt{QDRANT\_DIMENSION\_MISMATCH} thay vì âm thầm trả kết quả sai.
+
+\begin{tsbox}{Giao diện cổng nhúng văn bản (embedding.service.ts)}
+export const EMBEDDING_DIM = 768;
+export const QUERY_PREFIX = 'search_query: ';
+export const EMBEDDING_UNAVAILABLE = 'embedding unavailable';
+
+/** What the RAG pipeline needs from an embedder; mocked in tests. */
+export interface EmbeddingPort {
+  embedQuery(q: string): Promise<number[]>;
+  isReady(): boolean;
+}
+\end{tsbox}
+
+Chỉ mục vector trên Qdrant được xây dựng ở thượng nguồn và ứng dụng chỉ đọc. Cấu trúc chỉ mục là HNSW với khoảng cách cosin, và mỗi điểm mang các trường lọc gồm mã định danh đoạn, mã định danh bài báo, tiêu đề, danh sách tác giả, danh mục chính, năm, tiêu đề mục, loại mục và mã định danh nhánh (\texttt{twig\_id}) khi cây tri thức đã được nối.
+
+Về quyền sở hữu dữ liệu, chỉ mục vector chỉ lưu 913.205 điểm vector 768 chiều kèm siêu dữ liệu lọc mà không chứa nội dung văn bản của đoạn, vốn chỉ tồn tại ở 913.205 bản ghi tương ứng trong kho khoa học. Hệ quả là mỗi lượt truy vấn chỉ mục vector phải kèm theo lượt đọc bổ sung nội dung từ kho khoa học -- được gom thành hai truy vấn song song cho toàn bộ tập kết quả thay vì truy vấn rời từng đoạn. Ngoài ra, mã định danh của mỗi điểm vector là UUIDv5 sinh tất định (deterministic) từ mã đoạn theo không gian tên DNS; đợt nạp đã xác minh toàn bộ số điểm được quét không có sai lệch, cho phép pha đối soát so sánh trực tiếp hai kho theo mã đoạn mà không cần bảng ánh xạ trung gian và đóng dấu kết quả vào tập hợp \texttt{datasets}.
 
 \section{Thiết kế Retrieval và cơ chế tìm kiếm thông tin}
 \label{sec:thiet-ke-retrieval}
 
-% Nội dung phần 4.6
+Truy hồi trong hệ thống này là thao tác ba bước: định tuyến câu hỏi vào một vùng ngành trên cây tri thức, truy vấn chỉ mục vector trong vùng đó, rồi bổ sung nội dung đoạn từ kho khoa học.
+
+Cây tri thức ba chiều có hai cấp định tuyến (Bảng~\ref{tab:hai-cap-dinh-tuyen}). Cấp thứ nhất so sánh vector truy vấn với vector trọng tâm của các nhánh cấp một bằng tích vô hướng ngay trong bộ nhớ, giữ lại \texttt{nprobe} nhánh tốt nhất. Cấp thứ hai lặp lại thao tác đó trên các nhánh con cấp hai nằm dưới những nhánh đã chọn, giữ lại \texttt{nprobe} nhánh con tốt nhất. Tham số \texttt{nprobe} được giới hạn trong khoảng từ một đến sáu và mặc định là hai.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Hai cấp định tuyến trên cây tri thức ba chiều.}
+    \label{tab:hai-cap-dinh-tuyen}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.4cm}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Cấp} & \textbf{Đối tượng so sánh} & \textbf{Kết quả} & \textbf{Vai trò trong truy hồi} \\
+        \midrule
+        Cấp 1 & Vector trọng tâm của các nhánh cấp một & Danh sách đầy đủ nhánh kèm điểm và \texttt{nprobe} nhánh được chọn & Xác định miền ngành mà truy vấn có khả năng thuộc về \\
+        Cấp 2 & Vector trọng tâm của các nhánh con cấp hai dưới những nhánh đã chọn & \texttt{nprobe} nhánh con được chọn & Sinh bộ lọc \texttt{twig\_id} cho truy vấn chỉ mục vector \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Cơ chế lọc là điểm cần nhấn mạnh. Mã định danh nhánh con được chọn ở cấp hai không dùng để tự lọc kết quả trong ứng dụng, mà được chuyển thành điều kiện lọc có cấu trúc truyền xuống chỉ mục vector. Nhờ đó việc giới hạn theo ngành diễn ra bên trong cơ sở dữ liệu vector, thay vì lọc sau khi đã truy vấn toàn bộ tập hợp. Điều kiện lọc luôn được dựng bằng đối tượng có cấu trúc, không bao giờ ghép từ chuỗi do người dùng nhập, và danh mục được kiểm tra bằng biểu thức chính quy (regex) trước khi dùng.
+
+Hai trường hợp biên được xử lý tường minh. Khi tập hợp chỉ mục chưa có trường \texttt{twig\_id}, định tuyến vẫn hoạt động nhưng điều kiện lọc theo nhánh bị bỏ qua, kèm cảnh báo \texttt{QDRANT\_NO\_TWIG\_ID}; đây là trạng thái tạm thời cho tới khi cây tri thức được nối vào chỉ mục. Khi truy vấn không thuộc ngành nào đã biết, kết quả vẫn được trả về thay vì bị từ chối, vì điều kiện lọc rỗng tương đương truy vấn toàn tập hợp.
+
+Mọi lượt gọi chỉ mục vector đều có thời hạn chờ 15 giây; quá hạn trả về mã 503 với nội dung \texttt{qdrant unavailable}. Khi một kết nối giữ sống (keep-alive) bị máy chủ vector đóng trước khi tái sử dụng, lượt gọi được thử lại một lần trên socket mới, vì toàn bộ thao tác tới chỉ mục vector đều chỉ đọc nên việc thử lại không sinh tác dụng phụ. Hình~\ref{fig:luong-truy-hoi} minh hoạ luồng truy hồi hoàn chỉnh.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[node distance=0.45cm, font=\small]
+        \node[ragbox, text width=6.6cm] (Q) {Câu hỏi người dùng};
+        \node[ragbox, text width=6.6cm, below=of Q] (E) {Nhúng truy vấn (768 chiều, chuẩn L2)};
+        \node[ragdecision, below=0.55cm of E] (R1) {Định tuyến cấp 1\\(cosin với trọng tâm nhánh)};
+        \node[ragdecision, below=0.55cm of R1] (R2) {Định tuyến cấp 2\\(cosin với trọng tâm nhánh con)};
+        \node[ragbox, text width=7.0cm, below=0.55cm of R2] (QDR) {Truy vấn chỉ mục vector\\(lọc theo nhánh con và danh mục, thời hạn 15 giây)};
+        \node[ragbox, text width=6.6cm, below=of QDR] (H) {Tập ứng viên sắp xếp theo điểm cosin};
+        \node[ragbox, text width=7.0cm, below=of H] (CR) {Bổ sung nội dung đoạn\\(2 truy vấn kho song song, thời hạn 5 giây)};
+        \node[ragbox, text width=6.8cm, fill=green!8, draw=green!50!black, below=of CR] (OUT) {Tập ứng viên đủ nội dung cho xếp hạng lại};
+
+        \draw[ragarrow] (Q) -- (E);
+        \draw[ragarrow] (E) -- (R1);
+        \draw[ragarrow] (R1) -- (R2);
+        \draw[ragarrow] (R2) -- (QDR);
+        \draw[ragarrow] (QDR) -- (H);
+        \draw[ragarrow] (H) -- (CR);
+        \draw[ragarrow] (CR) -- (OUT);
+    \end{tikzpicture}
+    \caption{Luồng truy hồi gồm định tuyến hai cấp, truy vấn có lọc và bổ sung nội dung theo lô.}
+    \label{fig:luong-truy-hoi}
+\end{figure}
+
+Ba quyết định thiết kế của lớp truy hồi đáng chú ý:
+\begin{itemize}
+    \item[--] \textbf{Định tuyến thuần bộ nhớ}: Phép định tuyến chỉ thực hiện tính toán số học trong bộ nhớ tiến trình, không phát sinh lượt khứ hồi mạng nên không làm tiêu hao ngân sách độ trễ.
+    \item[--] \textbf{Giới hạn biên độ đọc toàn văn}: Việc đọc chi tiết toàn văn bị chặn ở tối đa 500 đoạn cho một bài báo và tối đa 20 bài cho một lượt đọc danh sách theo lô, ngăn một truy vấn kéo theo tải đọc quá lớn.
+    \item[--] \textbf{Đọc kho khoa học có chọn lọc theo lô}: Kho khoa học chỉ được đọc theo lô sau khi chỉ mục vector đã thu hẹp tập ứng viên, gom thành hai truy vấn song song thay vì quét kho hoặc đọc tuần tự từng đoạn.
+\end{itemize}
 
 \section{Phân tích và thiết kế RAG Pipeline}
 \label{sec:rag-pipeline}
 
-% Nội dung phần 4.7
+Cụ thể hoá quy trình bảy pha đã giới thiệu tổng quan ở Bảng~\ref{tab:bay-pha-rag} (Mục~\ref{sec:ai-integration-layer}), đường xử lý hỏi đáp vận hành như một dãy trạng thái phát sự kiện chi tiết để giao diện hiển thị từng bước tiến độ. Bảng~\ref{tab:bay-pha-chi-tiet} trình bày ánh xạ giữa từng pha, sự kiện SSE phát ra và đầu ra cụ thể của đường xử lý.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Bảy pha của đường xử lý hỏi đáp và sự kiện phát ra tương ứng.}
+    \label{tab:bay-pha-chi-tiet}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Pha} & \textbf{Thao tác} & \textbf{Sự kiện phát ra} & \textbf{Đầu ra của pha} \\
+        \midrule
+        Nhúng & Mở rộng truy vấn (tuỳ chọn) và nhúng vector truy vấn & \texttt{phase: embedding} & Vector 768 chiều \\
+        Định tuyến & Định tuyến hai cấp trên cây tri thức & \texttt{phase: flying}, \texttt{route} & Các nhánh và nhánh con được chọn \\
+        So sánh & Truy vấn chỉ mục vector và bổ sung nội dung & \texttt{phase: comparing}, \texttt{compare} & Danh sách bài báo ứng viên \\
+        Tìm thấy & Xếp hạng lại và chấm điểm bằng bộ chấm điểm & \texttt{phase: found}, \texttt{retrieval} & Đoạn có căn cứ cùng điểm \\
+        Sinh văn bản & Sinh câu trả lời theo luồng & \texttt{phase: generating}, \texttt{token} & Văn bản trả lời \\
+        Kiểm tra căn cứ & Đối chiếu câu trả lời với bằng chứng & \texttt{answer\_replaced} (khi cần) & Câu trả lời cuối cùng \\
+        Hoàn tất & Trích xuất trích dẫn và lưu hội thoại & \texttt{done} & Trích dẫn, thời gian, chất lượng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Điểm cần nhấn mạnh về cấu trúc là mọi pha trước khi sinh văn bản đều là thao tác đọc và tính toán cục bộ, nên phần lớn thời gian chờ của người dùng tập trung ở đúng một chặng: sinh văn bản. Điều này quyết định cách bố trí hàng đợi ở Mục~\ref{sec:local-ai-runtime}.
+
+Lớp xếp hạng lại gồm ba thành phần phối hợp với nhau. Thành phần thứ nhất là điểm uy tín tác giả: đồ thị đồng tác giả được khai phá bằng PageRank, và điểm uy tín của một đoạn lấy theo giá trị PageRank lớn nhất trong các tác giả của bài báo (đã chuẩn hoá theo giá trị cực đại toàn bảng). Điểm kết hợp ban đầu là tổ hợp tuyến tính giữa điểm tương đồng ngữ nghĩa $s_{\text{sim}}$ và điểm uy tín $s_{\text{auth}}$:
+\begin{equation}
+    S = 0{,}85 \cdot s_{\text{sim}} + 0{,}15 \cdot s_{\text{auth}}
+    \label{eq:diem-xep-hang-ch4}
+\end{equation}
+Hệ số $0{,}85$ và $0{,}15$ giữ cho điểm tương đồng ngữ nghĩa đóng vai trò chủ đạo, vì điểm uy tín chỉ là tín hiệu bổ trợ từ cộng đồng chứ không đo trực tiếp mức độ liên quan với câu hỏi; cơ chế này có thể tắt qua tham số \texttt{use\_authority\_boost} theo từng yêu cầu.
+
+Thành phần thứ hai là bộ chấm điểm Laya, một mô hình ngôn ngữ nhỏ chạy tại chỗ trả về xác suất trong đoạn $[0, 1]$ cho biết đoạn văn bản có trực tiếp trả lời câu hỏi hay không. Khi bộ chấm điểm không khả dụng, quy trình giữ nguyên thứ tự xếp hạng từ công thức~\eqref{eq:diem-xep-hang-ch4} thay vì dừng luồng xử lý.
+
+Thành phần thứ ba là hợp nhất thứ hạng theo công thức Reciprocal Rank Fusion với hằng số $k = 60$:
+\begin{equation}
+    \text{RRF}(d) = \frac{1}{k + r_{\text{vec}}(d)} + \frac{1}{k + r_{\text{rel}}(d)}
+    \label{eq:rrf-ch4}
+\end{equation}
+trong đó $r_{\text{vec}}(d)$ là thứ hạng của đoạn $d$ theo điểm tương đồng ngữ nghĩa và $r_{\text{rel}}(d)$ là thứ hạng theo điểm của bộ chấm điểm. Hợp nhất theo thứ hạng thay vì cộng điểm thô là lựa chọn có chủ đích: hai thang điểm khác nhau không cùng đơn vị đo, nên phép cộng trực tiếp sẽ bị chi phối bởi thang có biên độ lớn hơn, trong khi RRF chỉ dựa vào thứ hạng nên kháng nhiễu lệch phân phối.
+
+Số lượng ứng viên đưa vào bộ chấm điểm được tính theo công thức $\min\bigl(20, \max(10, 2 \cdot \texttt{top\_k})\bigr)$, giới hạn trong khoảng 10 đến 20 đoạn nhằm cân bằng giữa độ phủ bằng chứng và thời hạn chờ của bộ chấm điểm. Bảng~\ref{tab:tham-so-xep-hang-lai} tóm tắt bộ tham số của lớp xếp hạng lại.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tham số của lớp xếp hạng lại.}
+    \label{tab:tham-so-xep-hang-lai}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tham số} & \textbf{Giá trị} & \textbf{Vai trò} \\
+        \midrule
+        Trọng số tương đồng ngữ nghĩa & $0{,}85$ & Thành phần chủ đạo của điểm kết hợp \\
+        Trọng số uy tín tác giả & $0{,}15$ & Tín hiệu bổ trợ từ PageRank đồng tác giả \\
+        Hằng số hợp nhất thứ hạng & $k = 60$ & Hằng số quy ước của Reciprocal Rank Fusion \\
+        Kích thước tập ứng viên đưa vào bộ chấm điểm & $\min\bigl(20, \max(10, 2 \cdot \texttt{top\_k})\bigr)$ & Cân bằng độ rộng tập ứng viên và thời gian chờ \\
+        Số đoạn dùng cho kiểm tra căn cứ & 3 đoạn đầu & Phạm vi đánh giá căn cứ của câu trả lời \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Trước khi sinh văn bản, hệ thống áp dụng cổng chất lượng thứ nhất dựa trên điểm căn cứ. Nếu điểm tốt nhất trong tập đoạn đã chọn thấp hơn ngưỡng $0{,}6$, hệ thống viết lại câu hỏi thành một truy vấn tìm kiếm tối đa một lần (giới hạn 25 từ), rồi chạy lại từ bước nhúng, định tuyến đến truy vấn và chấm điểm. Việc chấm điểm sau khi viết lại vẫn so với câu hỏi gốc của người dùng, bởi vì bản viết lại chỉ mở rộng phạm vi truy hồi chứ không thay đổi điều cần trả lời. Nếu điểm căn cứ vẫn dưới ngưỡng, hệ thống từ chối sinh văn bản và trả về thông báo không có căn cứ.
+
+Sau khi sinh văn bản, cổng chất lượng thứ hai kiểm tra mức độ được ngữ cảnh hỗ trợ của chính câu trả lời trên ba đoạn bằng chứng đầu. Nếu điểm kiểm tra thấp hơn ngưỡng $0{,}3$, toàn bộ câu trả lời bị thay bằng hằng số \texttt{NO\_CONTEXT\_ANSWER} của tầng dựng prompt hệ thống, đồng thời phát sự kiện \texttt{answer\_replaced} để giao diện thay thế nội dung đã truyền trước đó.
+
+Mở rộng truy vấn trước khi nhúng là kỹ thuật bổ trợ dựa trên tập luật kết hợp khai phá bằng thuật toán FP-Growth từ đồng xuất hiện từ khoá trong kho tài liệu, với \texttt{min\_support = 0.02} và \texttt{min\_confidence = 0.5}. Tập gồm 40 luật mạnh nhất được nạp sẵn vào bộ nhớ lúc khởi động; khi cờ \texttt{expand\_query} được bật, hệ thống ghép tối đa năm thuật ngữ hậu quả từ các luật khớp đầy đủ tiền đề vào chuỗi tìm kiếm nhúng, vẫn giữ nguyên câu hỏi gốc cho bước chấm điểm. Hình~\ref{fig:chuoi-bay-pha-rag} minh hoạ chuỗi bảy pha kèm hai cổng kiểm soát chất lượng.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.92\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.55cm and 2.0cm, font=\small]
+        \node[ragbox, text width=3.8cm] (IN) {Câu hỏi người dùng};
+        \node[ragbox, text width=4.8cm, below=of IN] (P1) {1. Nhúng (mở rộng tuỳ chọn)};
+        \node[ragbox, text width=4.8cm, below=of P1] (P2) {2. Định tuyến trên cây tri thức};
+        \node[ragbox, text width=4.8cm, below=of P2] (P3) {3. So sánh (vector và nạp đoạn)};
+        \node[ragbox, text width=4.8cm, below=of P3] (P4) {4. Tìm thấy (xếp hạng lại và chấm điểm)};
+        \node[ragdecision, below=0.65cm of P4] (G1) {Cổng căn cứ\\($\ge 0{,}6$?)};
+
+        \node[ragbox, text width=3.6cm, left=2.0cm of G1] (RW) {Viết lại câu hỏi\\(1 lần, tối đa 25 từ)};
+        \node[ragbox, text width=3.7cm, right=2.1cm of G1] (AB) {Từ chối trả lời:\\không có căn cứ};
+
+        \node[ragbox, text width=4.8cm, below=0.7cm of G1] (P5) {5. Sinh văn bản theo luồng};
+        \node[ragdecision, below=0.65cm of P5] (G2) {6. Kiểm tra căn cứ\\($\ge 0{,}3$ trên 3 đoạn đầu?)};
+        \node[ragbox, text width=3.7cm, right=2.1cm of G2] (RP) {Thay bằng thông báo\\không có căn cứ};
+        \node[ragbox, text width=4.8cm, fill=green!8, draw=green!50!black, below=0.7cm of G2] (P7) {7. Hoàn tất và lưu hội thoại};
+
+        \draw[ragarrow] (IN) -- (P1);
+        \draw[ragarrow] (P1) -- (P2);
+        \draw[ragarrow] (P2) -- (P3);
+        \draw[ragarrow] (P3) -- (P4);
+        \draw[ragarrow] (P4) -- (G1);
+
+        \draw[ragarrow] (G1.west) -- node[above, font=\scriptsize] {chưa đạt} (RW.east);
+        \draw[ragarrow] (RW.north) |- (P1.west);
+        \draw[ragarrow] (G1.east) -- node[above, font=\scriptsize] {vẫn chưa đạt} (AB.west);
+        \draw[ragarrow] (G1.south) -- node[left, font=\scriptsize] {đạt} (P5.north);
+
+        \draw[ragarrow] (P5) -- (G2);
+        \draw[ragarrow] (G2.east) -- node[above, font=\scriptsize] {chưa đạt} (RP.west);
+        \draw[ragarrow] (G2.south) -- node[left, font=\scriptsize] {đạt} (P7.north);
+
+        \draw[ragarrow] (AB.east) -- ++(0.45,0) |- ([yshift=4pt]P7.east);
+        \draw[ragarrow] (RP.south) |- ([yshift=-4pt]P7.east);
+    \end{tikzpicture}%
+    }
+    \caption{Chuỗi bảy pha của đường xử lý hỏi đáp với hai cổng kiểm soát chất lượng.}
+    \label{fig:chuoi-bay-pha-rag}
+\end{figure}
+
+Ba quyết định thiết kế của đường xử lý hỏi đáp đáng chú ý:
+\begin{itemize}
+    \item[--] \textbf{Hai cổng chất lượng bổ trợ cho nhau}: Cổng trước sinh bảo đảm ngữ cảnh đầu vào đủ độ liên quan, còn cổng sau sinh kiểm tra câu trả lời thực sự bám sát ngữ cảnh đó; cả hai đều có cơ chế suy giảm mềm khi bộ chấm điểm không sẵn sàng.
+    \item[--] \textbf{Giới hạn viết lại truy vấn tối đa một lần}: Ngăn vòng lặp viết lại kéo theo hàng loạt lượt truy hồi vô hạn làm phá vỡ ngân sách độ trễ.
+    \item[--] \textbf{Ưu tiên từ chối minh bạch thay cho suy diễn}: Khi thiếu bằng chứng, hệ thống dừng sinh và báo không có căn cứ thay vì cố tạo câu trả lời thiếu nguồn.
+\end{itemize}
 
 \section{Thiết kế Local AI Runtime và cơ chế Inference}
 \label{sec:local-ai-runtime}
 
-% Nội dung phần 4.8
+Theo ràng buộc tự triển khai hoàn toàn trong hạ tầng nội bộ trên một máy chủ đơn đã xác định ở Chương~\ref{chap:thiet-ke-kien-truc}, quá trình suy luận văn bản không gọi dịch vụ đám mây bên ngoài mà vận hành qua một môi trường thực thi suy luận (inference runtime) cục bộ. Mô hình sinh \texttt{Qwen2.5-7B-Instruct} được lượng tử hoá theo định dạng \texttt{Q4\_K\_M} (tệp trọng số GGUF khoảng 4,68 GB) và nạp trực tiếp qua thư viện \texttt{node-llama-cpp}. Bảng~\ref{tab:cau-hinh-inference-runtime} trình bày đầy đủ các thông số cấu hình của môi trường suy luận cục bộ.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Cấu hình môi trường thực thi suy luận cục bộ.}
+    \label{tab:cau-hinh-inference-runtime}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Thông số} & \textbf{Giá trị} & \textbf{Ý nghĩa vận hành} \\
+        \midrule
+        Mô hình & \texttt{Qwen2.5-7B-\allowbreak Instruct-Q4\_K\_M} & Cân bằng giữa độ chính xác và yêu cầu bộ nhớ; lượng tử hoá 4 bit cho phép chạy trên một máy chủ đơn \\
+        Định dạng trọng số & GGUF & Định dạng chuẩn cho suy luận cục bộ, nạp trực tiếp qua \texttt{node-llama-cpp} \\
+        Cửa sổ ngữ cảnh & 8.192 token & Đủ chứa prompt hệ thống, ngữ cảnh truy hồi và câu hỏi; đồng thời là giới hạn trên độ dài đầu vào \\
+        Nhiệt độ lấy mẫu & $0{,}2$ & Ưu tiên tính ổn định lặp lại và bám sát ngữ cảnh hơn sự đa dạng văn phong \\
+        Số token đầu ra tối đa & 1.024 & Giới hạn chi phí mỗi lượt sinh và giữ độ trễ cảm nhận trong ngưỡng \\
+        Số lượt sinh đồng thời & 1 & Mô hình 7B chạy một luồng trên một tài nguyên suy luận để tránh tranh chấp bộ nhớ GPU \\
+        Hàng đợi chờ tối đa & 8 yêu cầu & Xếp hàng có kiểm soát; yêu cầu thứ chín trở đi bị từ chối ngay \\
+        Thời hạn một lượt sinh & 60 giây & Quá hạn trả về mã 504 \texttt{llm timeout} \\
+        Hạ tầng tăng tốc & Tự động phát hiện CUDA, Metal, Vulkan; dự phòng CPU & Trạng thái phần cứng thực tế được báo cáo qua trường \texttt{gpu} trong endpoint kiểm tra sức khoẻ \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Hàng đợi thực thi đóng vai trò cơ chế giảm tải (load shedding). Khi số yêu cầu chờ đã đủ tám, yêu cầu mới bị từ chối ngay với mã 429 \texttt{llm queue is full} thay vì cho vào hàng đợi chờ vô hạn. Đây là quyết định có chủ đích: một hàng đợi không giới hạn độ sâu sẽ biến tình trạng quá tải thành tình trạng treo kéo dài trên toàn hệ thống, trong khi từ chối sớm vẫn giữ cho các lượt đang chạy hoàn tất đúng hạn. Khi một lượt sinh kết thúc, khe thực thi (slot) được bàn giao trực tiếp cho yêu cầu chờ kế tiếp mà không phát sinh độ trễ điều phối trung gian.
+
+Trên lớp hàng đợi còn một lớp giới hạn số yêu cầu đồng thời theo phía truy cập: tối đa hai lượt cho mỗi tài khoản đã xác thực và ba lượt cho mỗi địa chỉ IP. Ngưỡng hai lượt theo tài khoản dự phòng cho trường hợp một luồng đang truyền và một luồng mới thay thế trước khi tín hiệu huỷ kịp tới nơi; ngưỡng theo IP ngăn một điểm mạng đơn lẻ chiếm trọn hàng đợi khi nhiều người dùng chung địa chỉ. Khi vượt ngưỡng, yêu cầu bị từ chối ngay với mã 429 \texttt{too many concurrent requests}.
+
+Bốn quyết định thiết kế đáng chú ý của môi trường suy luận cục bộ gồm:
+\begin{itemize}
+    \item[--] \textbf{Nạp trọng số bất đồng bộ lúc khởi động}: Mô hình được nạp ở chế độ nền để ứng dụng vẫn phục vụ xác thực và kiểm tra sức khoẻ ngay khi khởi chạy, đồng thời báo trạng thái qua cờ \texttt{ready} thay vì chặn tiến trình khởi động.
+    \item[--] \textbf{Tách kênh truyền token khỏi lời gọi mô hình}: Lỗi phát sinh giữa chừng luôn được chuyển thành ngoại lệ có kiểu trả về tầng điều phối thay vì làm treo luồng chờ vô hạn.
+    \item[--] \textbf{Gắn tín hiệu huỷ theo vòng đời kết nối}: Lượt sinh tự động dừng và giải phóng ngay slot hàng đợi khi người dùng ngắt kết nối, khi vượt thời hạn 60 giây hoặc khi phía tiêu thụ ngừng đọc.
+    \item[--] \textbf{Ưu tiên tính ổn định học thuật}: Nhiệt độ $0{,}2$ và giới hạn 1.024 token bảo đảm hệ thống trả lời súc tích, lặp lại nhất quán và dễ đối chiếu nguồn thay vì sinh văn phong phóng tác.
+\end{itemize}
 
 \section{Thiết kế các AI Components và cơ chế tích hợp}
 \label{sec:ai-components}
 
-% Nội dung phần 4.9
+Như đã định vị ở lớp tích hợp AI thuộc Mục~\ref{sec:ai-integration-layer}, các thành phần AI được tổ chức theo kiến trúc cổng và bộ chuyển đổi (Ports and Adapters). Mỗi thành phần khai báo một giao diện miền đặt tên theo nhu cầu của đường xử lý, còn phần hiện thực cụ thể nằm ở tầng hạ tầng để có thể thay thế độc lập. Bảng~\ref{tab:nam-giao-dien-ai} cụ thể hoá năm giao diện miền ở Bảng~\ref{tab:nam-cong-ai} kèm danh sách phương thức và hiện thực tương ứng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Năm giao diện miền của tầng AI và hiện thực tương ứng.}
+    \label{tab:nam-giao-dien-ai}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Giao diện} & \textbf{Phương thức miền} & \textbf{Hiện thực} & \textbf{Trách nhiệm} \\
+        \midrule
+        Cổng nhúng & \texttt{embedQuery}, \texttt{isReady} & Dịch vụ nhúng chạy mô hình Nomic cục bộ & Biến câu hỏi thành vector truy vấn, có bộ nhớ đệm \\
+        Cổng kho vector & \texttt{search}, \texttt{scrollByPaper}, \texttt{hasPayloadField}, \texttt{ping} & Dịch vụ chỉ mục vector đọc tập dữ liệu chuẩn (\texttt{scientific\_\allowbreak papers\_gold}) & Truy vấn vector có lọc, quét đoạn theo bài \\
+        Cổng mô hình ngôn ngữ & \texttt{generate}, \texttt{status} & Dịch vụ suy luận cục bộ trên \texttt{node-llama-cpp} & Sinh token theo luồng, quản lý hàng đợi và thời hạn \\
+        Cổng chấm điểm & \texttt{relevance}, \texttt{groundedness} & Dịch vụ bộ chấm điểm chạy Laya qua ONNX Runtime & Chấm điểm liên quan và mức độ căn cứ \\
+        Cổng lưu phiên & \texttt{assertOwned}, \texttt{beginRequest}, \texttt{saveExchange}, \texttt{getExchange} & Lớp lưu phiên trên cơ sở dữ liệu ứng dụng & Ghi và đọc phiên hội thoại, tin nhắn và khoá chống gửi lặp \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Kiến trúc này mang lại ba lợi ích thực tế. Thứ nhất, đường xử lý hỏi đáp không gắn chặt vào bất kỳ mô hình hay hạ tầng lưu trữ nào cụ thể: khi không có thư mục trọng số Laya, cổng chấm điểm tự động tắt hai cổng chất lượng mà đường xử lý vẫn vận hành bình thường. Thứ hai, toàn bộ đường xử lý có thể được kiểm thử đơn vị và tích hợp một cách tất định (deterministic) bằng bộ giả lập thay cho mô hình thật. Thứ ba, ranh giới phụ thuộc được khoá chặt: đường xử lý chỉ tiêm bốn cổng AI (\texttt{EMBEDDING\_PORT}, \texttt{VECTOR\_STORE\_PORT}, \texttt{LLM\_PORT} và \texttt{JUDGE\_PORT} tuỳ chọn), còn cổng lưu phiên nằm ngoài ở tầng ứng dụng nên thay đổi cách lưu lịch sử không lan truyền vào tầng AI.
+
+Đảm nhiệm vai trò \texttt{JUDGE\_PORT} là bộ chấm điểm Laya -- một mô hình ngôn ngữ nhỏ nạp qua ONNX Runtime và thực thi ngay trong tiến trình ứng dụng. Mô hình chạy một lượt cho mỗi đoạn ứng viên với cấu trúc câu hỏi khẳng định có điều kiện (đoạn văn có trực tiếp trả lời câu hỏi hay không, và câu trả lời có được bằng chứng hỗ trợ hay không), giúp phân biệt đoạn chỉ trùng chủ đề hoặc từ khoá với đoạn thực sự chứa bằng chứng trả lời.
+
+Chi phí thực thi của Laya cho thấy chênh lệch lớn giữa GPU và CPU: gộp mười đoạn trong một lượt trên CUDA chỉ tốn 316,16 ms (trung bình 31,62 ms mỗi đoạn), trong khi chạy tuần tự trên CPU mất tới 4.260 ms. Do đó, việc cấu hình bộ chấm điểm chạy trên GPU tuy là tuỳ chọn về mặt kiến trúc nhưng đóng vai trò quyết định trong vận hành thực tế: nếu chạy trên CPU với tập ứng viên lớn, thời gian chấm điểm dễ chạm ngưỡng chờ 30 giây của cổng trước sinh, kích hoạt cơ chế tự tắt và chuyển sang xếp hạng theo tương đồng cộng uy tín tác giả. Ở đầu ra, mô hình trả về một cấu trúc đóng gói cố định với giá trị xác suất nằm tại trường \texttt{noul} của nhánh \texttt{answers}; kết hợp với tham số lấy mẫu cố định, phép kiểm tra của hai cổng chất lượng bảo đảm tính lặp lại cho cùng đầu vào. Bảng~\ref{tab:gioi-han-bo-cham-diem} liệt kê các giới hạn vận hành của bộ chấm điểm.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Giới hạn vận hành của bộ chấm điểm Laya.}
+    \label{tab:gioi-han-bo-cham-diem}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.8cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Giới hạn} & \textbf{Giá trị} & \textbf{Lý do} \\
+        \midrule
+        Số ký tự tối đa của câu trả lời đưa vào đánh giá & 900 & Cửa sổ đọc của bộ chấm điểm là 512 token; câu trả lời quá dài sẽ đẩy bằng chứng ra khỏi cửa sổ \\
+        Số ký tự tối đa của đoạn bằng chứng & 1.100 & Cùng lý do giới hạn cửa sổ đầu vào \\
+        Số yêu cầu chờ tối đa & 8 & Yêu cầu vượt ngưỡng bị bỏ qua thay vì xếp hàng, giúp luồng hỏi đáp duy trì khả năng phục vụ dưới tải cao \\
+        Thời hạn một lượt chấm & 30 giây & Quá hạn trả về trạng thái không có phán quyết, không coi là phán quyết âm \\
+        Số lượt chạy đồng thời & 1 & Một lượt chạy chiếm toàn bộ lõi xử lý khả dụng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Cơ chế suy giảm của bộ chấm điểm là điểm cần nhấn mạnh. Bộ chấm điểm không bao giờ làm hỏng một lượt hỏi đáp: nó trả về giá trị rỗng khi chưa sẵn sàng, quá tải, quá hạn hoặc gặp lỗi, và đường xử lý coi đó là trạng thái không có phán quyết. Nhờ vậy, chất lượng xếp hạng có thể tăng nhờ bộ chấm điểm, nhưng độ sẵn sàng của dịch vụ hỏi đáp không bao giờ phụ thuộc vào nó -- nhất quán với nguyên tắc cách ly kho khoa học (thành phần bổ trợ có thể tạm gián đoạn nhưng không làm sập đường xử lý chính).
+
+Hoàn tất bức tranh tích hợp là bộ nhớ đệm truy vấn của lớp nhúng (500 mục, thời hạn 10 phút như nêu ở Bảng~\ref{tab:thong-so-embedding}) và cơ chế mở kết nối kho khoa học ở chế độ nền với thời hạn chờ 5 giây, bảo đảm sự cố tạm thời của kho văn bản không chặn quá trình khởi động ứng dụng.
 
 \section{Thiết kế cấu trúc Output, Citation và kiểm soát kết quả sinh}
 \label{sec:output-citation}
 
-% Nội dung phần 4.10
+Cấu trúc đầu ra của hệ thống được thiết kế theo nguyên tắc: mọi khẳng định kỹ thuật trong câu trả lời phải dẫn được về một bài báo cụ thể, và mọi trích dẫn phải kiểm chứng được với ngữ cảnh đã truy hồi. Cơ chế trích dẫn dựa trên thẻ có cấu trúc dạng \texttt{[Paper: \{paper\_id\}]} được prompt hệ thống yêu cầu mô hình gắn ngay sau mỗi khẳng định kỹ thuật, khớp với thẻ định danh đặt trước mỗi đoạn ngữ cảnh. Cách ràng buộc cấu trúc này giảm đáng kể nguy cơ mô hình tự bịa mã định danh không tồn tại vì mã bài báo luôn hiện diện sẵn trong đầu vào. Bảng~\ref{tab:dang-the-trich-dan} liệt kê các biến thể thẻ được bộ trích xuất hỗ trợ.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các dạng thẻ trích dẫn và cách trích xuất.}
+    \label{tab:dang-the-trich-dan}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.8cm}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Dạng thẻ} & \textbf{Nguồn phát sinh} & \textbf{Kết quả trích xuất} \\
+        \midrule
+        \texttt{[Paper: 2106.09685]} & Dạng chuẩn do lệnh hệ thống yêu cầu & \texttt{2106.09685} \\
+        \texttt{[Paper: 2106.09685, cs/0510001]} & Nhiều mã trong một thẻ & Hai mã, giữ nguyên thứ tự xuất hiện \\
+        \texttt{[Paper ID: 2106.09685 | }\textit{Tiêu đề bài báo}\texttt{]} & Mô hình chép lại tiêu đề đoạn ngữ cảnh & \texttt{2106.09685}, bỏ qua phần tiêu đề \\
+        Thẻ lặp lại & Mô hình trích dẫn cùng một bài nhiều lần & Chỉ giữ lần xuất hiện đầu tiên \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bộ trích xuất giữ nguyên thứ tự xuất hiện đầu tiên và khử trùng lặp, giúp danh sách trích dẫn khớp theo đúng mạch lập luận của câu trả lời. Các mã định danh nằm ngoài tập ngữ cảnh đã truy hồi vẫn được giữ lại thay vì bị xoá âm thầm, vì việc ẩn đi sẽ che giấu hiện tượng mô hình tự sinh nguồn không có căn cứ; thay vào đó, giao diện đánh dấu nhóm trích dẫn này là chưa được kiểm chứng.
+
+Đầu ra hoàn chỉnh của một lượt hỏi đáp gồm năm thành phần chính, được trả về đồng bộ trong phản hồi không truyền luồng và đóng gói trong sự kiện \texttt{done} khi truyền theo luồng (Bảng~\ref{tab:thanh-phan-dau-ra}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Năm thành phần của đầu ra một lượt hỏi đáp.}
+    \label{tab:thanh-phan-dau-ra}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.8cm}@{}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Ý nghĩa} & \textbf{Nguồn tạo} \\
+        \midrule
+        \texttt{answer} & Văn bản trả lời cuối cùng sau mọi cổng kiểm soát & Đường xử lý hỏi đáp \\
+        \texttt{citations} & Danh sách mã định danh bài báo được trích dẫn, đã khử trùng lặp & Trích xuất từ văn bản trả lời \\
+        \texttt{grounded\_chunks} & Tập đoạn có căn cứ kèm điểm tương đồng, điểm uy tín, điểm cuối cùng và thẻ trích dẫn & Lớp xếp hạng lại \\
+        \texttt{timings} & Thời gian đo được cho từng chặng và tổng thời gian & Đường xử lý hỏi đáp \\
+        \texttt{quality} & Điểm căn cứ, câu hỏi sau viết lại, điểm kiểm tra căn cứ và cờ từ chối & Hai cổng kiểm soát chất lượng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Trường \texttt{quality} chỉ xuất hiện khi bộ chấm điểm thực sự thực thi, và các trường con bên trong vẫn mang giá trị rỗng nếu một phép đo bị bỏ qua hoặc quá hạn. Sự tách bạch này mang ý nghĩa kiểm chứng rõ ràng: điểm căn cứ bằng không (bằng chứng không liên quan) và điểm căn cứ không đo được (bộ chấm điểm không có phán quyết) là hai trạng thái hoàn toàn khác nhau.
+
+Ở lớp truyền thông theo luồng Server-Sent Events (đã định nghĩa hợp đồng API ở Bảng~\ref{tab:su-kien-sse}), Bảng~\ref{tab:su-kien-sse-chi-tiet} liệt kê chi tiết bảy sự kiện phát ra theo đúng trình tự xử lý bên trong phân hệ AI (minh hoạ ở Hình~\ref{fig:trinh-tu-su-kien-sse}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các sự kiện của luồng trả lời theo thứ tự phát ra trong đường xử lý.}
+    \label{tab:su-kien-sse-chi-tiet}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.35cm}>{\raggedright\arraybackslash}p{5.35cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Sự kiện} & \textbf{Nội dung} & \textbf{Ý nghĩa với giao diện} \\
+        \midrule
+        \texttt{phase} & Tên pha hiện tại & Cập nhật chỉ báo bước đang thực thi \\
+        \texttt{route} & Các nhánh và nhánh con kèm điểm tương đồng & Hiển thị câu hỏi được định tuyến vào miền ngành nào \\
+        \texttt{compare} & Danh sách bài báo ứng viên kèm điểm & Hiển thị tập ứng viên trước khi xếp hạng lại \\
+        \texttt{retrieval} & Đoạn có căn cứ và thuật ngữ đã mở rộng & Kích hoạt hiệu ứng nổi bật ngữ cảnh căn cứ \\
+        \texttt{token} & Mảnh văn bản sinh ra & Hiển thị câu trả lời tăng dần theo luồng \\
+        \texttt{answer\_replaced} & Nội dung thay thế khi không đạt cổng hậu kiểm & Yêu cầu giao diện thay toàn bộ nội dung vừa hiển thị \\
+        \texttt{done} & Trích dẫn, thời gian, chất lượng, mã phiên và mã tin nhắn & Chốt lượt hỏi đáp và kích hoạt lưu lịch sử cục bộ \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[font=\scriptsize]
+        \def\dx{3.0}
+        \def\ybot{-15.65}
+        \foreach \i/\name/\lbl in {
+            0/U/{Người dùng},
+            1/B/{Đường xử lý RAG},
+            2/V/{Chỉ mục vector},
+            3/K/{Kho khoa học},
+            4/J/{Bộ chấm điểm},
+            5/L/{Mô hình sinh}
+        }{
+            \node[ragbox, minimum width=2.25cm, minimum height=0.8cm, font=\scriptsize\bfseries] (\name) at (\i*\dx, 0) {\lbl};
+            \draw[gray!60, dashed, thick] (\name.south) -- (\i*\dx, \ybot);
+        }
+
+        \begin{scope}[on background layer]
+            \draw[draw=primaryBlue!65, dashed, rounded corners=2pt, fill=orange!4] (0.7*\dx, -8.1) rectangle (5.3*\dx, -10.7);
+            \draw[draw=primaryBlue!65, dashed, rounded corners=2pt, fill=orange!4] (-0.25*\dx, -13.15) rectangle (1.35*\dx, -14.25);
+        \end{scope}
+
+        \draw[ragarrow] (0*\dx, -1.0) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Câu hỏi} (1*\dx, -1.0);
+        \draw[ragdashed] (1*\dx, -1.7) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {\texttt{phase: embedding}} (0*\dx, -1.7);
+        \draw[ragdashed] (1*\dx, -2.55) -- node[above, align=center, fill=white, inner sep=1pt, font=\scriptsize] {\texttt{phase: flying}\\\texttt{route}} (0*\dx, -2.55);
+
+        \draw[ragarrow] (1*\dx, -3.3) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Truy vấn lọc nhánh} (2*\dx, -3.3);
+        \draw[ragdashed] (2*\dx, -4.0) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Điểm và \texttt{payload}} (1*\dx, -4.0);
+
+        \draw[ragarrow] (1*\dx, -4.7) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Đọc đoạn theo lô} (3*\dx, -4.7);
+        \draw[ragdashed] (3*\dx, -5.4) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Văn bản đoạn} (1*\dx, -5.4);
+
+        \draw[ragarrow] (1*\dx, -6.1) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Chấm điểm liên quan} (4*\dx, -6.1);
+        \draw[ragdashed] (4*\dx, -6.8) -- node[above, fill=white, inner sep=1pt, font=\scriptsize] {Điểm căn cứ} (1*\dx, -6.8);
+
+        \draw[ragdashed] (1*\dx, -7.65) -- node[above, align=center, fill=white, inner sep=1pt, font=\scriptsize] {\texttt{phase: found}\\\texttt{retrieval}} (0*\dx, -7.65);
+
+        % Nhãn khung alt 1: Viết lại câu hỏi nếu < 0.6
+        \node[anchor=north west, font=\scriptsize\bfseries, text=primaryBlue!85!black] at (0.72*\dx, -8.12) {alt [Điểm căn cứ $< 0{,}6$]};
+        \draw[ragarrow] (1*\dx, -8.9) -- node[above, pos=0.62, fill=orange!4, inner sep=1pt, font=\scriptsize] {Viết lại câu hỏi} (5*\dx, -8.9);
+        \draw[ragdashed] (5*\dx, -9.55) -- node[above, pos=0.62, fill=orange!4, inner sep=1pt, font=\scriptsize] {Truy vấn viết lại} (1*\dx, -9.55);
+        \draw[ragarrow] (1*\dx, -10.2) -- node[above, fill=orange!4, inner sep=1pt, font=\scriptsize] {Truy vấn lần hai} (2*\dx, -10.2);
+
+        \draw[ragarrow] (1*\dx, -11.35) -- node[above, pos=0.62, fill=white, inner sep=1pt, font=\scriptsize] {Sinh câu trả lời theo luồng} (5*\dx, -11.35);
+        \draw[ragdashed] (5*\dx, -12.0) -- node[above, pos=0.9, fill=white, inner sep=1pt, font=\scriptsize] {\texttt{token}} (0*\dx, -12.0);
+
+        \draw[ragarrow] (1*\dx, -12.7) -- node[above, pos=0.67, fill=white, inner sep=1pt, font=\scriptsize] {Kiểm tra căn cứ trên 3 đoạn đầu} (4*\dx, -12.7);
+
+        % Nhãn khung alt 2: Thay thế câu trả lời nếu < 0.3
+        \node[anchor=north west, font=\scriptsize\bfseries, text=primaryBlue!85!black] at (-0.22*\dx, -13.17) {alt [Điểm $< 0{,}3$]};
+        \draw[ragdashed] (1*\dx, -13.95) -- node[above, fill=orange!4, inner sep=1pt, font=\scriptsize] {\texttt{answer\_replaced}} (0*\dx, -13.95);
+
+        \draw[ragdashed] (1*\dx, -15.15) -- node[above, align=center, fill=white, inner sep=1pt, font=\scriptsize] {\texttt{done}\\(trích dẫn, thời gian)} (0*\dx, -15.15);
+    \end{tikzpicture}%
+    }
+    \caption{Trình tự sự kiện của một lượt hỏi đáp đầy đủ.}
+    \label{fig:trinh-tu-su-kien-sse}
+\end{figure}
+
+Bốn quyết định thiết kế của lớp kiểm soát kết quả hoàn thiện hợp đồng giao tiếp giữa AI và giao diện:
+\begin{itemize}
+    \item[--] \textbf{Phát sự kiện \texttt{answer\_replaced} tường minh}: Do các token đã đẩy qua luồng SSE không thể thu hồi lại, giao diện cần nhận một sự kiện tách biệt để thay thế toàn bộ câu trả lời thay vì phải tự suy đoán từ chuỗi văn bản.
+    \item[--] \textbf{Giữ và gắn nhãn trích dẫn chưa kiểm chứng}: Mọi mã bài báo nằm ngoài tập ngữ cảnh đã truy hồi vẫn giữ lại và gắn dấu cảnh báo nhằm minh bạch hoá sai lệch của mô hình trước người đọc.
+    \item[--] \textbf{Phát lại nguyên bản qua \texttt{Idempotency-Key}}: Bản ghi khoá chống gửi lặp được giữ trong 24 giờ; khi nhận lại cùng khoá sau khi lượt đầu hoàn tất, máy chủ phát lại nguyên bản kết quả và trích dẫn đã lưu (kèm header \texttt{Idempotent-Replayed}) thay vì chạy lại mô hình, còn trường hợp lượt đầu đang thực thi hoặc khác nội dung mới trả về mã xung đột 409 (Bảng~\ref{tab:xu-ly-trung-lap}).
+    \item[--] \textbf{Giữ kết nối truyền thẳng qua hạ tầng trung gian}: Luồng sự kiện truyền qua phản hồi truyền thẳng (raw HTTP response) của yêu cầu \texttt{POST}, kèm gói ping duy trì kết nối mỗi 15 giây và header tắt cơ chế đệm của proxy để từng mảnh token được đẩy thẳng về trình duyệt ngay khi sinh ra.
+\end{itemize}
