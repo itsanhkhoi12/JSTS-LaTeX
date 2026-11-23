@@ -5,52 +5,1132 @@
 \chapter{Thiết kế kiến trúc và hệ thống}
 \label{chap:thiet-ke-kien-truc}
 
+% Style dùng chung cho các sơ đồ TikZ trong Chương 3
+\tikzset{
+    ragbox/.style={
+        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!5,
+        thick, minimum height=0.8cm, align=center, font=\small, inner sep=5pt
+    },
+    ragdb/.style={
+        cylinder, shape border rotate=90, aspect=0.25, draw=primaryBlue, fill=primaryBlue!8,
+        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
+    },
+    ragdecision/.style={
+        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
+        thick, align=center, font=\small, inner sep=2pt
+    },
+    raggroup/.style={
+        rectangle, rounded corners=4pt, draw=primaryBlue!50, dashed, fill=primaryBlue!2,
+        inner sep=8pt
+    },
+    ragarrow/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!80!black
+    },
+    ragdashed/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
+    }
+}
+
 \section{Phân tích và lựa chọn kiến trúc tổng thể}
 \label{sec:kien-truc-tong-the}
 
-% Nội dung phần 3.1
+Chương~\ref{chap:phan-tich-yeu-cau} đã xác định bốn nhóm ràng buộc phi chức năng quyết định trực tiếp đến hình dạng kiến trúc: độ trễ phân vị 95 dưới 500 ms cho các đường đọc không sinh văn bản, tỉ lệ lỗi dưới một phần trăm, khả năng phục vụ cục bộ hoàn toàn và cơ chế lưu trữ hai tầng cho lịch sử hội thoại. Bốn đặc thù của tải làm việc sau đây định hình mọi quyết định kiến trúc trong chương này.
+
+\begin{itemize}
+    \item[--] Đường xử lý chính là một đường đi có trạng thái, đi qua nhúng câu hỏi, định tuyến trên cây tri thức, truy vấn chỉ mục vector, chấm điểm và xếp hạng lại, nạp đoạn văn bản theo lô, rồi mới tới sinh văn bản. Mỗi chặng có thời hạn chờ riêng và tổng các thời hạn chờ phải nằm trong ngưỡng chấp nhận được, nên bất kỳ phương án nào làm thêm một lượt khứ hồi mạng vào đường xử lý chính đều vi phạm ngưỡng đã công bố.
+    \item[--] Tài nguyên suy luận là hàng đợi một luồng: mô hình ngôn ngữ chạy cục bộ với một luồng sinh đồng thời và hàng đợi có độ sâu tối đa tám. Kiến trúc phải có cơ chế giảm tải khi hàng đợi đầy (load shedding), tức là từ chối có kiểm soát trước khi tài nguyên bị cạn kiệt, chứ không dựa vào việc tăng tài nguyên.
+    \item[--] Quy mô dữ liệu phân bố rất lệch: chỉ mục vector chứa 913.205 điểm, kho khoa học chứa 70.590 bài báo cùng hơn một triệu đoạn văn bản, trong khi cơ sở dữ liệu ứng dụng chỉ chứa tài khoản người dùng, phiên hội thoại và nhật ký kiểm toán. Kiến trúc phải đồng nhất được việc truy vấn tập ứng viên nhỏ trên quy mô lớn mà không phải tải toàn bộ kho văn bản vào bộ nhớ.
+    \item[--] Ràng buộc tự triển khai trong hạ tầng nội bộ (on-premise): cả mô hình nhúng, mô hình ngôn ngữ và kho khoa học đều nằm trong hạ tầng của hệ thống. Điều này loại trừ các phương án phụ thuộc hạ tầng dùng chung bên ngoài và ưu tiên phương án triển khai được trên một máy chủ đơn.
+\end{itemize}
+
+Ba phương án kiến trúc tổng thể được đưa vào xem xét.
+
+Phương án A là kiến trúc microservices, trong đó mỗi năng lực nghiệp vụ được tách thành một dịch vụ độc lập: dịch vụ xác thực, dịch vụ truy hồi, dịch vụ sinh văn bản, dịch vụ quản lý phiên, kèm một cổng trung gian điều phối. Phương án này ưu điểm ở khả năng thay thế và mở rộng theo chiều ngang (horizontal scaling) từng thành phần.
+
+Phương án B là kiến trúc layered monolith, trong đó toàn bộ nghiệp vụ nằm trong một tiến trình ứng dụng duy nhất, được chia thành các tầng với ranh giới rõ ràng: tầng trình bày, tầng ứng dụng, tầng hạ tầng và tầng dữ liệu. Các thành phần truy hồi và suy luận được đặt sau giao diện (interface, còn gọi là cổng) để có thể thay thế độc lập mà không ảnh hưởng logic nghiệp vụ (business logic).
+
+Phương án C là kiến trúc serverless trên nền tảng điện toán đám mây, trong đó các chức năng được đóng gói thành hàm không trạng thái (stateless function), được lập lịch và tự co giãn (auto-scale) theo yêu cầu. Phương án này ưu điểm ở chi phí vận hành (operating cost) khi tải thấp.
+
+Bảng~\ref{tab:so-sanh-kien-truc} trình bày phép so sánh ba phương án theo sáu tiêu chí bắt buộc phải đáp ứng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Phép so sánh ba phương án kiến trúc tổng thể.}
+    \label{tab:so-sanh-kien-truc}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{Phương án A: microservices} & \textbf{Phương án B: layered monolith} & \textbf{Phương án C: serverless} \\
+        \midrule
+        Số lượt khứ hồi mạng trên đường xử lý chính & Nhiều, mỗi lượt gọi chéo dịch vụ là một lượt khứ hồi & Một, do mọi thành phần cùng nằm trong một tiến trình & Nhiều, kèm độ trễ cold start không kiểm soát được \\
+        Khả năng vận hành trên một máy chủ đơn & Kém, đòi hỏi dịch vụ khám phá (service discovery) và hạ tầng mạng nội bộ & Tốt, toàn bộ hệ thống khởi động bằng một tiến trình & Trung bình, phụ thuộc nhà cung cấp đám mây \\
+        Khả năng thay thế thành phần truy hồi và suy luận & Tốt, nhưng thay thế đồng nghĩa với thay đổi hợp đồng giao tiếp giữa các dịch vụ & Tốt, nhờ giao diện nằm trong cùng tiến trình và cùng hệ kiểu dữ liệu & Trung bình, phụ thuộc vào việc đóng gói hàm có mang được trọng số mô hình hay không \\
+        Chi phí vận hành khi tải thấp & Cao, do phải duy trì nhiều dịch vụ cùng lưu lượng liên dịch vụ & Thấp, do không có chi phí lưu lượng liên dịch vụ & Trung bình, phụ thuộc chính sách tính phí của nhà cung cấp \\
+        Khả năng kiểm thử và gỡ lỗi & Trung bình, lỗi phân tán nhiều nơi & Tốt, ngăn xếp lời gọi (call stack) và dấu vết thực thi (stack trace) nằm trong một tiến trình & Trung bình, trạng thái thực thi bị ẩn trong nhà cung cấp \\
+        Tính tự triển khai của dữ liệu & Tốt nếu toàn bộ dịch vụ đặt cục bộ & Tốt & Kém, phụ thuộc vị trí vùng dữ liệu (data region) của nhà cung cấp \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Hệ thống chọn phương án B, tức kiến trúc layered monolith, với bốn tầng và một đường giao tiếp duy nhất giữa tầng trên và tầng dưới.
+
+Lý do quyết định nằm ở đường xử lý chính. Trong phương án A, một lượt hỏi đáp hoàn chỉnh phải đi qua ít nhất bốn ranh giới mạng (network boundary), mỗi ranh giới mang thêm độ trễ chuyển tiếp và khả năng lỗi riêng. Với ngưỡng phân vị 95 dưới 500 ms và độ trễ một lượt khứ hồi tới cơ sở dữ liệu từ xa đã ở mức 15 đến 25 ms, phương án A tiêu hao ngân sách độ trễ chỉ để vận chuyển dữ liệu giữa các dịch vụ thuộc cùng một hệ thống. Phương án C bị loại vì ràng buộc tự triển khai và vì độ trễ khởi động lạnh (cold start) không kiểm soát được, gây phá vỡ ngưỡng độ trễ ở chặng sinh văn bản.
+
+Phương án B giải quyết đồng thời hai mục tiêu. Thứ nhất, mọi thành phần truy hồi và suy luận nằm trong cùng một tiến trình nên lời gọi nội bộ chỉ là lời gọi hàm, không tốn thêm lượt khứ hồi mạng. Thứ hai, việc tách các thành phần truy hồi ra sau giao diện vẫn giữ được tính linh hoạt của kiến trúc microservices ở phạm vi thay thế công nghệ: có thể thay cơ sở dữ liệu vector hay mô hình nhúng mà không sửa một dòng logic nghiệp vụ nào.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}
+        % Tầng 1: Tầng trình bày
+        \node[ragbox, text width=3.1cm] (FE) at (-0.6, 0) {Ứng dụng web React};
+        \node[ragbox, text width=4.2cm] (CLI) at (6.6, 0) {Công cụ dòng lệnh quản trị};
+
+        % Tầng 2: Tầng ứng dụng
+        \node[ragbox, text width=4.8cm] (HTTP) at (6.6, -2.5) {Tầng HTTP: controller và lớp bảo vệ};
+        \node[ragbox, text width=4.8cm] (SVC) at (6.6, -3.9) {Tầng dịch vụ nghiệp vụ};
+        \node[ragbox, text width=4.8cm] (ORC) at (6.6, -5.3) {Bộ điều phối truy hồi};
+
+        % Tầng 3: Tầng hạ tầng
+        \node[ragbox, text width=4.8cm] (ENG) at (6.6, -7.3) {Engine truy hồi và suy luận};
+        \node[ragbox, text width=4.3cm] (INF) at (12.2, -7.3) {Hạ tầng dùng chung: bộ nhớ đệm, ghi log, chỉ số};
+
+        % Tầng 4: Tầng dữ liệu
+        \node[ragdb, text width=2.4cm] (LOCAL) at (-0.6, -10.1) {Kho cục bộ\\trình duyệt};
+        \node[ragdb, text width=2.4cm] (MONGO) at (3.6, -10.1) {Cơ sở dữ liệu\\ứng dụng};
+        \node[ragdb, text width=2.3cm] (CORPUS) at (6.9, -10.1) {Kho khoa học\\chỉ đọc};
+        \node[ragdb, text width=2.3cm] (VS) at (10.2, -10.1) {Chỉ mục vector\\chỉ đọc};
+        \node[ragbox, text width=2.5cm] (LLM) at (13.5, -10.1) {Mô hình ngôn ngữ\\cục bộ};
+
+        \begin{scope}[on background layer]
+            \node[raggroup, fit=(FE)(CLI), label={[font=\small\bfseries, text=primaryBlue]above:Tầng trình bày}] {};
+            \node[raggroup, fit=(HTTP)(SVC)(ORC), label={[font=\small\bfseries, text=primaryBlue]left:Tầng ứng dụng}] {};
+            \node[raggroup, fit=(ENG)(INF), label={[font=\small\bfseries, text=primaryBlue]right:Tầng hạ tầng}] {};
+            \node[raggroup, fit=(LOCAL)(MONGO)(CORPUS)(VS)(LLM), label={[font=\small\bfseries, text=primaryBlue]below:Tầng dữ liệu}] {};
+        \end{scope}
+
+        \draw[ragarrow] (FE.south east) -- node[above, sloped, font=\scriptsize] {REST và SSE} (HTTP.north west);
+        \draw[ragarrow] (CLI.south) -- node[right, font=\scriptsize] {Giao diện dòng lệnh} (HTTP.north);
+        \draw[ragarrow] (HTTP) -- (SVC);
+        \draw[ragarrow] (SVC) -- (ORC);
+        \draw[ragarrow] (ORC) -- (ENG);
+        \draw[ragarrow] (SVC.east) -| (INF.north);
+
+        \draw[ragarrow] (ENG.south) -- (MONGO.north);
+        \draw[ragarrow] (ENG.south) -- (CORPUS.north);
+        \draw[ragarrow] (ENG.south) -- (VS.north);
+        \draw[ragarrow] (ENG.south east) -- (LLM.north);
+
+        \draw[ragarrow, {<->}] (FE.south) -- node[left, font=\scriptsize, align=center] {Đồng bộ\\nền} (LOCAL.north);
+    \end{tikzpicture}%
+    }
+    \caption{Bốn tầng kiến trúc tổng thể của hệ thống.}
+    \label{fig:kien-truc-bon-tang}
+\end{figure}
+
+Mười nguyên tắc sau đây chi phối toàn bộ nội dung chương này và được giữ bất biến trong quá trình triển khai ở Chương~\ref{chap:trien-khai-he-thong}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Mười nguyên tắc thiết kế xuyên suốt và hệ quả thiết kế cụ thể.}
+    \label{tab:muoi-nguyen-tac}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Mã} & \textbf{Nguyên tắc} & \textbf{Hệ quả thiết kế cụ thể} \\
+        \midrule
+        P-1 & Đường xử lý chính không có lượt khứ hồi mạng thừa & Dữ liệu khai phá và cây tri thức được nạp một lần vào bộ nhớ lúc khởi động, không truy vấn trong mỗi lượt hỏi \\
+        P-2 & Kho khoa học chỉ được đọc & Tài khoản kết nối kho không có quyền ghi, và không có đường dẫn mã nguồn nào ghi vào chỉ mục vector \\
+        P-3 & Tách tầng trình bày khỏi engine truy hồi & Mỗi engine truy hồi nằm sau một giao diện, thay thế được mà không sửa logic nghiệp vụ \\
+        P-4 & Mọi truy vấn cơ sở dữ liệu độc lập chạy song song & Không có mẫu truy vấn tuần tự trên các truy vấn có thể độc lập, vì mỗi lượt khứ hồi tới cơ sở dữ liệu từ xa tốn 15 đến 25 ms \\
+        P-5 & Lịch sử hội thoại có hai tầng, tầng cục bộ là nguồn dữ liệu chuẩn (source of truth) phía người dùng & Mọi thay đổi phiên và tin nhắn được ghi vào kho cục bộ trước, rồi mới đồng bộ lên máy chủ ở chế độ nền \\
+        P-6 & Vô hiệu hoá bộ nhớ đệm theo bộ đếm thế hệ theo tài khoản & Mọi đường ghi trên phiên và tin nhắn phải gọi cơ chế vô hiệu hoá, nếu không người dùng sẽ đọc dữ liệu cũ \\
+        P-7 & Xác thực trước, phân quyền sau & Đối tượng không thuộc sở hữu trả về 404, không trả về 403, để không tiết lộ sự tồn tại \\
+        P-8 & Lỗi cục bộ, không làm sập toàn hệ thống & Phụ thuộc ngoài không sẵn sàng làm hạn chế mức ảnh hưởng, không làm dừng tiến trình \\
+        P-9 & Thao tác lặp lại không sinh tác dụng phụ & Cập nhật và xoá không đổi trạng thái thì không ghi thêm, không tăng phiên bản token, không ghi nhật ký kiểm toán \\
+        P-10 & Nhật ký kiểm toán chỉ bổ sung & Bảng nhật ký không có đường dẫn cập nhật hoặc xoá, kể cả ở tầng dịch vụ \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bảng~\ref{tab:trach-nhiem-thanh-phan} tóm tắt trách nhiệm và cơ chế bảo vệ của từng thành phần lưu trữ và thành phần suy luận.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Trách nhiệm và cơ chế bảo vệ của các thành phần.}
+    \label{tab:trach-nhiem-thanh-phan}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Trách nhiệm} & \textbf{Cơ chế bảo vệ} & \textbf{Quyền truy cập} \\
+        \midrule
+        Cơ sở dữ liệu ứng dụng & Tài khoản người dùng, token làm mới, phiên hội thoại, tin nhắn hội thoại, khoá chống gửi lặp, nhật ký kiểm toán & Xác thực cơ sở dữ liệu, lọc theo chủ sở hữu, xoá mềm có thời hạn & Đọc và ghi, bằng tài khoản có quyền ghi trên cơ sở dữ liệu ứng dụng \\
+        Kho khoa học & Bản gốc chuẩn của bài báo, đoạn văn bản, tác giả, luật khai phá & Tài khoản riêng, không phải tài khoản quản trị gốc & Chỉ đọc \\
+        Chỉ mục vector & Vector 768 chiều và siêu dữ liệu đoạn, phục vụ truy vấn tìm kiếm gần nhất theo khoảng cách cosin & Tập hợp chỉ đọc, tài khoản có quyền tối thiểu & Chỉ đọc \\
+        Mô hình ngôn ngữ cục bộ & Sinh câu trả lời trong ngữ cảnh truy hồi & Chạy trong tiến trình, chuyển tầng suy luận sang GPU khi có thể, hàng đợi có độ sâu giới hạn & Chỉ gọi nội bộ qua hàng đợi \\
+        Mô hình nhúng cục bộ & Biến đổi câu hỏi và đoạn văn bản thành vector cố định số chiều & Chạy trong tiến trình, lưu kết quả trong bộ nhớ đệm có thời hạn & Chỉ gọi nội bộ \\
+        Kho cục bộ trình duyệt & Bản sao phiên và tin nhắn để người dùng xem lại được khi máy chủ không sẵn sàng & Lược đồ khoá theo tài khoản người dùng, chuẩn hoá mã Unicode & Chỉ gọi nội bộ từ trình duyệt \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \section{Thiết kế kiến trúc Backend và phân rã module}
 \label{sec:kien-truc-backend}
 
-% Nội dung phần 3.2
+Phía máy chủ được xây dựng trên nền tảng NestJS phiên bản 11 với ngôn ngữ TypeScript phiên bản 5.7. Toàn bộ mã nguồn được chia thành bốn vùng theo ranh giới trách nhiệm. Vùng mô đun nghiệp vụ chứa các tính năng có bề mặt HTTP, mỗi tính năng là một mô đun gồm controller và service. Vùng engine chứa các thành phần truy hồi và suy luận, không có controller và được tiêm phụ thuộc (DI) qua giao diện. Vùng dùng chung chứa bộ lọc ngoại lệ, bộ kiểm tra đầu vào (\texttt{ValidationPipe}), phân trang, cấu hình bảo mật, ghi log, chỉ số và hàm tiện ích. Vùng cấu hình chứa mô đun cấu hình với lược đồ kiểm tra biến môi trường lúc khởi động.
+
+Bảng~\ref{tab:module-backend} liệt kê các mô đun nghiệp vụ và trách nhiệm chính.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Danh mục mô đun nghiệp vụ phía máy chủ.}
+    \label{tab:module-backend}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{4.5cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Mô đun} & \textbf{Đường dẫn gốc} & \textbf{Trách nhiệm chính} \\
+        \midrule
+        Xác thực & \texttt{/api/v1/users}, \texttt{/api/v1/auth} & Đăng ký, đăng nhập, xoay vòng token, thu hồi token, quản lý hồ sơ, quy tắc mật khẩu \\
+        Quản trị & \texttt{/api/v1/admin} & Phân quyền, khoá và mở khoá tài khoản, thu hồi token theo tài khoản, tra cứu nhật ký kiểm toán \\
+        Phiên hội thoại & \texttt{/api/v1/chat-sessions} & Liệt kê, đổi tên, xoá mềm phiên, phân trang tin nhắn, tìm kiếm nội dung phiên \\
+        Truy hồi tăng cường & \texttt{/api/v1/rag} & Nhận câu hỏi, điều phối quy trình truy hồi, sinh câu trả lời, phát kết quả theo luồng sự kiện \\
+        Bài báo & \texttt{/api/v1/papers} & Đọc chi tiết bài báo theo lô, dựng lại danh sách đoạn văn bản theo đúng thứ tự \\
+        Kiểm tra sức khoẻ & \texttt{/api/v1/health} & Báo cáo trạng thái từng phụ thuộc, độ dài hàng đợi suy luận \\
+        Gốc API & \texttt{/api/v1} & Liệt kê các tài nguyên gốc theo nguyên tắc liên kết siêu dữ liệu (HATEOAS) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bảng~\ref{tab:engine-truy-hoi} liệt kê các engine và trách nhiệm chính.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Danh mục engine truy hồi và suy luận.}
+    \label{tab:engine-truy-hoi}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.8cm}@{}}
+        \toprule
+        \textbf{Engine} & \textbf{Trách nhiệm chính} & \textbf{Đặc tính vận hành} \\
+        \midrule
+        Nhúng & Sinh vector 768 chiều cho câu hỏi với tiền tố tác vụ (task prefix) & Bộ nhớ đệm 500 mục, thời hạn 10 phút \\
+        Chỉ mục vector & Truy vấn tìm kiếm gần nhất theo khoảng cách cosin trên tập hợp chỉ đọc & Chỉ đọc, không có đường ghi \\
+        Khai phá & Cung cấp điểm uy tín của tác giả và luật kết hợp dùng để mở rộng truy vấn & Nạp một lần lúc khởi động vào bộ nhớ \\
+        Định tuyến cây & Cung cấp cấu trúc cây tri thức và vector trung tâm cho định tuyến và hiển thị không gian ba chiều & Nạp một lần lúc khởi động vào bộ nhớ \\
+        Chấm điểm & Xếp hạng lại tập ứng viên bằng tín hiệu căn cứ (grounding) & Tối đa tám yêu cầu chờ, thời hạn 30 giây, có fallback \\
+        Sinh văn bản & Phát trực tiếp từng token từ mô hình ngôn ngữ cục bộ & Một luồng sinh đồng thời, hàng đợi độ sâu tám, thời hạn 60 giây \\
+        Kho văn bản & Đọc bản gốc chuẩn của kho và đối chiếu tính toàn vẹn & Chỉ đọc, tài khoản không phải quản trị gốc \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Nguyên tắc phân rã được giữ xuyên suốt là mô đun nghiệp vụ không bao giờ truy cập trực tiếp vào kho lưu trữ bên ngoài mà phải đi qua engine tương ứng. Nhờ đó khi cần thay một cơ sở dữ liệu vector bằng một lựa chọn khác, chỉ có tệp hiện thực của engine chỉ mục vector thay đổi, còn mô đun truy hồi tăng cường và mọi mô đun khác giữ nguyên. Chi tiết về cấu trúc mã nguồn cụ thể, cách tổ chức tệp và quản lý phụ thuộc được trình bày ở Mục~\ref{sec:cau-truc-ma-nguon} và Mục~\ref{sec:trien-khai-backend}.
 
 \section{Thiết kế kiến trúc Frontend và tổ chức ứng dụng}
 \label{sec:kien-truc-frontend}
 
-% Nội dung phần 3.3
+Phía người dùng được xây dựng trên React phiên bản 19, đóng gói bằng Vite phiên bản 6, với React Three Fiber phiên bản 8 đặt trên three.js r160 để dựng không gian ba chiều. Mô hình tổ chức ứng dụng dựa trên nguyên tắc đặt mã nguồn theo tính năng, trong đó mỗi tính năng giữ riêng thành phần giao diện, kho trạng thái, thư viện gọi API và kiểu dữ liệu của mình. Mã nguồn dùng chung giữa nhiều tính năng được đưa vào thư mục dùng chung, và chỉ chuyển sang vùng này khi thực sự cần thiết.
+
+Bảng~\ref{tab:cau-truc-frontend} trình bày cấu trúc tổ chức ứng dụng phía người dùng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Cấu trúc tổ chức ứng dụng phía người dùng.}
+    \label{tab:cau-truc-frontend}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Vùng} & \textbf{Nội dung} & \textbf{Vai trò} \\
+        \midrule
+        Lõi ứng dụng & Entry point, App Shell, định tuyến, Context Provider & Lắp ráp tính năng, quản lý vòng đời ứng dụng \\
+        Tính năng hội thoại & Khung hội thoại, thanh trượt lịch sử (history drawer), bộ hiển thị văn bản định dạng, kho trạng thái truy hồi, kho trạng thái phiên, lược đồ cơ sở dữ liệu cục bộ & Giao diện hỏi đáp, tiếp nhận kết quả theo luồng, lưu trữ lịch sử \\
+        Tính năng không gian & Cảnh WebGL, nhánh cây, tán cây vector, hiệu ứng luồng, lớp phủ chỉ số, kho trạng thái không gian & Hiển thị và điều hướng cây tri thức, kích hoạt luồng dẫn tới tài liệu được trích dẫn \\
+        Tính năng xác thực & Lớp phủ đăng nhập, kho trạng thái xác thực & Quản lý danh tính phía người dùng và trạng thái phiên đăng nhập \\
+        Tính năng thu thập và kết quả & Giao diện tiến trình thu thập, giao diện kết quả tìm kiếm & Tích hợp quy trình xử lý dữ liệu và hiển thị kết quả tìm kiếm \\
+        Dùng chung & Thư viện gọi API, hooks, kho trạng thái giao diện, hệ thống giao diện (theming), kiểu dữ liệu, thành phần giao diện cơ bản, hàm tiện ích & Mã nguồn dùng chung giữa các tính năng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Hai ràng buộc kỹ thuật chi phối thiết kế phía người dùng. Ràng buộc thứ nhất là ranh giới điều phối của R3F (reconciler boundary): trong canvas không được đặt phần tử HTML thô (raw HTML element), mọi lớp phủ chỉ số hiệu năng phải được đặt ngoài canvas dưới dạng phần tử cùng cấp (sibling element). Ràng buộc thứ hai là bảo vệ luồng chính (main thread) khi truyền kết quả theo luồng: phân tích văn bản định dạng và công thức phải được trì hoãn bằng \texttt{useDeferredValue} của React, còn token phải được đưa vào bộ đệm (buffer) ở mức 30 mili giây trước khi cập nhật trạng thái. Chi tiết về cơ chế này được trình bày ở Mục~\ref{sec:state-management}. Chi tiết về cấu trúc mã nguồn cụ thể và cách triển khai từng tính năng được trình bày ở Mục~\ref{sec:trien-khai-frontend}.
 
 \section{Thiết kế cơ sở dữ liệu và Data Schema}
 \label{sec:thiet-ke-csdl}
 
-% Nội dung phần 3.4
+Hệ thống dùng bốn kho lưu trữ với vai trò tách bạch, dựa trên nguyên tắc mỗi loại dữ liệu chỉ nên nằm ở nơi phù hợp nhất với cách truy xuất và vòng đời dữ liệu của nó.
+
+Bảng~\ref{tab:vai-tro-kho-luu-tru} tóm tắt vai trò của từng kho lưu trữ.
+
+\begin{table}[H]
+    \centering
+    \caption{Vai trò và đặc tính truy xuất của các kho lưu trữ.}
+    \label{tab:vai-tro-kho-luu-tru}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Kho lưu trữ} & \textbf{Loại dữ liệu} & \textbf{Đặc tính truy xuất chính} & \textbf{Đặc tính vòng đời dữ liệu} \\
+        \midrule
+        Cơ sở dữ liệu ứng dụng & Dữ liệu biến đổi theo người dùng & Truy vấn theo chủ sở hữu, phân trang bằng con trỏ, cập nhật theo lô & Xoá mềm có thời hạn, tự dọn sau 3 ngày \\
+        Kho khoa học & Bản gốc chuẩn của bài báo và đoạn văn bản & Đọc theo lô theo mã định danh bài báo, không có đường liệt kê không lọc & Bất biến, ghi bởi quy trình thu thập bên ngoài \\
+        Chỉ mục vector & Vector biểu diễn và siêu dữ liệu đoạn & Truy vấn tìm kiếm gần nhất theo khoảng cách cosin & Bất biến, dựng lại được từ kho văn bản \\
+        Kho cục bộ trình duyệt & Bản sao phiên và tin nhắn & Truy vấn theo phiên và theo thời điểm & Theo vòng đời người dùng, đồng bộ hai chiều \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Ranh giới giữa kho khoa học và chỉ mục vector là điểm cần chú ý. Vector 768 chiều không được ghi vào cơ sở dữ liệu ứng dụng, mà chỉ tồn tại trong chỉ mục vector và có thể tái tạo bằng cách chạy lại quy trình nhúng trên nội dung đoạn văn bản. Chỉ mục vector do đó là một cấu trúc dẫn xuất (derived structure) có thể dựng lại, không phải nơi lưu nguồn dữ liệu chuẩn (source of truth). Cơ chế kiểm tra tính toàn vẹn bằng tổng kiểm tra (checksum) ở ba cấp đoạn, bài báo và tập dữ liệu được trình bày ở Mục~\ref{sec:chuan-hoa-luu-tru}.
+
+Cơ sở dữ liệu ứng dụng trên MongoDB gồm sáu tập hợp (collection). Tập hợp người dùng giữ thông tin tài khoản và chuỗi băm mật khẩu. Tập hợp token làm mới giữ bản ghi mỗi token theo nhóm. Tập hợp phiên hội thoại giữ siêu dữ liệu của phiên. Tập hợp tin nhắn hội thoại giữ nội dung từng lượt hỏi đáp. Tập hợp khoá chống gửi lặp giữ khoá chống gửi lặp. Tập hợp nhật ký kiểm toán giữ dấu vết thao tác quản trị.
+
+Bảng~\ref{tab:tap-hop-csdl-ung-dung} trình bày cấu trúc các tập hợp ứng dụng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Cấu trúc các tập hợp của cơ sở dữ liệu ứng dụng.}
+    \label{tab:tap-hop-csdl-ung-dung}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tập hợp} & \textbf{Khoá chính} & \textbf{Vai trò} & \textbf{Chỉ mục và cơ chế dọn dữ liệu} \\
+        \midrule
+        \texttt{users} & ObjectId & Tài khoản người dùng và quyền & \texttt{email} duy nhất, \texttt{username} duy nhất, bỏ qua giá trị rỗng (sparse unique) \\
+        \texttt{refresh\_tokens} & ObjectId & Bản ghi token làm mới theo nhóm & \texttt{token\_hash} duy nhất, tự dọn theo thời hạn hết hạn \\
+        \texttt{chat\_sessions} & UUIDv7 & Siêu dữ liệu phiên hội thoại & Theo tài khoản và thời điểm tin nhắn cuối; tự dọn 3 ngày sau xoá mềm \\
+        \texttt{chat\_messages} & UUIDv7 & Nội dung từng lượt hỏi đáp & Theo phiên và thời điểm tạo; tự dọn 3 ngày sau xoá mềm \\
+        \texttt{chat\_requests} & Khoá ghép tài khoản và khoá yêu cầu & Bản ghi chống gửi lặp & Tự dọn sau 24 giờ, khoá tạm thời (lease lock) 5 phút \\
+        \texttt{admin\_audit\_logs} & ObjectId & Dấu vết thao tác quản trị & Theo tác nhân, hành động và thời điểm; chỉ bổ sung \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Ba quyết định thiết kế đáng chú ý trong bảng trên. Thứ nhất, khoá chính của phiên và tin nhắn là UUIDv7 do ứng dụng sinh ra, không dùng ObjectId của cơ sở dữ liệu. Chuỗi này mang dấu thời gian theo mili giây ở các bit đầu, nên thứ tự từ điển của mã định danh trùng với thứ tự thời gian. Nhờ đó, cùng một bộ sinh mã định danh chạy ở cả phía máy chủ và phía trình duyệt tạo ra những bản ghi có thể so sánh và đồng bộ mà không cần bước ánh xạ. Thứ hai, trường \texttt{last\_message\_at} và trường \texttt{updated\_at} được tách bạch. Đổi tên phiên chỉ cập nhật \texttt{updated\_at}, nhờ đó việc đổi tên không làm phiên nhảy vị trí trong danh sách bên cạnh. Thứ ba, thao tác xoá mềm gán thời điểm xoá cho cả bản ghi phiên và toàn bộ bản ghi tin nhắn con cùng phiên, do MongoDB không có cơ chế xoá dây chuyền giữa các tập hợp.
+
+Kho khoa học giữ bản gốc chuẩn của kho, được ứng dụng truy cập bằng tài khoản riêng chỉ có quyền đọc và không phải tài khoản quản trị gốc. Bảng~\ref{tab:tap-hop-kho-khoa-hoc} liệt kê các tập hợp của kho khoa học và vai trò của chúng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các tập hợp của kho khoa học.}
+    \label{tab:tap-hop-kho-khoa-hoc}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.7cm}@{}}
+        \toprule
+        \textbf{Tập hợp} & \textbf{Vai trò trong hệ thống} & \textbf{Đặc tính} \\
+        \midrule
+        \texttt{papers} & Bản gốc chuẩn về bài báo, dùng để dựng chi tiết bài báo & Khoá tự nhiên là mã định danh bài báo \\
+        \texttt{paper\_chunks} & Bản gốc chuẩn về nội dung đoạn, là đầu vào để tái tạo vector & Tách riêng khỏi bài báo vì quan hệ một-nhiều và giới hạn kích thước tài liệu \\
+        \texttt{authors} & Nguồn tín hiệu uy tín dùng để xếp hạng lại & Chỉ chứa tác giả có điểm, nạp một lần lúc khởi động \\
+        \texttt{association\_rules} & Nguồn luật dùng để mở rộng truy vấn & Nạp một lần lúc khởi động \\
+        \texttt{world\_nodes} & Nguồn cấu trúc định tuyến và hiển thị không gian ba chiều & Nạp một lần lúc khởi động \\
+        \texttt{categories} & Nguồn danh mục và màu tương ứng & Nạp một lần lúc khởi động \\
+        \texttt{source\_objects} & Truy vết về nguồn gốc của dữ liệu & Chỉ lưu tham chiếu, không lưu dữ liệu thô \\
+        \texttt{datasets} & Hợp đồng đối chiếu giữa kho khoa học và chỉ mục vector & Ghi bởi tiến trình đối soát \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Mẫu đa hình (polymorphic pattern) được áp dụng cho tập hợp bài báo: một tập hợp duy nhất với trường phân biệt họ nguồn, cho phép mỗi họ nguồn áp đặt ràng buộc bắt buộc riêng mà vẫn giữ một lược đồ thống nhất. Quan hệ giữa bài báo và tác giả được duy trì bằng một mảng khoá chuẩn hoá trỏ tới tập hợp tác giả, thay vì bằng mảng tên hiển thị, nhờ đó truy vấn theo tác giả không phải quét toàn bộ tập hợp. Quan hệ giữa tập hợp đối tượng nguồn và tập hợp bài báo là quan hệ một chiều, tức mỗi đối tượng thô trỏ về một bài báo, vì MongoDB đang chạy ở chế độ standalone không hỗ trợ giao dịch đa tài liệu (multi-document transaction).
+
+Mọi tập hợp của kho khoa học đều mang trường phiên bản lược đồ và được trang bị bộ kiểm tra theo JSON Schema, sao cho dữ liệu sai bị chặn ngay tại cơ sở dữ liệu thay vì bị phát hiện khi chạy.
+
+Chỉ mục vector trên Qdrant lưu vector 768 chiều sinh bởi mô hình nhúng Nomic Embed phiên bản 1.5, dùng khoảng cách cosin, với cấu trúc chỉ mục HNSW. Mỗi điểm vector mang một tập trường dữ liệu đính kèm (payload) gồm mã định danh đoạn, mã định danh bài báo, tiêu đề, tác giả, danh mục chính, năm, tiêu đề mục và loại mục. Ba trường được lập chỉ mục dữ liệu đính kèm phục vụ lọc theo mã định danh bài báo, danh mục chính và năm.
+
+Bảng~\ref{tab:chi-muc-csdl-ung-dung} trình bày chi tiết các chỉ mục của cơ sở dữ liệu ứng dụng.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Danh mục chỉ mục của cơ sở dữ liệu ứng dụng.}
+    \label{tab:chi-muc-csdl-ung-dung}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tập hợp} & \textbf{Khoá chỉ mục} & \textbf{Loại chỉ mục} & \textbf{Mục đích} \\
+        \midrule
+        \texttt{users} & \texttt{email} & Đơn, duy nhất & Tra cứu tài khoản khi đăng nhập \\
+        \texttt{users} & \texttt{username} & Đơn, duy nhất, bỏ qua giá trị rỗng (sparse unique) & Cho phép đăng nhập bằng tên người dùng \\
+        \texttt{chat\_sessions} & \texttt{user\_id}, \texttt{deleted\_at}, \texttt{last\_message\_at} giảm dần, \texttt{\_id} giảm dần & Ghép & Phân trang bằng con trỏ các phiên chưa xoá, sắp theo tin nhắn gần nhất \\
+        \texttt{chat\_sessions} & \texttt{deleted\_at} & Chỉ mục TTL, 259.200 giây & Tự dọn phiên đã xoá mềm sau 3 ngày \\
+        \texttt{chat\_messages} & \texttt{session\_id}, \texttt{deleted\_at}, \texttt{created\_at}, \texttt{\_id} & Ghép & Tải tin nhắn của một phiên theo thứ tự thời gian \\
+        \texttt{chat\_messages} & \texttt{deleted\_at} & Chỉ mục TTL, 259.200 giây & Tự dọn tin nhắn của phiên đã xoá mềm sau 3 ngày \\
+        \texttt{refresh\_tokens} & \texttt{token\_hash} & Đơn, duy nhất & Tra cứu token làm mới trong một lượt truy vấn \\
+        \texttt{refresh\_tokens} & \texttt{expires\_at} & Chỉ mục TTL & Tự dọn token hết hạn \\
+        \texttt{chat\_requests} & \texttt{user\_id}, \texttt{idempotency\_key} & Ghép & Tra cứu khoá chống gửi lặp \\
+        \texttt{chat\_requests} & \texttt{expires\_at} & Chỉ mục TTL, 86.400 giây & Tự dọn khoá sau 24 giờ \\
+        \texttt{admin\_audit\_logs} & \texttt{actor\_id}, \texttt{action}, \texttt{target\_type}, \texttt{created\_at} giảm dần & Ghép & Tra cứu nhật ký kiểm toán theo tác nhân, hành động và thời điểm \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Nguyên tắc áp dụng cho toàn bộ chỉ mục là mỗi chỉ mục phải có bằng chứng truy vấn đi kèm. Chỉ mục không có lượt truy vấn nào sau khi nạp phải bị gỡ bỏ, và không được giữ đồng thời một chỉ mục đơn và một chỉ mục ghép có tiền tố bao trùng nó.
+
+Vì cơ sở dữ liệu ứng dụng được truy cập qua kênh đường hầm mạng (tunnel), mỗi lượt khứ hồi tới cơ sở dữ liệu tốn khoảng 15 đến 25 mili giây. Hai hệ quả được rút ra và cài đặt thành quy tắc bắt buộc. Thứ nhất, mọi truy vấn độc lập phải chạy song song thay vì tuần tự, kể cả khi kết quả không phụ thuộc lẫn nhau. Thứ hai, mọi đường đọc phải trả về đối tượng thô (plain object) để bỏ qua bước dựng lại đối tượng từ tài liệu (document hydration), vì bước này tốn thời gian không nhỏ ở quy mô lớn.
+
+Bộ nhớ đệm trong bộ nhớ giảm áp lực lên kênh tunnel. Bộ nhớ đệm dùng thời hạn trượt (sliding TTL), tức mỗi lần đọc lại đẩy thời điểm hết hạn ra xa thêm, kết hợp với cơ chế singleflight để khi nhiều yêu cầu cùng chờ một tài nguyên chưa có trong bộ nhớ đệm thì chỉ một yêu cầu thực sự đi xuống cơ sở dữ liệu.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Cơ chế bộ nhớ đệm cho hai dịch vụ đọc nhiều.}
+    \label{tab:co-che-bo-nho-dem}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Dịch vụ} & \textbf{Bộ nhớ đệm} & \textbf{Được nạp khi đọc} & \textbf{Nghĩa vụ khi ghi} \\
+        \midrule
+        Xác thực & Theo tài khoản, theo email, theo số lần thử & Đọc hồ sơ, đăng nhập, cập nhật hồ sơ & Nạp sẵn khi đăng ký, cập nhật tại chỗ khi đổi hồ sơ, xoá theo email khi đổi mật khẩu, đặt lại số lần thử khi thành công hoặc khi khoá \\
+        Phiên hội thoại & Danh sách phiên theo tài khoản và thế hệ, chi tiết phiên theo tài khoản và mã định danh & Liệt kê phiên, đọc chi tiết phiên & Gọi cơ chế vô hiệu hoá khi lưu lượt hỏi đáp, đổi tên, xoá, xoá hàng loạt \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Cơ chế vô hiệu hoá theo thế hệ là điểm cần nhấn mạnh. Thay vì xoá từng mục của bộ nhớ đệm danh sách phiên khi có thay đổi, hệ thống tăng một bộ đếm thế hệ (generation counter) theo tài khoản và ghép bộ đếm này vào khoá của mọi mục đã nạp. Mọi mục thuộc thế hệ cũ trở nên không dùng được ngay lập tức, kể cả các mục đang được xem ở nhiều trang khác nhau. Thao tác vô hiệu hoá có độ phức tạp không đổi theo số mục đang nạp, và người dùng không bao giờ đọc được dữ liệu cũ.
 
 \section{Thiết kế API và cơ chế giao tiếp giữa các thành phần}
 \label{sec:thiet-ke-api}
 
-% Nội dung phần 3.5
+\subsection{Cơ sở thiết kế RESTful API}
+\label{subsec:co-so-thiet-ke-api}
+
+Để bảo đảm giao diện lập trình ứng dụng (API) nhất quán, dễ dự đoán và thuận tiện mở rộng, thiết kế API của hệ thống lấy cơ sở lý thuyết từ tám nguyên tắc thiết kế RESTful API hiện đại do ByteByteGo tổng hợp (minh hoạ ở Hình~\ref{fig:co-so-thiet-ke-api}).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{assets/diagrams/api-design.png}
+    \caption{Tám nguyên tắc cơ sở trong thiết kế RESTful API (nguồn: ByteByteGo).}
+    \label{fig:co-so-thiet-ke-api}
+\end{figure}
+
+Nội dung cốt lõi của tám nguyên tắc cơ sở trên sơ đồ được tổng hợp như sau:
+
+\begin{enumerate}
+    \item \textbf{Thiết kế hướng mô hình miền nghiệp vụ (Domain Model Driven)}: Cấu trúc đường dẫn tài nguyên được dẫn xuất trực tiếp từ mô hình thực thể và quan hệ sở hữu trong miền nghiệp vụ (chẳng hạn quan hệ một-nhiều giữa \texttt{Order} và \texttt{OrderItem} được biểu diễn bằng đường dẫn lồng nhau \texttt{/orders/\{id\}/items}). Cách tiếp cận này giúp URL phản ánh đúng cấu trúc dữ liệu thay vì bố cục bảng vật lý hay thao tác nội bộ.
+    \item \textbf{Lựa chọn phương thức HTTP đúng ngữ nghĩa (Choose HTTP Methods)}: Gán rạch ròi vai trò cho bốn phương thức chuẩn: \texttt{GET} dùng để truy vấn danh sách hoặc đọc chi tiết, \texttt{POST} dùng để tạo tài nguyên mới, \texttt{PUT} dùng để cập nhật tài nguyên và \texttt{DELETE} dùng để xoá. Tài liệu khuyến nghị sử dụng thận trọng phương thức \texttt{PATCH} và các phương thức mở rộng khác nếu chưa có quy ước rõ ràng, nhằm tránh nhập nhằng giữa cập nhật từng phần và thay thế toàn bộ.
+    \item \textbf{Đảm bảo tính luỹ đẳng hợp lý (Implement Idempotence Properly)}: Phương thức \texttt{GET} có tính luỹ đẳng tự nhiên (gọi lặp nhiều lần không đổi trạng thái máy chủ). Hai phương thức \texttt{PUT} và \texttt{DELETE} phải được thiết kế luỹ đẳng để phía trình duyệt có thể thử lại an toàn khi mất kết nối. Riêng phương thức \texttt{POST} không luỹ đẳng mặc định, mà cần cài đặt cơ chế chống gửi lặp tuỳ theo yêu cầu nghiệp vụ (ví dụ giao dịch tạo mới hoặc tác vụ tốn tài nguyên).
+    \item \textbf{Sử dụng mã trạng thái HTTP chuẩn xác (Choose HTTP Status Codes)}: Tầng giao tiếp dùng đúng nhóm mã phản hồi chuẩn gồm \texttt{200} (thành công), \texttt{201} (tạo mới thành công), \texttt{400} (dữ liệu đầu vào không hợp lệ), \texttt{401} (chưa xác thực), \texttt{403} (không đủ quyền), \texttt{404} (không tìm thấy tài nguyên), \texttt{405} (phương thức không được hỗ trợ), \texttt{409} (xung đột quy tắc nghiệp vụ), \texttt{415} (định dạng nội dung không được hỗ trợ) và \texttt{500} (lỗi máy chủ nội bộ).
+    \item \textbf{Đánh phiên bản API (Versioning)}: Sơ đồ đối chiếu ba chiến lược phổ biến gồm đặt phiên bản trên đường dẫn (\texttt{/v1/users}), trên tham số truy vấn (\texttt{/users?v1}) và trong tiêu đề HTTP (\texttt{Version: v1}). Chiến lược đặt trên đường dẫn được khuyến nghị vì tính tường minh, dễ định tuyến tại bộ cân bằng tải và thuận tiện lưu bộ nhớ đệm.
+    \item \textbf{Đường dẫn giàu ngữ nghĩa (Semantic Paths)}: Đường dẫn phải dùng danh từ chỉ tài nguyên thay cho động từ chỉ hành động (chẳng hạn chuyển \texttt{POST /v1/users/login} sang \texttt{POST /v1/authorizes} hoặc tài nguyên phiên/token), đồng thời thống nhất quy ước danh từ số nhiều và số ít cho tập hợp và phần tử (\texttt{/v1/orders/\{id\}/\{items\}}).
+    \item \textbf{Xử lý theo lô (Batch Processing)}: Phân tách rõ giữa thao tác đơn lẻ (\texttt{POST /v1/users}, \texttt{GET /v1/users/1}) và thao tác hàng loạt ({\small\texttt{POST /v1/users/batch}}, \allowbreak{\small\texttt{GET /v1/users?\allowbreak ID=1,2,3}}), nhằm giảm số lượt khứ hồi mạng khi giao diện cần nạp hoặc cập nhật nhiều bản ghi cùng lúc.
+    \item \textbf{Ngôn ngữ truy vấn thống nhất (Query Language)}: Chuẩn hoá cấu trúc tham số cho ba nhu cầu phổ biến trên danh sách là phân trang (\texttt{?page=1\&size=20}), sắp xếp đa trường ({\small\texttt{?sort=name:asc,}\allowbreak\texttt{age:desc}}) và lọc theo toán tử có cấu trúc ({\small\texttt{?age=gt:20,lt:50}\allowbreak\texttt{\&name=match:lisa}\allowbreak\texttt{\&gender=eq:male}}).
+\end{enumerate}
+
+\subsection{Áp dụng thiết kế API trong hệ thống}
+\label{subsec:ap-dung-thiet-ke-api}
+
+Từ tám nguyên tắc cơ sở ở Mục~\ref{subsec:co-so-thiet-ke-api}, hệ thống ánh xạ và điều chỉnh cụ thể để đáp ứng bài toán tra cứu tài liệu khoa học bằng RAG, bảo mật đa lớp và lưu trữ hội thoại hai tầng. Bảng~\ref{tab:anh-xa-nguyen-tac-api} trình bày chi tiết sự ánh xạ này.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ánh xạ tám nguyên tắc cơ sở vào thiết kế API của hệ thống.}
+    \label{tab:anh-xa-nguyen-tac-api}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{STT} & \textbf{Nguyên tắc cơ sở} & \textbf{Áp dụng và điều chỉnh cụ thể trong hệ thống} \\
+        \midrule
+        1 & Domain Model Driven & Tổ chức tài nguyên theo quan hệ sở hữu giữa người dùng, phiên hội thoại và tin nhắn (\texttt{/api/v1/chat-sessions/\{id\}/messages}, \texttt{/api/v1/admin/users/\{id\}/tokens}, \texttt{/api/v1/admin/users/\{id\}/chat-sessions}) \\
+        2 & Choose HTTP Methods & Dùng \texttt{GET}, \texttt{POST}, \texttt{PUT} (thay toàn bộ vai trò, trạng thái, mật khẩu) và \texttt{DELETE}; giữ chọn lọc \texttt{PATCH} chỉ cho cập nhật một phần hồ sơ (\texttt{/users/me}) và đổi tên phiên (\texttt{/chat-sessions/\{id\}}) để kiểm soát chặt ngữ nghĩa \\
+        3 & Implement Idempotence Properly & \texttt{GET}, \texttt{PUT}, \texttt{PATCH}, \texttt{DELETE} đều luỹ đẳng (cập nhật không đổi trạng thái thì không ghi thêm, không tăng \texttt{token\_version}, không ghi kiểm toán); \texttt{POST /rag/chat*} bắt buộc dùng khoá chống gửi lặp (\texttt{Idempotency-Key}); ngoại lệ \texttt{POST /auth/token-rotations} cố ý không luỹ đẳng để phát hiện dùng lại token làm mới và thu hồi cả họ token \\
+        4 & Choose HTTP Status Codes & Áp dụng mã chuẩn 200, 201, 204, 400, 401, 403, 404, 406, 409, 415, 429, 503, 504; đặc thù bảo mật dùng mã 404 thay cho 403 khi truy cập tài nguyên thuộc người dùng khác để tránh lộ sự tồn tại của mã định danh \\
+        5 & Versioning & Chọn chiến lược đường dẫn đúng như khuyến nghị với tiền tố cố định \texttt{/api/v1}; mọi thay đổi phá vỡ tương thích ngược sẽ nâng lên \texttt{/api/v2} \\
+        6 & Semantic Paths & Dùng danh từ số nhiều dạng \texttt{kebab-case} cho đường dẫn và \texttt{snake\_case} cho trường dữ liệu; chuyển toàn bộ động tác đăng nhập, làm mới, đăng xuất thành tài nguyên token (\texttt{/auth/tokens}, \texttt{/auth/token-rotations}, \texttt{/auth/token-revocations}) \\
+        7 & Batch Processing & Cung cấp \texttt{GET /api/v1/papers?ids=} để nạp chi tiết tối đa 20 bài báo trong một lượt (thay cho endpoint liệt kê kho không lọc) và \texttt{DELETE /api/v1/chat-sessions} để xoá mềm nhiều phiên theo danh sách mã định danh \\
+        8 & Query Language & Nâng cấp phân trang từ offset (\texttt{page}, \texttt{size}) sang phân trang con trỏ (\texttt{limit}, \texttt{cursor}) trả cấu trúc bao chuẩn (response envelope) \texttt{items}, \texttt{next\_cursor}, \texttt{has\_more}; giữ nguyên cú pháp sắp xếp \texttt{sort=}\textit{trường}\texttt{:}\textit{chiều} và lọc \textit{trường}\texttt{=}\textit{toán tử}\texttt{:}\textit{giá trị} theo danh sách trường hợp lệ, bổ sung tham số tìm tự do \texttt{q} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bên cạnh tám nguyên tắc cơ sở trên, kiến trúc API của hệ thống bổ sung bốn mở rộng đặc thù nhằm đáp ứng yêu cầu bảo mật, khả năng tương tác đa hệ thống và trải nghiệm suy luận thời gian thực:
+
+\begin{itemize}
+    \item[--] \textbf{Xác thực bằng cặp token}: Mọi đường dẫn bảo vệ yêu cầu tiêu đề \texttt{Authorization} mang JWT truy cập ngắn hạn (chứa phiên bản token), kết hợp token làm mới dài hạn xoay vòng một lần theo họ token.
+    \item[--] \textbf{Đàm phán nhiều định dạng dữ liệu (Content Negotiation)}: Hỗ trợ cả JSON và XML thông qua hai tiêu đề \texttt{Content-Type} và \texttt{Accept}; bộ phân tích XML chặn \texttt{DOCTYPE} và \texttt{ENTITY} nhằm chống tấn công chèn thực thể XML ngoài (XXE) và tấn công phình thực thể (XML bomb).
+    \item[--] \textbf{Liên kết siêu dữ liệu (HATEOAS)}: Mỗi phản hồi đính kèm trường \texttt{\_links} mô tả các hành động hợp lệ kế tiếp theo ngữ cảnh trạng thái, với điểm vào gốc \texttt{GET /api/v1} liệt kê các tài nguyên cấp cao nhất.
+    \item[--] \textbf{Truyền kết quả theo luồng sự kiện (Server-Sent Events)}: Cung cấp biến thể \texttt{POST /api/v1/rag/chat/stream} sử dụng \texttt{text/event-stream} để phát trực tiếp tiến trình định tuyến và từng mảnh văn bản sinh ra thay vì chờ hoàn tất toàn bộ lượt suy luận.
+\end{itemize}
+
+Về quy ước phương thức và tính lặp lại an toàn, hệ thống quy định: \texttt{GET} đọc dữ liệu, \texttt{POST} tạo mới hoặc kích hoạt tác vụ sinh, \texttt{PATCH} sửa một phần (chỉ cho hồ sơ và tên phiên), \texttt{PUT} thay thế toàn bộ (cho vai trò, trạng thái và mật khẩu) và \texttt{DELETE} xoá mềm hoặc thu hồi. Mọi thao tác \texttt{GET}, \texttt{PUT}, \texttt{PATCH} và \texttt{DELETE} đều phải bảo đảm tính luỹ đẳng: một yêu cầu cập nhật không làm thay đổi trạng thái hiện tại sẽ không ghi thêm vào cơ sở dữ liệu, không tăng \texttt{token\_version} và không phát sinh bản ghi nhật ký kiểm toán. Hai ngoại lệ chủ đích là đường dẫn hỏi đáp RAG (bảo vệ bằng khoá chống gửi lặp \texttt{Idempotency-Key} vì sinh văn bản tốn tài nguyên) và đường dẫn xoay vòng token làm mới (cố ý không luỹ đẳng để phát hiện tái sử dụng token).
+
+Ngôn ngữ truy vấn dùng chung được đặc tả thống nhất cho mọi danh sách:
+
+\begin{itemize}
+    \item[--] \textbf{Phân trang con trỏ}: Dùng cặp tham số \texttt{limit} và \texttt{cursor}, phản hồi luôn có cấu trúc \texttt{\{ items, next\_cursor, has\_more \}}. Phân trang con trỏ thay thế hoàn toàn phân trang theo số trang (\texttt{page}, \texttt{size}) vì danh sách phiên hội thoại thay đổi liên tục khi có tin nhắn mới; phân trang theo độ lệch sẽ gây trùng lặp hoặc bỏ sót bản ghi và giảm hiệu năng ở trang sâu.
+    \item[--] \textbf{Sắp xếp đa trường}: Theo cú pháp \texttt{sort=}\textit{trường}\texttt{:}\textit{chiều} (tối đa ba trường), chỉ chấp nhận các trường được liệt kê công khai trên từng đường dẫn và luôn lấy mã định danh làm tiêu chí phá thế hoà. Con trỏ được gắn chặt với thứ tự sắp xếp tạo ra nó, nên mọi yêu cầu giữ con trỏ cũ nhưng đổi thứ tự sắp xếp đều bị từ chối với mã lỗi.
+    \item[--] \textbf{Lọc và tìm kiếm}: Cú pháp lọc dùng dạng \textit{trường}\texttt{=}\textit{toán tử}\texttt{:}\textit{giá trị}, nhiều điều kiện nối bằng dấu phẩy với tập toán tử chuẩn gồm bằng (\texttt{eq}), khác (\texttt{ne}), lớn hơn (\texttt{gt}), lớn hơn hoặc bằng (\texttt{gte}), nhỏ hơn (\texttt{lt}), nhỏ hơn hoặc bằng (\texttt{lte}) và khớp chuỗi con (\texttt{match}). Chỉ những cặp trường và toán tử nằm trong danh sách cho phép của từng đường dẫn mới được chuyển xuống cơ sở dữ liệu. Tham số \texttt{q} hỗ trợ tìm kiếm tự do trên các trường văn bản của tài nguyên tương ứng.
+\end{itemize}
+
+Quy ước định dạng dữ liệu cũng được cố định ở tầng HTTP: máy chủ chỉ chấp nhận thân yêu cầu ở định dạng JSON hoặc XML theo tiêu đề \texttt{Content-Type} (sai định dạng trả về mã 415), dung lượng tối đa 100 KB; phản hồi mặc định là JSON và tự chuyển sang XML nếu tiêu đề \texttt{Accept} yêu cầu (áp dụng cho cả phản hồi lỗi theo RFC 7807). Nếu phía trình duyệt gửi tiêu đề \texttt{Accept} không khớp cả JSON lẫn XML, máy chủ trả về mã 406.
+
+Bảng~\ref{tab:bang-dinh-tuyen-api} liệt kê toàn bộ 34 đường dẫn của hệ thống cùng mức độ xác thực và mã trạng thái trả về. Cột xác thực phân biệt bốn mức: công khai, tuỳ chọn, bắt buộc và quản trị.
+
+{\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{1.65cm}>{\raggedright\arraybackslash}p{6.35cm}>{\raggedright\arraybackslash}p{1.55cm}>{\raggedright\arraybackslash}p{3.15cm}>{\raggedright\arraybackslash}p{2.15cm}@{}}
+    \caption{Bảng định tuyến API toàn hệ thống (34 đường dẫn).}
+    \label{tab:bang-dinh-tuyen-api} \\
+    \toprule
+    \textbf{Phương thức} & \textbf{Đường dẫn} & \textbf{Xác thực} & \textbf{Mô tả} & \textbf{Mã trạng thái chính} \\
+    \midrule
+    \endfirsthead
+    \caption[]{Bảng định tuyến API toàn hệ thống (tiếp theo).} \\
+    \toprule
+    \textbf{Phương thức} & \textbf{Đường dẫn} & \textbf{Xác thực} & \textbf{Mô tả} & \textbf{Mã trạng thái chính} \\
+    \midrule
+    \endhead
+    \midrule
+    \multicolumn{5}{r}{\textit{Xem tiếp ở trang sau}} \\
+    \endfoot
+    \bottomrule
+    \endlastfoot
+    POST & {\scriptsize\texttt{/api/v1/users}} & Công khai & Đăng ký tài khoản mới & 201, 400, 409 \\
+    GET & {\scriptsize\texttt{/api/v1/users/me}} & Bắt buộc & Hồ sơ của tài khoản hiện tại & 200, 401 \\
+    PATCH & {\scriptsize\texttt{/api/v1/users/me}} & Bắt buộc & Cập nhật một phần hồ sơ & 200, 400, 401 \\
+    PUT & {\scriptsize\texttt{/api/v1/users/me/password}} & Bắt buộc & Thay đổi mật khẩu & 204, 400, 401 \\
+    POST & {\scriptsize\texttt{/api/v1/auth/tokens}} & Công khai & Đăng nhập, cấp cặp token & 201, 401, 429 \\
+    POST & {\scriptsize\texttt{/api/v1/auth/token-rotations}} & Công khai & Xoay vòng token làm mới & 201, 401, 429 \\
+    POST & {\scriptsize\texttt{/api/v1/auth/token-revocations}} & Bắt buộc & Thu hồi token theo ý muốn & 204, 401 \\
+    POST & {\scriptsize\texttt{/api/v1/rag/chat}} & Tuỳ chọn & Hỏi đáp, trả kết quả đầy đủ & 200, 400, 429, 503, 504 \\
+    POST & {\scriptsize\texttt{/api/v1/rag/chat/stream}} & Tuỳ chọn & Hỏi đáp, trả kết quả theo luồng sự kiện & 200, 400, 429, 503, 504 \\
+    GET & {\scriptsize\texttt{/api/v1/chat-sessions}} & Bắt buộc & Liệt kê phiên theo con trỏ & 200, 400, 401 \\
+    GET & {\scriptsize\texttt{/api/v1/chat-sessions/\{id\}}} & Bắt buộc & Chi tiết phiên kèm tin nhắn gần nhất & 200, 401, 404 \\
+    GET & {\scriptsize\texttt{/api/v1/chat-sessions/\{id\}/messages}} & Bắt buộc & Tin nhắn của phiên theo con trỏ & 200, 401, 404 \\
+    PATCH & {\scriptsize\texttt{/api/v1/chat-sessions/\{id\}}} & Bắt buộc & Đổi tên phiên & 200, 400, 401, 404 \\
+    DELETE & {\scriptsize\texttt{/api/v1/chat-sessions/\{id\}}} & Bắt buộc & Xoá mềm một phiên & 204, 401, 404 \\
+    DELETE & {\scriptsize\texttt{/api/v1/chat-sessions}} & Bắt buộc & Xoá mềm nhiều phiên theo danh sách mã định danh & 204, 400, 401 \\
+    GET & {\scriptsize\texttt{/api/v1/papers}} & Công khai & Đọc chi tiết bài báo theo lô, tối đa 20 mã định danh & 200, 400, 429, 503 \\
+    GET & {\scriptsize\texttt{/api/v1/papers/\{paper\_id\}}} & Công khai & Chi tiết một bài báo & 200, 404, 503 \\
+    GET & {\scriptsize\texttt{/api/v1/health}} & Công khai & Trạng thái hệ thống và các phụ thuộc & 200 \\
+    GET & {\scriptsize\texttt{/api/v1/health/live}} & Công khai & Tiến trình còn sống hay không & 200 \\
+    GET & {\scriptsize\texttt{/api/v1/health/ready}} & Công khai & Sẵn sàng nhận lưu lượng hay không & 200, 503 \\
+    GET & {\scriptsize\texttt{/api/v1}} & Công khai & Liệt kê các tài nguyên gốc & 200 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/users}} & Quản trị & Liệt kê tài khoản theo con trỏ & 200, 400, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}}} & Quản trị & Chi tiết một tài khoản & 200, 404, 403 \\
+    PUT & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/roles}} & Quản trị & Thay toàn bộ vai trò của tài khoản & 200, 409, 403 \\
+    PUT & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/status}} & Quản trị & Thay trạng thái hoạt động của tài khoản & 200, 409, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/tokens}} & Quản trị & Liệt kê nhóm token của tài khoản & 200, 403 \\
+    DELETE & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/tokens}} & Quản trị & Thu hồi toàn bộ token của tài khoản & 200, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/chat-sessions}} & Quản trị & Liệt kê phiên của một tài khoản & 200, 400, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/chat-sessions/\{id\}}} & Quản trị & Chi tiết phiên kèm tin nhắn gần nhất & 200, 404, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/chat-sessions/\{id\}/messages}} & Quản trị & Tin nhắn của phiên theo con trỏ & 200, 404, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/stats}} & Quản trị & Thống kê tổng quan hệ thống & 200, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/login-attempts}} & Quản trị & Lịch sử các lần đăng nhập sai & 200, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/health}} & Quản trị & Chi tiết trạng thái, không che giấu & 200, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/audit-logs}} & Quản trị & Nhật ký kiểm toán, chỉ đọc & 200, 403 \\
+\end{longtable}
+}
+
+Hợp đồng dữ liệu của yêu cầu hỏi đáp được định nghĩa như sau. Yêu cầu gồm câu hỏi bắt buộc trong khoảng 1 đến 2000 ký tự, số đoạn cần lấy mặc định là 5 và tối đa 20, số nhánh giữ lại mỗi tầng của cây mặc định là 2, danh mục lọc tuỳ chọn, cờ tăng điểm uy tín mặc định bật, cờ mở rộng truy vấn mặc định tắt, và mã định danh phiên tuỳ chọn.
+
+Phản hồi gồm nội dung câu trả lời, danh sách mã định danh bài báo được trích dẫn, tập đoạn văn bản có căn cứ kèm ba loại điểm là điểm tương đồng, điểm uy tín và điểm cuối cùng, các thuật ngữ đã mở rộng, và thống kê thời gian theo từng chặng.
+
+Vì chặng sinh văn bản chiếm phần lớn thời gian xử lý, đường dẫn hỏi đáp có một biến thể trả kết quả theo sự kiện máy chủ (Server-Sent Events). Phản hồi được đặt kiểu nội dung là \texttt{text/event-stream}, kèm các header chống đệm của reverse proxy.
+
+Bảng~\ref{tab:su-kien-sse} trình bày thứ tự các sự kiện trong một phiên truyền.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thứ tự sự kiện trong phiên truyền theo luồng.}
+    \label{tab:su-kien-sse}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.3cm}@{}}
+        \toprule
+        \textbf{Thứ tự} & \textbf{Loại sự kiện} & \textbf{Nội dung} & \textbf{Ý nghĩa} \\
+        \midrule
+        1 & \texttt{phase} & Giai đoạn hiện tại: nhúng, định tuyến, so sánh, tìm thấy, sinh văn bản & Người dùng biết hệ thống đang ở bước nào \\
+        2 & \texttt{route} & Các bước đi trên cây tri thức cùng ứng viên ở mỗi bước & Minh hoạ quá trình định tuyến \\
+        3 & \texttt{compare} & Danh sách ứng viên kèm điểm & Minh hoạ quá trình so sánh \\
+        4 & \texttt{retrieval} & Tập đoạn văn bản có căn cứ và thuật ngữ đã mở rộng & Kích hoạt luồng trong không gian ba chiều \\
+        5 & \texttt{token} & Mảnh văn bản sinh ra & Nội dung hiển thị dần \\
+        6 & \texttt{done} & Danh sách trích dẫn, thống kê thời gian, mã định danh phiên và tin nhắn & Chốt kết quả và lưu trữ \\
+        Thay thế & \texttt{error} & Thông báo lỗi và mã trạng thái & Thay cho sự kiện hoàn tất khi có lỗi giữa luồng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Máy chủ gửi một gói ping sau mỗi 15 giây để duy trì kết nối qua các thiết bị trung gian. Khi phía trình duyệt đóng kết nối, máy chủ huỷ lượt sinh văn bản đang chạy và không lưu tin nhắn, tránh tiêu tốn tài nguyên cho kết quả không ai nhận.
+
+\subsection{Cơ chế giao tiếp nội bộ giữa các thành phần}
+\label{subsec:giao-tiep-noi-bo}
+
+Ngoài API hướng ngoại phục vụ người dùng và trình duyệt, hệ thống còn có ba kênh giao tiếp nội bộ cần thiết kế tách biệt về ranh giới trách nhiệm và quyền truy cập, được tóm tắt ở Bảng~\ref{tab:kenh-giao-tiep-noi-bo}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ba kênh giao tiếp nội bộ của hệ thống.}
+    \label{tab:kenh-giao-tiep-noi-bo}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Kênh} & \textbf{Cặp thành phần} & \textbf{Cơ chế} & \textbf{Ghi chú thiết kế} \\
+        \midrule
+        Cổng truy hồi & Bộ điều phối và các engine & Tiêm phụ thuộc qua giao diện & Không phụ thuộc trực tiếp vào thư viện hay hạ tầng cụ thể \\
+        Quy trình thu thập dữ liệu & Tiến trình thu thập và kho khoa học, chỉ mục vector & Ghi hàng loạt theo lô, idempotent, chạy lại an toàn & Tách khỏi ứng dụng, ứng dụng chỉ đọc \\
+        Kênh quản trị & Công cụ dòng lệnh và dịch vụ quản trị & Chạy trực tiếp trên máy chủ & Không tồn tại đường dẫn API để tạo hoặc nâng quyền tài khoản quản trị \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Ràng buộc quan trọng nhất trong ba kênh này là kênh quản trị. Tài khoản quản trị đầu tiên chỉ được tạo bằng công cụ dòng lệnh chạy trực tiếp trên máy chủ. Không tồn tại bất kỳ đường dẫn API nào cho phép tạo tài khoản quản trị hoặc nâng quyền, kể cả đường dẫn đăng ký, nên không có đường mạng nào để leo thang đặc quyền.
 
 \section{Thiết kế Authentication và Authorization}
 \label{sec:auth}
 
-% Nội dung phần 3.6
+Hệ thống dùng mô hình định danh dựa trên token truy cập ngắn hạn kèm token làm mới dài hạn, trong đó token truy cập là JWT mang các trường khai báo (claims) về vai trò, phiên bản token và thời điểm hết hạn, còn token làm mới là chuỗi ngẫu nhiên chỉ lưu dạng băm. Token làm mới thuộc về một họ token (token family), và mỗi lần dùng đều được xoay vòng theo nguyên tắc dùng một lần.
+
+Bảng~\ref{tab:vong-doi-token} trình bày vòng đời của cặp token.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Vòng đời của token truy cập và token làm mới.}
+    \label{tab:vong-doi-token}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.6cm}@{}}
+        \toprule
+        \textbf{Sự kiện} & \textbf{Thao tác trên máy chủ} & \textbf{Kết quả} \\
+        \midrule
+        Đăng nhập & Kiểm tra mật khẩu bằng hàm băm, tạo họ token, cấp token truy cập và token làm mới & Cặp token mới, thời hạn ngắn và dài \\
+        Gọi API có token truy cập & Kiểm tra chữ ký, thời hạn và thông tin phiên bản token khớp với tài khoản & Cho phép hoặc từ chối \\
+        Xoay vòng token & Ghi trạng thái thu hồi của token cũ và cấp token mới trong cùng một lượt truy vấn nguyên tử & Cặp token mới, token cũ không dùng lại được \\
+        Dùng lại token đã thu hồi & Phát hiện token đã bị thu hồi, thu hồi toàn bộ họ token & Buộc đăng nhập lại, mọi token của họ mất hiệu lực \\
+        Đăng xuất & Ghi trạng thái thu hồi của token làm mới được chỉ định & Token làm mới không dùng lại được \\
+        Khoá tài khoản hoặc đổi vai trò & Tăng phiên bản token của tài khoản và thu hồi toàn bộ token làm mới & Token truy cập đang sống mất hiệu lực ngay lập tức \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Mật khẩu được băm bằng thuật toán Argon2id theo thông số RFC 9106. Ba tham số hiệu năng của thuật toán được cố định và không được nới lỏng, và kích thước nhóm luồng (thread pool) của tiến trình được đặt cố định để khớp với mức song song của thuật toán. Giá trị cụ thể và lý do được trình bày ở Mục~\ref{subsec:trien-khai-auth}.
+
+Bảng~\ref{tab:quy-tac-mat-khau} trình bày quy tắc mật khẩu.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Quy tắc kiểm tra mật khẩu.}
+    \label{tab:quy-tac-mat-khau}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Quy tắc} & \textbf{Mục đích} \\
+        \midrule
+        Độ dài trong khoảng cho phép & Chống dò mật khẩu bằng không gian mật khẩu nhỏ và chống từ chối dịch vụ bằng đầu vào quá lớn \\
+        Từ chối danh sách mật khẩu thông dụng & Chống tấn công từ điển \\
+        Không chứa phần tên local của email & Chống đặt mật khẩu suy ra từ thông tin công khai \\
+        Áp dụng tại đăng ký, đổi mật khẩu và tạo tài khoản quản trị bằng công cụ dòng lệnh & Không có đường nào lách được \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Ngoài ra, cơ chế chống dò tìm tài khoản (enumeration) được cài đặt bằng hai lớp. Lớp thứ nhất là khoá tạm thời tăng dần (progressive lockout) sau nhiều lần đăng nhập sai, áp dụng theo từng địa chỉ email và được lưu trong bộ nhớ đệm. Lớp thứ hai là phản hồi trả về như nhau cho cả hai trường hợp email không tồn tại và mật khẩu sai, kèm một giá trị băm giả được so sánh trong trường hợp không tồn tại, nhờ đó thời gian phản hồi và nội dung phản hồi không tiết lộ sự tồn tại của tài khoản.
+
+Hệ thống có đúng hai vai trò là người dùng và quản trị. Mọi đường dẫn quản trị được bảo vệ bằng ba lớp, trong đó lớp thứ ba nằm ở tầng dịch vụ chứ không ở tầng controller, nhằm bảo đảm nguyên tắc phòng thủ nhiều lớp (defense in depth), được minh hoạ ở Hình~\ref{fig:bao-ve-quan-tri}.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.85\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.6cm and 2.5cm]
+        \node[ragbox, text width=4.8cm] (R) {Yêu cầu tới đường dẫn quản trị};
+        \node[ragdecision, below=of R] (G1) {Lớp bảo vệ xác thực};
+        \node[ragbox, text width=2.4cm, right=2.6cm of G1] (X1) {Trả 401};
+
+        \node[ragdecision, below=0.7cm of G1] (G2) {Lớp bảo vệ vai trò};
+        \node[ragbox, text width=2.4cm, right=2.6cm of G2] (X2) {Trả 403};
+
+        \node[ragbox, text width=3.8cm, below=0.7cm of G2] (S) {Tầng dịch vụ};
+        \node[ragdecision, below=0.7cm of S] (G3) {Kiểm tra lại vai trò\\ở tầng dịch vụ};
+        \node[ragbox, text width=2.4cm, right=2.6cm of G3] (X3) {Trả 403};
+
+        \node[ragdecision, below=0.7cm of G3] (A) {Kiểm tra tự bảo vệ};
+        \node[ragbox, text width=2.4cm, right=3.3cm of A, yshift=0.55cm] (X4) {Trả 409};
+        \node[ragbox, text width=2.4cm, right=3.3cm of A, yshift=-0.55cm] (X5) {Trả 409};
+
+        \node[ragbox, text width=4.2cm, below=0.8cm of A] (W) {Ghi bản ghi kiểm toán};
+        \node[ragbox, text width=4.2cm, fill=green!8, draw=green!50!black, below=0.6cm of W] (OK) {Thực hiện thao tác};
+
+        \draw[ragarrow] (R) -- (G1);
+        \draw[ragarrow] (G1.east) -- node[above, font=\scriptsize] {Token không hợp lệ} (X1.west);
+        \draw[ragarrow] (G1.south) -- node[left, font=\scriptsize] {Hợp lệ} (G2.north);
+
+        \draw[ragarrow] (G2.east) -- node[above, font=\scriptsize] {Không phải quản trị} (X2.west);
+        \draw[ragarrow] (G2.south) -- node[left, font=\scriptsize] {Là quản trị} (S.north);
+
+        \draw[ragarrow] (S) -- (G3);
+        \draw[ragarrow] (G3.east) -- node[above, font=\scriptsize] {Không hợp lệ} (X3.west);
+        \draw[ragarrow] (G3.south) -- node[left, font=\scriptsize] {Hợp lệ} (A.north);
+
+        \draw[ragarrow] (A.east) -- ++(0.4,0) |- node[above, pos=0.72, font=\scriptsize] {Tự khoá hoặc tự hạ vai trò} (X4.west);
+        \draw[ragarrow] (A.east) -- ++(0.4,0) |- node[below, pos=0.72, font=\scriptsize] {Khoá quản trị cuối cùng} (X5.west);
+        \draw[ragarrow] (A.south) -- node[left, font=\scriptsize] {Hợp lệ} (W.north);
+        \draw[ragarrow] (W) -- (OK);
+    \end{tikzpicture}%
+    }
+    \caption{Ba lớp bảo vệ đường dẫn quản trị và các quy tắc tự bảo vệ.}
+    \label{fig:bao-ve-quan-tri}
+\end{figure}
+
+Hai quy tắc tự bảo vệ là bắt buộc và phải nằm ở tầng dịch vụ. Quản trị viên không thể khoá hay hạ vai trò của chính mình. Quản trị viên đang hoạt động cuối cùng không thể bị hạ vai trò hay khoá. Hai quy tắc này ngăn tình huống hệ thống mất khả năng quản trị do một thao tác của chính quản trị viên đó.
+
+Trường khai báo (claim) phiên bản token trong token truy cập là cơ chế trung tâm để thay đổi quyền có hiệu lực tức thời. Mỗi tài khoản có một giá trị phiên bản token. Khi cấp token truy cập, giá trị này được ghi vào claim tương ứng. Lớp bảo vệ xác thực đối chiếu claim trong token với giá trị đang lưu của tài khoản, và từ chối nếu không khớp. Mọi hành động làm thay đổi quyền của tài khoản, gồm khoá tài khoản, hạ vai trò, đổi mật khẩu và thu hồi token theo tài khoản, đều phải tăng giá trị phiên bản token. Vì token truy cập chỉ sống 15 phút, tác động của thay đổi quyền được áp dụng ngay với các token đã cấp, không cần chờ hết thời hạn.
+
+Giá trị phiên bản token được đọc qua bộ nhớ đệm có thời hạn ngắn, và mọi thao tác quản trị phải vô hiệu hoá bộ nhớ đệm này một cách tường minh. Nếu không, thay đổi quyền sẽ chỉ có hiệu lực sau khi bộ nhớ đệm hết hạn, tạo ra một cửa sổ không nhất quán.
+
+Giới hạn tần suất được đặt ở cấp ứng dụng và gắn theo nhóm đường dẫn nhạy cảm. Bảng~\ref{tab:gioi-han-tan-suat} trình bày các mức giới hạn.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Giới hạn tần suất theo nhóm đường dẫn.}
+    \label{tab:gioi-han-tan-suat}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Nhóm} & \textbf{Số yêu cầu mỗi phút} & \textbf{Lý do đặt giới hạn} \\
+        \midrule
+        Mặc định & 120 & Hạn mức nền cho mọi đường dẫn \\
+        Đăng ký & 5 & Chặn tạo hàng loạt tài khoản tự động \\
+        Đăng nhập & 10 & Chặn dò mật khẩu \\
+        Xoay vòng token & 30 & Cho phép xoay vòng token thường xuyên \\
+        Hỏi đáp bằng AI & 20, khách chỉ được 10 & Bảo vệ tài nguyên suy luận, nhóm đông nhất \\
+        Đổi mật khẩu & 5 & Chặn thao tác nhạy cảm lặp lại \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Cơ chế giới hạn tính theo địa chỉ thực của phía trình duyệt, nên chuỗi reverse proxy giữa các máy chủ trung gian phải được khai báo đúng số bước thực sự nằm trước ứng dụng. Khai báo sai số bước sẽ khiến nhiều người dùng cùng chia sẻ một địa chỉ và vô tình bị giới hạn chung.
 
 \section{Thiết kế cơ chế xử lý Request/Response}
 \label{sec:request-response}
 
-% Nội dung phần 3.7
+Mỗi yêu cầu đi qua một chuỗi xử lý cố định, trong đó thứ tự các bước là một phần của hợp đồng thiết kế, được thể hiện ở Hình~\ref{fig:quy-trinh-request}.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{!}{0.82\textheight}{%
+    \begin{tikzpicture}[node distance=0.55cm and 2.2cm]
+        \node[ragbox, text width=4.6cm] (A) {Yêu cầu đến};
+        \node[ragbox, text width=4.6cm, below=of A] (B) {Gán mã yêu cầu và thiết lập thời hạn};
+        \node[ragbox, text width=4.6cm, below=of B] (C) {Header bảo mật và giới hạn tần suất};
+        \node[ragdecision, below=0.6cm of C] (D) {Kiểm tra giới hạn\\tần suất};
+        \node[ragbox, text width=2.4cm, right=2.4cm of D] (R1) {Trả 429};
+
+        \node[ragdecision, below=0.65cm of D] (E) {Đường dẫn cần\\xác thực};
+        \node[ragbox, text width=3.8cm, right=2.2cm of E] (F) {Kiểm tra token truy cập};
+        \node[ragdecision, below=0.65cm of F] (G) {Đường dẫn cần\\vai trò quản trị};
+        \node[ragbox, text width=3.6cm, below=0.65cm of G] (H) {Kiểm tra vai trò};
+
+        \node[ragbox, text width=4.6cm, below=4.5cm of E] (I) {Kiểm tra dữ liệu đầu vào};
+        \node[ragbox, text width=4.6cm, below=of I] (J) {Controller gọi tầng dịch vụ};
+        \node[ragbox, text width=4.6cm, below=of J] (K) {Dịch vụ gọi engine và cơ sở dữ liệu};
+        \node[ragbox, text width=4.6cm, below=of K] (L) {Chuẩn hoá phản hồi và ghi log};
+        \node[ragbox, text width=4.6cm, fill=green!8, draw=green!50!black, below=of L] (M) {Trả phản hồi};
+
+        \draw[ragarrow] (A) -- (B);
+        \draw[ragarrow] (B) -- (C);
+        \draw[ragarrow] (C) -- (D);
+        \draw[ragarrow] (D.east) -- node[above, font=\scriptsize] {Vượt ngưỡng} (R1.west);
+        \draw[ragarrow] (D.south) -- node[left, font=\scriptsize] {Trong ngưỡng} (E.north);
+
+        \draw[ragarrow] (E.south) -- node[left, font=\scriptsize] {Không} (I.north);
+        \draw[ragarrow] (E.east) -- node[above, font=\scriptsize] {Có} (F.west);
+        \draw[ragarrow] (F) -- (G);
+        \draw[ragarrow] (G.south) -- node[left, font=\scriptsize] {Có} (H.north);
+        \draw[ragarrow] (G.west) -- ++(-0.6,0) |- node[above, pos=0.72, font=\scriptsize] {Không} ([yshift=4pt]I.east);
+        \draw[ragarrow] (H.south) |- ([yshift=-4pt]I.east);
+
+        \draw[ragarrow] (I) -- (J);
+        \draw[ragarrow] (J) -- (K);
+        \draw[ragarrow] (K) -- (L);
+        \draw[ragarrow] (L) -- (M);
+    \end{tikzpicture}%
+    }
+    \caption{Quy trình xử lý yêu cầu phía máy chủ.}
+    \label{fig:quy-trinh-request}
+\end{figure}
+
+Bước kiểm tra dữ liệu đầu vào chạy sau các bước xác thực và phân quyền, và trước khi tầng dịch vụ được gọi. Mọi nội dung yêu cầu được kiểm tra bằng cách cấu hình tập trung tại điểm khởi động, nên một đường dẫn mới không thể vô tình bỏ qua bước này. Các ràng buộc được kiểm tra gồm độ dài chuỗi, khoảng giá trị số, danh sách giá trị hợp lệ và định dạng.
+
+Phản hồi thành công dùng cấu trúc thống nhất, gồm mã trạng thái, dữ liệu, liên kết siêu dữ liệu và, với danh sách, ba trường chuẩn đã nêu ở Mục~\ref{sec:thiet-ke-api}. Phản hồi lỗi dùng cấu trúc Problem Details for HTTP APIs theo RFC 7807, gồm mã trạng thái, mã lỗi máy đọc được, thông báo cho người, chi tiết, thời điểm và đường dẫn yêu cầu.
+
+Mã lỗi máy đọc được là phần quan trọng nhất của hợp đồng này, vì phía trình duyệt căn cứ vào nó để quyết định hành động tiếp theo, ví dụ phân biệt lỗi xác thực với lỗi tạm thời của phụ thuộc. Bảng~\ref{tab:ma-loi-nghiep-vu} liệt kê các mã lỗi nghiệp vụ đặc thù.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các mã lỗi nghiệp vụ đặc thù.}
+    \label{tab:ma-loi-nghiep-vu}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.8cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Mã lỗi} & \textbf{Mã trạng thái} & \textbf{Ý nghĩa} \\
+        \midrule
+        {\footnotesize\texttt{TOKEN\_REUSE\_DETECTED}} & 401 & Phát hiện dùng lại token đã thu hồi, cả họ token đã bị thu hồi \\
+        {\footnotesize\texttt{SELF\_LOCKOUT\_FORBIDDEN}} & 409 & Quản trị viên không được khoá hay hạ vai trò chính mình \\
+        {\footnotesize\texttt{LAST\_ADMIN\_PROTECTED}} & 409 & Không thể khoá hay hạ vai trò của quản trị viên cuối cùng \\
+        {\footnotesize\texttt{LLM\_QUEUE\_FULL}} & 429 & Hàng đợi suy luận đầy, yêu cầu bị từ chối \\
+        {\footnotesize\texttt{LLM\_TIMEOUT}} & 504 & Suy luận vượt thời hạn 60 giây \\
+        {\footnotesize\texttt{QDRANT\_UNAVAILABLE}} & 503 & Chỉ mục vector không truy cập được \\
+        {\footnotesize\texttt{CORPUS\_UNAVAILABLE}} & 503 & Kho khoa học không truy cập được \\
+        {\footnotesize\texttt{IDEMPOTENCY\_IN\_PROGRESS}} & 409 & Yêu cầu trùng lặp với cùng khoá đang chạy \\
+        {\footnotesize\texttt{IDEMPOTENCY\_KEY\_MISMATCH}} & 409 & Khoá trùng lặp được dùng lại cho nội dung khác \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Đường dẫn hỏi đáp sinh văn bản tốn tài nguyên, nên cơ chế chống gửi lặp được áp dụng bằng cách yêu cầu phía trình duyệt gửi khoá chống gửi lặp trong header. Khoá phải là UUID, có thời hạn 24 giờ, được lưu cùng dấu vết của nội dung yêu cầu để phát hiện việc dùng lại khoá cho nội dung khác.
+
+Bảng~\ref{tab:xu-ly-trung-lap} trình bày các tình huống xử lý.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Xử lý yêu cầu trùng lặp.}
+    \label{tab:xu-ly-trung-lap}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.0cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.8cm}@{}}
+        \toprule
+        \textbf{Tình huống} & \textbf{Kết quả trả về} & \textbf{Ghi chú} \\
+        \midrule
+        Lần trước đã hoàn tất & Phát lại kết quả đã lưu kèm header đánh dấu phát lại & Không chạy lại suy luận, không sinh thêm dữ liệu \\
+        Lần trước đang chạy & Mã lỗi xung đột & Không tạo lượt sinh thứ hai \\
+        Cùng khoá nhưng nội dung khác & Mã lỗi xung đột & Phát hiện việc lạm dụng khoá \\
+        Lần trước lỗi hoặc bị huỷ & Chạy lại bình thường & Khoá đã được trả cho lượt sau \\
+        Tiến trình chết giữa chừng & Chạy lại được sau khi lease lock hết hạn & Lease lock có thời hạn 5 phút \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Với biến thể truyền theo luồng sự kiện, cơ chế phát lại phải tái phát đầy đủ chuỗi sự kiện theo đúng thứ tự để phía trình duyệt nhận được kết quả giống hệt lần đầu.
+
+Mỗi chặng của quy trình truy hồi có thời hạn chờ, mã lỗi và fallback riêng. Bảng~\ref{tab:thoi-han-cho-chang} trình bày chi tiết các ngưỡng này.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thời hạn chờ, mã lỗi và fallback theo chặng.}
+    \label{tab:thoi-han-cho-chang}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Chặng} & \textbf{Thời hạn} & \textbf{Mã lỗi} & \textbf{Fallback} \\
+        \midrule
+        Truy vấn chỉ mục vector & 15 giây & 503 & Không có, vì mất chỉ mục thì không có nguồn trích dẫn \\
+        Nạp đoạn văn bản kho & 5 giây & 503 & Bỏ qua đoạn không nạp được, tiếp tục với các đoạn còn lại \\
+        Chấm điểm & 30 giây & Không trả lời & Giữ thứ tự xếp hạng theo điểm tương đồng và điểm uy tín \\
+        Slot mô hình ngôn ngữ & 60 giây & 504 & Giải phóng slot để phục vụ yêu cầu sau \\
+        Hàng đợi sinh văn bản & 1 slot, 8 vị trí chờ & 429 & Từ chối ngay thay vì chờ vô hạn \\
+        Bản ghi chống gửi lặp & 24 giờ & 409 & Phát lại kết quả đã lưu \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Cơ chế bỏ qua có kiểm soát là điểm cần chú ý. Nếu một đoạn văn bản không nạp được, đoạn đó bị loại khỏi ngữ cảnh thay vì làm hỏng cả câu trả lời. Nếu không còn đoạn nào dùng được, hệ thống trả lời rằng không tìm thấy căn cứ, thay vì sinh nội dung không có nguồn.
+
+Mỗi yêu cầu kết thúc ghi một dòng log có cấu trúc, kèm mã yêu cầu để đối chiếu với nhật ký kiểm toán, và phân loại theo mức độ thành công. Quy tắc bất biến là không ghi mật khẩu, token, token làm mới, cũng không ghi nội dung câu hỏi của người dùng, chỉ ghi độ dài câu hỏi. Các sự kiện nghiệp vụ đáng chú ý, ví dụ đăng nhập thành công, đăng nhập thất bại, xoay vòng token, phát hiện dùng lại token, đổi tên và xoá phiên, được ghi thành dòng riêng với mã sự kiện.
+
+Ngoài JSON, hệ thống hỗ trợ XML thông qua đàm phán bằng header \texttt{Accept}, kể cả với nội dung lỗi. Bộ phân tích XML chặn \texttt{DOCTYPE} và \texttt{ENTITY} để chống tấn công chèn thực thể XML ngoài và tấn công phình thực thể (XML bomb), và trả về lỗi kiểm tra dữ liệu với XML sai định dạng.
 
 \section{Thiết kế cơ chế quản lý trạng thái và dữ liệu trên Frontend}
 \label{sec:state-management}
 
-% Nội dung phần 3.8
+Trạng thái phía trình duyệt được tách thành bốn kho độc lập theo vòng đời và tần suất cập nhật (Bảng~\ref{tab:bon-nhom-trang-thai}), nhằm tránh truyền trạng thái qua cây thành phần và cô lập vùng kết xuất tốn tài nguyên. Toàn bộ các kho đều đăng ký theo dõi qua bộ chọn (\textit{selector}), đồng thời giữ hai ranh giới kiến trúc: vòng lặp WebGL đọc trực tiếp kho không gian thay vì đăng ký theo dõi qua React hook (reactive subscription), tránh làm giật cảnh 3D khi luồng token cập nhật kho truy hồi, và thao tác ghi xuống cơ sở dữ liệu cục bộ chỉ thực hiện sau khi kết thúc luồng sự kiện.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Phân tách bốn kho trạng thái phía trình duyệt.}
+    \label{tab:bon-nhom-trang-thai}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.0cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Kho trạng thái} & \textbf{Nội dung} & \textbf{Nguồn dữ liệu chuẩn và tần suất ghi} & \textbf{Ranh giới và tác động kết xuất} \\
+        \midrule
+        Giao diện & Giao diện sáng tối, bảng điều khiển, chỉ số hiệu năng & Bộ nhớ trình duyệt; ghi khi đổi cấu hình & Dùng chung nhiều vùng; nằm ngoài vòng lặp WebGL \\
+        Phiên & Danh sách phiên, tin nhắn, trạng thái đồng bộ và ngoại tuyến & Kho cục bộ và máy chủ; ghi mỗi khi đổi hội thoại & Tác động nhẹ đến danh sách; nằm ngoài vòng lặp WebGL \\
+        Truy hồi & Lượt hỏi đáp đang chạy, bộ đệm token, vùng sáng 3D & Luồng sự kiện SSE; ghi rất cao theo từng đợt token & Chỉ đọc ở giao diện thường, gom đệm 30 ms; không re-render 3D \\
+        Không gian & Vị trí camera, nút được chọn, trạng thái hiệu ứng & Thao tác người dùng và kết quả thu hồi; theo khung hình & Đọc trực tiếp trong vòng lặp WebGL, không kích hoạt re-render React \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Để lịch sử hội thoại luôn xem được khi mất mạng hoặc máy chủ gián đoạn, trình duyệt duy trì tầng lưu trữ cục bộ bằng IndexedDB (qua Dexie.js, cơ sở dữ liệu \texttt{RagChatDB}) gồm hai bảng \texttt{sessions} và \texttt{messages} sử dụng khoá chính \texttt{UUIDv7} trùng thứ tự thời gian, giúp đồng bộ thẳng với máy chủ mà không cần ánh xạ khoá. Khi khởi động, giao diện ưu tiên đọc và hiển thị ngay phiên cục bộ từ IndexedDB, sau đó kiểm tra máy chủ với thời hạn chờ 2 giây để kéo nền tối đa 500 phiên mới hơn theo mốc cập nhật (nếu mất kết nối thì tiếp tục ngoại tuyến không báo lỗi chặn). Ở chiều ghi, phiên mới được lưu vào IndexedDB với cờ chưa đồng bộ trước khi mở luồng sự kiện; khi nhận sự kiện hoàn tất, ứng dụng hợp nhất định danh máy chủ cấp, đồng bộ tiêu đề nền bằng \texttt{PATCH} và ghi hàng loạt tin nhắn xuống đĩa mà không chặn luồng sinh văn bản.
+
+Mỗi lượt hỏi đáp vận hành theo máy trạng thái bảy pha đồng bộ với chuỗi sự kiện SSE ở Mục~\ref{sec:thiet-ke-api} (minh hoạ ở Hình~\ref{fig:luong-hoi-dap-fe}), tách riêng \textit{pha dữ liệu} (tiến trình từ máy chủ) và \textit{pha hiển thị} (theo nhịp hoạt cảnh, cho phép bỏ qua) qua hàm reducer thuần tuý loại bỏ sự kiện trễ hoặc sai thứ tự. Mỗi lượt chạy được đánh số thứ tự để tự động huỷ luồng cũ qua \texttt{AbortSignal} khi người dùng chuyển hội thoại, đồng thời gửi kèm khoá chống gửi lặp để máy chủ phát lại kết quả nếu đứt kết nối đối với tài khoản đã đăng nhập. Nhằm giữ độ mượt cho luồng chính và cảnh ba chiều, token được gom đệm theo nhịp tối đa 30 ms (giảm hơn hai phần ba số lần re-render của React), gộp cập nhật nội dung và pha trong một lần ghi trạng thái, và trì hoãn phân tích Markdown cùng công thức toán học bằng \texttt{useDeferredValue} kết hợp ghi nhớ (\textit{memoization}).
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.92\textwidth}{!}{%
+    \begin{tikzpicture}
+        \node[ragbox, text width=3.2cm] (U) {Người dùng nhập\\câu hỏi};
+        \node[ragbox, text width=3.4cm] (MD) at (5.4, 0) {Thành phần Markdown\\\texttt{useDeferredValue}};
+        \node[ragbox, text width=3.6cm] (BE) at (12.0, 0) {Máy chủ:\\luồng sự kiện SSE};
+
+        \node[ragbox, text width=3.2cm] (ST) at (0, -3.0) {Kho trạng thái phiên};
+        \node[ragbox, text width=3.4cm] (RG) at (5.4, -3.0) {Kho trạng thái truy hồi};
+        \node[ragbox, text width=3.0cm] (W) at (12.0, -3.0) {Cảnh ba chiều};
+
+        \node[ragdb, text width=2.8cm] (DB) at (2.7, -5.8) {RagChatDB\\IndexedDB};
+
+        \draw[ragarrow] (U) -- (ST);
+        \draw[ragarrow] (ST) -- (DB);
+        \draw[ragarrow] (ST) -- (RG);
+        \draw[ragarrow] (RG.north east) to[bend left=12] node[above, sloped, font=\scriptsize] {\texttt{POST /rag/chat/stream}} (BE.south west);
+        \draw[ragdashed] (BE.south west) to[bend left=12] node[below, sloped, font=\scriptsize] {\texttt{token, phase, retrieval}} (RG.north east);
+        \draw[ragarrow] (RG) -- (MD);
+        \draw[ragarrow] (MD) -- (U);
+        \draw[ragarrow] (RG) -- (W);
+        \draw[ragarrow] (RG) -- node[right, font=\scriptsize] {ghi hàng loạt} (DB);
+    \end{tikzpicture}%
+    }
+    \caption{Đường đi của một lượt hỏi đáp từ câu hỏi của người dùng đến khi câu trả lời được ghi lại ở tầng cục bộ.}
+    \label{fig:luong-hoi-dap-fe}
+\end{figure}
+
+Dữ liệu không gian tri thức ba chiều được nạp từ máy chủ một lần vào bộ nhớ trình duyệt, trong đó bảng toạ độ điểm lưu bằng mảng số thực dùng chung (tự mở rộng thêm 10\% khi vượt sức chứa). Thao tác chọn điểm dưới con trỏ được tăng tốc bằng lưới ô ba chiều cố định kết hợp thuật toán duyệt lưới 3D DDA trên mảng chỉ mục nén liên tục (CSR), giữ độ phức tạp không phụ thuộc tổng số điểm toàn cảnh. Các cơ chế điều chỉnh thang chất lượng hình ảnh bốn bậc, mức chi tiết và góc nhìn camera được trình bày ở Mục~\ref{sec:ui-ux}, còn chi tiết cài đặt các kho và thành phần được trình bày ở Mục~\ref{sec:trien-khai-frontend}.
 
 \section{Thiết kế AI Integration Layer và cơ chế tích hợp RAG}
 \label{sec:ai-integration-layer}
 
-% Nội dung phần 3.9
+Phần này trình bày kiến trúc của lớp tích hợp trí tuệ nhân tạo, là ranh giới giữa nghiệp vụ của hệ thống và các thành phần mô hình. Chi tiết về thuật toán khai phá dữ liệu, cơ chế nhúng, lập chỉ mục vector, cấu hình mô hình ngôn ngữ và chiến lược sinh văn bản được trình bày ở Chương~\ref{chap:data-pipeline-ai}. Ở đây chỉ nêu bố cục tổng quan, hợp đồng giữa các thành phần và cơ chế bảo đảm chất lượng câu trả lời.
+
+Hệ thống tích hợp trí tuệ nhân tạo theo kiến trúc cổng và bộ chuyển đổi (Ports and Adapters). Toàn bộ logic truy hồi tăng cường nằm trong một dịch vụ duy nhất, và mọi phụ thuộc vào mô hình hay hạ tầng vector đều được khai báo qua các giao diện thay thế được. Nhờ vậy, việc thay đổi mô hình nhúng, thay chỉ mục vector hoặc tích hợp thêm một bộ chấm điểm không làm thay đổi logic nghiệp vụ, và toàn bộ quy trình truy hồi có thể được kiểm thử bằng bộ giả lập mà không cần tải mô hình thật.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Năm cổng thành phần của lớp tích hợp trí tuệ nhân tạo.}
+    \label{tab:nam-cong-ai}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.4cm}@{}}
+        \toprule
+        \textbf{Cổng} & \textbf{Trách nhiệm} & \textbf{Bộ chuyển đổi hiện hành} \\
+        \midrule
+        Cổng nhúng & Biến câu hỏi và đoạn văn bản thành vector cố định số chiều & Mô hình nhúng cục bộ \\
+        Cổng kho vector & Tìm các đoạn văn bản gần nhất với vector câu hỏi & Chỉ mục vector chỉ đọc \\
+        Cổng mô hình ngôn ngữ & Sinh câu trả lời theo luồng từ ngữ cảnh đã truy hồi & Mô hình ngôn ngữ cục bộ qua hàng đợi giới hạn \\
+        Cổng lưu phiên & Ghi và đọc phiên hội thoại, tin nhắn và khoá chống gửi lặp & Cơ sở dữ liệu ứng dụng \\
+        Cổng chấm điểm & Chấm điểm mức độ liên quan và mức độ có căn cứ & Bộ chấm điểm cục bộ, tuỳ chọn \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bên cạnh năm cổng, lớp tích hợp dựa vào hai engine nội bộ chạy hoàn toàn trong bộ nhớ tiến trình. Engine khai phá dữ liệu giữ bảng uy tín của tác giả và bộ luật kết hợp đã nạp sẵn từ kho khoa học, phục vụ mở rộng câu hỏi và xếp hạng lại kết quả truy hồi. Engine định tuyến cây giữ cây tri thức ba cấp cùng ma trận trọng tâm của các nhánh và các đoạn, phục vụ thu hẹp không gian tìm kiếm trước khi truy vấn chỉ mục vector.
+
+Hai engine này được nạp đúng một lần lúc khởi động. Đây là hệ quả trực tiếp của nguyên tắc P-1 trong Bảng~\ref{tab:muoi-nguyen-tac}: đường xử lý chính không được phép có lượt khứ hồi mạng thừa, nên mọi dữ liệu phục vụ định tuyến và xếp hạng phải sẵn sàng trong bộ nhớ.
+
+Một lượt hỏi đáp đi qua bảy pha cố định. Mỗi pha phát ra một sự kiện cho lớp truyền thông theo luồng, nhờ đó giao diện có thể hiển thị trạng thái trung gian mà không cần chờ câu trả lời hoàn chỉnh.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Bảy pha của quy trình truy hồi tăng cường và đầu ra tương ứng.}
+    \label{tab:bay-pha-rag}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.8cm}@{}}
+        \toprule
+        \textbf{Pha} & \textbf{Nội dung thực hiện} & \textbf{Đầu ra} \\
+        \midrule
+        Nhúng & Mở rộng câu hỏi bằng luật kết hợp rồi chuyển thành vector & Vectơ câu hỏi, danh sách từ khoá mở rộng \\
+        Bay & Định tuyến trên cây tri thức theo vector để chọn các nhánh và đoạn đáng xét & Danh sách nhánh đã chọn theo từng cấp \\
+        So sánh & Truy vấn chỉ mục vector trong phạm vi đã định tuyến & Tập ứng viên kèm điểm tương đồng \\
+        Tìm thấy & Xếp hạng lại bằng tín hiệu uy tín và chấm điểm mức độ liên quan & Tập đoạn văn bản có căn cứ kèm điểm \\
+        Sinh văn bản & Sinh câu trả lời theo luồng từ ngữ cảnh đã truy hồi & Chuỗi token sinh dần \\
+        Kiểm tra căn cứ & Chấm điểm mức độ được ngữ cảnh hỗ trợ cho câu trả lời & Điểm căn cứ, hoặc thay thế câu trả lời \\
+        Hoàn tất & Trích xuất trích dẫn, lưu lượt hỏi đáp, ghi nhận thời gian theo từng chặng & Danh sách trích dẫn, định danh phiên và tin nhắn \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.92\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.55cm and 1.8cm]
+        \node[ragbox, text width=4.2cm] (Q) {Câu hỏi người dùng};
+
+        \node[ragbox, text width=4.6cm, below=0.95cm of Q] (E) {1. Nhúng câu hỏi};
+        \node[ragbox, text width=4.6cm, below=of E] (R) {2. Định tuyến trên cây tri thức};
+        \node[ragbox, text width=4.6cm, below=of R] (S) {3. Truy vấn chỉ mục vector};
+        \node[ragbox, text width=4.6cm, below=of S] (K) {4. Xếp hạng lại và chấm điểm liên quan};
+        \node[ragdecision, below=0.7cm of K] (G1) {Cổng căn cứ\\đạt ngưỡng?};
+
+        \node[ragbox, text width=3.4cm, left=1.8cm of K, yshift=-0.8cm] (W) {Viết lại câu hỏi\\một lần};
+
+        \node[ragbox, text width=4.6cm, below=0.75cm of G1] (L) {5. Sinh văn bản theo luồng};
+        \node[ragbox, text width=3.4cm, right=2.1cm of L] (X) {Từ chối trả lời};
+        \node[ragdecision, below=0.7cm of L] (G2) {Cổng căn cứ\\sau sinh đạt ngưỡng?};
+        \node[ragbox, text width=4.8cm, fill=green!8, draw=green!50!black, below=0.75cm of G2] (F) {7. Hoàn tất và lưu lượt hỏi đáp};
+
+        \begin{scope}[on background layer]
+            \node[raggroup, fit=(E)(W)(X)(F), label={[font=\small\bfseries, text=primaryBlue, anchor=south west]north west:Quy trình truy hồi tăng cường}] {};
+        \end{scope}
+
+        \draw[ragarrow] (Q) -- (E);
+        \draw[ragarrow] (E) -- (R);
+        \draw[ragarrow] (R) -- (S);
+        \draw[ragarrow] (S) -- (K);
+        \draw[ragarrow] (K) -- (G1);
+
+        \draw[ragarrow] (G1.west) -| node[below, pos=0.25, font=\scriptsize] {không đạt} (W.south);
+        \draw[ragarrow] (W.north) |- (E.west);
+        \draw[ragarrow] (G1.east) -| node[above, pos=0.25, font=\scriptsize] {vẫn không đạt} (X.north);
+
+        \draw[ragarrow] (G1.south) -- node[left, font=\scriptsize] {đạt} (L.north);
+        \draw[ragarrow] (L) -- (G2);
+        \draw[ragarrow] (G2.east) -| node[below, pos=0.25, font=\scriptsize] {không đạt} (X.south);
+        \draw[ragarrow] (G2.south) -- node[left, font=\scriptsize] {đạt} (F.north);
+        \draw[ragarrow] (X.east) -- ++(0.45,0) |- (F.east);
+    \end{tikzpicture}%
+    }
+    \caption{Quy trình truy hồi tăng cường với hai cổng kiểm soát chất lượng.}
+    \label{fig:duong-ong-rag-cong-chat-luong}
+\end{figure}
+
+Hai cổng kiểm soát chất lượng là điểm khác biệt quan trọng nhất của thiết kế này so với một quy trình truy hồi tăng cường thông thường. Cổng trước sinh văn bản kiểm tra mức độ liên quan của tập đoạn văn bản đã truy hồi so với câu hỏi. Nếu điểm liên quan thấp hơn ngưỡng, hệ thống viết lại câu hỏi một lần bằng chính mô hình ngôn ngữ, truy hồi lại rồi đánh giá lại. Nếu vẫn không đủ, hệ thống không sinh câu trả lời nào mà trả về thông báo không có ngữ cảnh phù hợp.
+
+Cổng sau sinh văn bản kiểm tra mức độ được ngữ cảnh hỗ trợ cho chính câu trả lời đã sinh. Nếu câu trả lời chứa thông tin không có trong ngữ cảnh, nó bị thay thế bằng thông báo không có ngữ cảnh theo cùng cơ chế. Cơ chế này chuyển trách nhiệm từ việc hy vọng mô hình tự kiểm soát sang một kiểm tra bên ngoài, và là cơ sở để tuyên bố rằng mọi câu trả lời đều có căn cứ.
+
+Khi bộ chấm điểm không khả dụng, ví dụ khi mô hình chấm điểm chưa được nạp, hệ thống coi như không có phán đoán và tiếp tục quy trình với kết quả xếp hạng dựa trên tín hiệu uy tín. Cơ chế suy giảm mềm (graceful degradation) này giữ cho quy trình luôn sẵn sàng phục vụ, đồng thời tuân thủ nguyên tắc P-8 về việc lỗi cục bộ không làm sập toàn hệ thống.
+
+Vì mô hình ngôn ngữ chạy cục bộ trên một thiết bị có tài nguyên hạn chế, tài nguyên sinh văn bản được quản lý bằng hàng đợi có độ sâu giới hạn. Hàng đợi cho phép một lượt sinh văn bản chạy đồng thời và tám lượt chờ. Khi hàng đợi đầy, yêu cầu mới bị từ chối có kiểm soát bằng mã lỗi nghiệp vụ thay vì làm cạn kiệt tài nguyên. Đây là cơ chế giảm tải mà nguyên tắc P-8 trong Bảng~\ref{tab:muoi-nguyen-tac} đòi hỏi.
+
+Bộ chấm điểm có giới hạn riêng. Vì một lần chạy chiếm toàn bộ lõi xử lý, số yêu cầu chấm điểm đang chờ bị giới hạn ở mức tám, và yêu cầu vượt ngưỡng bị bỏ qua thay vì xếp hàng. Việc bỏ qua không làm hỏng luồng vì cổng kiểm soát chất lượng xử lý được trường hợp không có phán đoán.
+
+Bên cạnh hàng đợi, một bộ giới hạn số yêu cầu đồng thời theo phía trình duyệt chặn trường hợp một client chiếm hết hàng đợi mô hình ngôn ngữ. Mỗi tài khoản được phép hai yêu cầu đồng thời và mỗi địa chỉ mạng được phép ba, trên cơ sở giả định một địa chỉ mạng có thể do nhiều người dùng chung. Khi vượt ngưỡng, yêu cầu bị từ chối ngay với mã lỗi tương ứng.
+
+Cơ chế chống gửi lặp được áp dụng ở cấp yêu cầu. Với người dùng đã đăng nhập, mỗi yêu cầu kèm khoá chống gửi lặp được ghi nhận cùng dấu vết của nội dung yêu cầu. Nếu cùng khoá được gửi lại, hệ thống phát lại kết quả đã lưu thay vì chạy lại mô hình, nhờ đó một kết nối bị đứt giữa chừng không làm mất lượt hỏi đáp và không phát sinh chi phí suy luận lặp.
+
+Cấu trúc đầu ra của một lượt hỏi đáp gồm năm phần. Câu trả lời văn bản, danh sách trích dẫn xác định các bài báo được dùng làm căn cứ, tập đoạn văn bản có căn cứ kèm điểm liên quan và điểm uy tín, tập từ khoá mở rộng, và thời gian đo cho từng chặng cùng tổng thời gian. Khi bộ chấm điểm hoạt động, đầu ra còn có điểm căn cứ, câu hỏi đã viết lại và cờ cho biết câu trả lời có bị thay thế hay không.
+
+Mỗi trích dẫn được đối chiếu với tập đoạn văn bản đã truy hồi. Trích dẫn nào không có nguồn tương ứng được đánh dấu là chưa kiểm chứng ở giao diện, thay vì bị loại bỏ, để người dùng tự quyết định mức độ tin cậy.
+
+Ranh giới trách nhiệm giữa lớp tích hợp trí tuệ nhân tạo và các phần khác của hệ thống được xác định như sau. Lớp tích hợp quyết định câu trả lời có hợp lệ hay không và sinh ra phần lưu trữ cần thiết. Lớp truyền thông chỉ chịu trách nhiệm phát sự kiện theo đúng thứ tự pha. Lớp giao diện quyết định cách hiển thị từng pha và từng trích dẫn. Chi tiết về thuật toán khai phá dữ liệu, cơ chế nhúng, lập chỉ mục vector, cấu hình mô hình ngôn ngữ và chiến lược sinh văn bản được trình bày ở Chương~\ref{chap:data-pipeline-ai}.
 
 \section{Thiết kế giao diện và trải nghiệm người dùng}
 \label{sec:ui-ux}
 
-% Nội dung phần 3.10
+Phần này trình bày nguyên tắc thiết kế giao diện và trải nghiệm người dùng của hệ thống. Cấu trúc tổ chức mã nguồn phía người dùng đã được nêu ở Mục~\ref{sec:kien-truc-frontend}, cơ chế quản lý trạng thái phía trình duyệt đã được nêu ở Mục~\ref{sec:state-management}, còn chi tiết triển khai từng thành phần sẽ trình bày ở Mục~\ref{sec:trien-khai-frontend}. Ở đây chỉ nêu hệ thống thiết kế và các ràng buộc định hình trải nghiệm.
+
+Giao diện của hệ thống không phải là một lớp trang trí đặt trên chức năng, mà là phương tiện chính để người dùng kiểm chứng kết quả. Vì hệ thống trả lời câu hỏi khoa học bằng trích dẫn, mọi quyết định thiết kế đều xoay quanh việc làm cho người dùng nhìn thấy được nguồn gốc của câu trả lời ngay trong không gian mà họ đang làm việc.
+
+Tám nguyên tắc sau đây chi phối toàn bộ thiết kế giao diện.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tám nguyên tắc thiết kế giao diện và hệ quả áp dụng.}
+    \label{tab:tam-nguyen-tac-ui}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Mã} & \textbf{Nguyên tắc} & \textbf{Hệ quả áp dụng} \\
+        \midrule
+        G-1 & Mọi giá trị hình ảnh phải lấy từ design token & Không dùng mã màu, bán kính bo góc hay độ mờ ghi trực tiếp trong thành phần \\
+        G-2 & Chỉ dùng biến CSS đã khai báo & Mọi biến tham chiếu phải tồn tại, không dùng giá trị dự phòng cho biến chưa định nghĩa \\
+        G-3 & Bo góc đồng tâm & Bán kính của phần tử con bằng bán kính của cha trừ khoảng đệm, làm tròn về bậc gần nhất \\
+        G-4 & Kính không đặt lên kính & Thành phần nằm trong một panel kính chỉ dùng lớp tô, không thêm hiệu ứng làm mờ nền \\
+        G-5 & Mỗi bề mặt kính dùng một thành phần chuẩn & Không tự viết hiệu ứng làm mờ nền trong từng thành phần \\
+        G-6 & Thao tác quay trong không gian ba chiều dùng số phức hoặc dạng mở rộng của số phức (quaternion) & Hàm lượng giác chỉ được gọi một lần để tạo bộ quay, không gọi trong vòng lặp kết xuất \\
+        G-7 & Chuyển động phải tôn trọng thiết lập giảm chuyển động của hệ điều hành & Mọi hiệu ứng chuyển trạng thái được rút ngắn gần về không khi người dùng yêu cầu \\
+        G-8 & Thêm design token mới phải được ghi nhận & Mỗi design token mới kèm lý do, và không tái sử dụng lại giá trị đã có \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Hệ thống design token được chia thành ba tầng. Tầng nguyên thuỷ (primitive) chứa giá trị thô, ví dụ bán kính bo góc mười pixel. Tầng ngữ nghĩa (semantic) chứa vai trò, ví dụ màu chữ phụ. Tầng thành phần (component) là các lớp giao diện cụ thể, và chỉ đọc token ở tầng ngữ nghĩa. Nhờ quy tắc này, một thay đổi ở tầng dưới lan tới toàn bộ giao diện theo đúng ý nghĩa thiết kế, mà không cần sửa từng thành phần.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ba tầng design token và vai trò của từng tầng.}
+    \label{tab:ba-tang-token}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.8cm}@{}}
+        \toprule
+        \textbf{Tầng} & \textbf{Nội dung} & \textbf{Phạm vi sử dụng} \\
+        \midrule
+        Nguyên thuỷ & Giá trị thô, không gắn ngữ cảnh & Thành phần nguyên thuỷ và lớp dựng nền \\
+        Ngữ nghĩa & Vai trò sử dụng, ví dụ chữ phụ, viền kính, màu nhấn & Toàn bộ thành phần giao diện \\
+        Thành phần & Lớp giao diện cụ thể & Chỉ trong thành phần tương ứng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Bo góc được quản lý bằng một thang năm bậc, và mỗi bậc phụ thuộc vào vị trí của phần tử trong bố cục.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thang bo góc và quy tắc đồng tâm.}
+    \label{tab:thang-bo-goc}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Bậc} & \textbf{Giá trị} & \textbf{Vị trí sử dụng} \\
+        \midrule
+        Nhỏ nhất & 4 pixel & Nút icon, mã nội tuyến, nhãn trạng thái (badge) \\
+        Nhỏ & 6 pixel & Tooltip, khung chuyển động, điểm số ba chiều \\
+        Trung bình & 10 pixel & Điều khiển: nút, trường nhập, dòng danh sách \\
+        Lớn & 14 pixel & Bề mặt nổi: panel kính, bong bóng hội thoại (chat bubble), thẻ biểu tượng \\
+        Đầy đủ & 9999 pixel & Chip, thẻ nhãn, thanh chỉ báo \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Quy tắc bo góc đồng tâm phát sinh từ hình dạng các bề mặt lồng nhau. Bán kính phần tử con bằng bán kính cha trừ khoảng đệm, làm tròn về bậc gần nhất. Quy tắc này là điều kiện để viền khúc xạ của cha và con song song với nhau.
+
+Vật liệu kính (glassmorphism) được chia thành ba cấp. Cấp thường dùng cho bề mặt nổi trên cảnh ba chiều, cấp mạnh dùng cho panel đọc lâu, và cấp trong cho điều khiển nằm bên trong panel kính. Cấp trong không dùng hiệu ứng làm mờ nền khi nằm trong kính khác, chỉ dùng khi đứng độc lập trên cảnh ba chiều.
+
+Nguyên tắc kính không đặt lên kính xuất phát từ hai quan sát. Lớp làm mờ nền thứ hai làm đục và làm bẩn màu nền lại, và tốn thêm một lượt lấy mẫu nền trên mỗi phần tử đặt trên canvas đang chạy trên một trăm khung hình mỗi giây. Do đó, điều khiển bên trong kính chỉ dùng lớp tô, viền và viền sáng nổi (highlight), đúng theo hướng dẫn của hệ điều hành.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ba cấp vật liệu kính và phạm vi sử dụng.}
+    \label{tab:ba-cap-vat-lieu-kinh}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Cấp} & \textbf{Nền} & \textbf{Độ mờ} & \textbf{Dùng cho} \\
+        \midrule
+        Thường & Lớp kính bán trong suốt & 16 pixel & Bề mặt nổi trên cảnh ba chiều: thanh trên, cột chat, chip lọc \\
+        Mạnh & Lớp đọc lâu & 16 pixel & Panel đọc lâu: panel bài báo, panel thiết lập, thẻ kết quả \\
+        Trong & Lớp tô trong suốt & Không mờ khi nằm trong kính khác & Điều khiển bên trong panel kính: trường nhập, nút chính, chip \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Thang độ mờ gồm ba bậc: 6 pixel cho nhãn nhỏ neo trong cảnh ba chiều, 12 pixel cho control chip đứng độc lập, và 16 pixel cho panel. Các giá trị cũ được gộp về một thang để mọi bề mặt chỉ dùng một giá trị, nhằm giúp việc so sánh giữa các thiết bị khác nhau.
+
+Các lớp phân tầng (\texttt{z-index}) dùng để sắp xếp thứ tự hiển thị. Cảnh ba chiều đặt ở tầng thấp nhất, các lớp phủ chỉ số đặt ngay phía trên cảnh, thanh trên và cột chat đặt ở tầng trung, thanh trượt lịch sử đặt ở tầng cao hơn, và các hộp thoại cùng bảng báo lỗi đặt ở tầng cao nhất. Bộ theo dõi hiệu năng đặt trên cùng một tầng riêng ở trên cùng.
+
+Ranh giới này không chỉ là quy ước hình thức. Nó quyết định thứ tự xếp chồng (stacking order), vì một hộp thoại phải luôn nằm trên các lớp khác, và một lớp phủ chỉ số phải nằm trên cảnh để không bị che.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Sáu tầng \texttt{z-index} và nội dung tương ứng.}
+    \label{tab:sau-lop-phu}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Lớp} & \textbf{Nội dung} \\
+        \midrule
+        0 & Cảnh ba chiều \\
+        10 & Lớp phủ chỉ số neo trong cảnh, thẻ kết quả \\
+        20 & Thanh trên, cột chat, bảng điều khiển, chú thích danh mục \\
+        30 & Thanh trượt lịch sử, panel bài báo \\
+        40 & Panel thiết lập, lớp phủ đăng nhập, hộp xác nhận xoá, thông báo \\
+        50 & Bảng theo dõi hiệu năng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Trong không gian ba chiều, mọi phép quay được biểu diễn bằng số phức hoặc dạng mở rộng của số phức (quaternion) thay vì bằng góc. Hàm lượng giác chỉ được gọi một lần để tạo bộ quay, không gọi lại trong vòng lặp kết xuất. Lý do là hợp nhiều phép quay chỉ là phép nhân, cách này không gây hiện tượng gimbal lock, và cho phép nội suy hướng bằng phương pháp nội suy cầu tuyến tính (SLERP). Sai lệch vị trí không được phép vượt quá một phần nghìn đơn vị thế giới so với công thức góc gốc.
+
+Bên cạnh đó, độ phân giải và hiệu ứng hậu kỳ của hình ảnh được điều chỉnh tự động theo thang chất lượng bốn bậc (Bảng~\ref{tab:bon-bac-chat-luong}) nhằm tránh rung khung hình trên các thiết bị khác nhau. Bộ theo dõi hiệu năng chỉ bắt đầu đo sau một khoảng nghỉ (bỏ qua giai đoạn biên dịch shader) để hạ hoặc nâng từng bậc chất lượng khi nhịp khung hình thay đổi, dừng ở bậc thấp nhất nếu xảy ra đảo chiều liên tục, và không bao giờ hạ độ phân giải khi camera đang di chuyển; người dùng cũng có thể chọn cố định bậc chất lượng hoặc bật chế độ giảm chuyển động để tắt hoạt ảnh tự động.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Bốn bậc chất lượng hình ảnh.}
+    \label{tab:bon-bac-chat-luong}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Bậc} & \textbf{Hậu kỳ} & \textbf{Độ phân giải hình ảnh} \\
+        \midrule
+        0 & Giữ nguyên & Tối đa 1,15 lần độ phân giải thiết bị \\
+        1 & Giữ nguyên & Một lần độ phân giải thiết bị \\
+        2 & Hiệu ứng mờ nhẹ & Một lần độ phân giải thiết bị \\
+        3 & Tắt & Một lần độ phân giải thiết bị \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Mức chi tiết (LOD) được quyết định theo khoảng cách giữa camera và các phần tử. Vì vậy cùng một cấu hình máy chạy sẽ cho các màn hình khác nhau một bước chi tiết khác nhau mà vẫn giữ được khung hình cao. Camera được điều khiển qua bộ góc nhìn định sẵn, gồm tổng quan, tầng cao, mặt đất, bay theo và tiêu điểm, và bộ điều khiển camera điều phối các chặng bay tương ứng với từng bước làm nổi bật kết quả.
+
+Các quãng cảnh bay được sinh từ định tuyến của câu hỏi, do đó hoạt cảnh không tách rời khỏi dữ liệu thu hồi được mà vẫn đúng vai trò là tìm đường bay qua các nhánh đã được định tuyến. Mỗi phần tử trong cảnh được làm sáng khi có kết quả, và nhóm điểm được thu hồi được làm sáng trong không gian ba chiều ngay tại vị trí thật của chúng.
+
+Ranh giới giữa giao diện và hệ thống truy hồi được định nghĩa rõ. Giao diện không tự quyết định câu trả lời, mà chỉ hiển thị pha hiện tại, điểm căn cứ, trích dẫn và kết quả được làm sáng trong không gian ba chiều. Mỗi câu hỏi được gán một số thứ tự tăng dần, nên khi người dùng chuyển sang cuộc hội thoại khác hoặc gửi câu hỏi mới, luồng đang chạy bị huỷ bằng cơ chế huỷ yêu cầu (\texttt{AbortController}). Chi tiết về cơ chế này được trình bày ở Mục~\ref{sec:state-management}.
+
+Danh sách các thành phần giao diện cùng vai trò của từng thành phần đã được trình bày ở Mục~\ref{sec:kien-truc-frontend}, và chi tiết về cách triển khai từng thành phần sẽ được trình bày ở Mục~\ref{sec:trien-khai-frontend}.
