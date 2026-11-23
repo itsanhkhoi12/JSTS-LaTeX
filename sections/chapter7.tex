@@ -1,147 +1,177 @@
-\begingroup
-\setlength{\emergencystretch}{3em}
-\newcommand{\chapterSevenDash}{{\fontfamily{lmr}\selectfont\textemdash}}
+% ==============================================================================
+% CHƯƠNG 7: ĐÓNG GÓI, TRIỂN KHAI VÀ VẬN HÀNH
+% ==============================================================================
+
 \chapter{Đóng gói, triển khai và vận hành}
 \label{chap:dong-goi-van-hanh}
 
-Chương này trình bày cách đóng gói, cấu hình, triển khai và vận hành hệ thống RAG\_TS. Chương này dựa trên mã nguồn của hai Git submodule \texttt{backend\_\allowbreak{}rag} (NestJS 11, TypeScript 5.7) và \texttt{frontend\_\allowbreak{}rag} (React 19, Vite 6, React Three Fiber), tại nhánh \texttt{Minh02112026} của kho \texttt{RAG\_\allowbreak{}TS}.
+% Style dùng chung cho các sơ đồ TikZ trong Chương 7
+\tikzset{
+    ragbox/.style={
+        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!5,
+        thick, minimum height=0.8cm, align=center, font=\small, inner sep=5pt
+    },
+    ragdb/.style={
+        cylinder, shape border rotate=90, aspect=0.25, draw=primaryBlue, fill=primaryBlue!8,
+        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
+    },
+    ragdecision/.style={
+        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
+        thick, align=center, font=\small, inner sep=2pt
+    },
+    raggroup/.style={
+        rectangle, rounded corners=4pt, draw=primaryBlue!50, dashed, fill=primaryBlue!2,
+        inner sep=8pt
+    },
+    ragarrow/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!80!black
+    },
+    ragdashed/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
+    }
+}
 
-RAG\_TS được triển khai on-premises. Thay vì gọi API của nhà cung cấp LLM, nhóm vận hành mô hình embedding, chỉ mục vector và mô hình sinh văn bản trên hạ tầng nội bộ. Vì vậy, chi phí suy luận phụ thuộc vào tài nguyên máy chủ. Một số lỗi cấu hình cũng khó phát hiện qua mã trạng thái HTTP: hệ thống có thể trả lời bình thường nhưng truy hồi sai tài liệu. Các mục sau trình bày cách kiểm tra cấu hình khi khởi động, đóng gói ứng dụng bằng multi-stage build và kiểm tra luồng hỏi đáp sau khi triển khai.
+Chương này trình bày giải pháp đóng gói, quản lý cấu hình, triển khai và vận hành hệ thống \texttt{RAG\_\allowbreak{}TS} theo mô hình tự lưu trữ (\texttt{on-premise}), bao gồm phân hệ máy chủ \texttt{backend\_\allowbreak{}rag} (NestJS~11, TypeScript~5.7) và phân hệ giao diện \texttt{frontend\_\allowbreak{}rag} (React~19, Vite~6, React Three Fiber).
 
+Do toàn bộ mô hình nhúng, chỉ mục vector và mô hình ngôn ngữ lớn (\texttt{LLM}) đều thực thi trên hạ tầng nội bộ thay vì gọi API bên ngoài, công tác triển khai đối mặt với hai ràng buộc trực tiếp: cân đối ngân sách bộ nhớ cho suy luận cục bộ và ngăn chặn sớm các lỗi cấu hình âm thầm (hệ thống vẫn trả HTTP~200 nhưng truy hồi sai không gian vector hoặc thiếu ngữ cảnh đồ thị). Các mục tiếp theo lần lượt phân tích yêu cầu hạ tầng, kiến trúc đóng gói container hai tầng, cơ chế kiểm soát biến môi trường, thiết lập reverse proxy cùng bảo mật \texttt{TLS}, và quy trình giám sát sự cố.
 
+% ==============================================================================
 \section{Chuẩn bị môi trường triển khai}
 \label{sec:chuan-bi-moi-truong}
 
-\subsection{Quy mô tài nguyên và cách xác định yêu cầu phần cứng}
+\subsection{Yêu cầu phần cứng và nền tảng phần mềm}
+\label{subsec:yeu-cau-ha-tang}
 
-Một lượt hỏi đáp trong RAG\_TS đòi hỏi năm thành phần phải cùng sẵn sàng: chỉ mục vector Qdrant phải truy vấn được, mô hình embedding phải nạp được để biến câu hỏi thành vector cùng không gian với các đoạn văn bản, mô hình ngôn ngữ phải nạp được để sinh câu trả lời, cơ sở dữ liệu MongoDB phải lưu được tài khoản và lịch sử hội thoại, và giao diện web phải được phục vụ tĩnh. Việc trình duyệt tải được giao diện chỉ xác nhận một phần nhỏ của hệ thống đã khởi động, vì giao diện được build thành các tệp tĩnh và không phụ thuộc vào API.
+Một lượt hỏi đáp hoàn chỉnh đòi hỏi năm thành phần cùng ở trạng thái sẵn sàng: chỉ mục vector Qdrant cho phép truy vấn, mô hình nhúng biến đổi câu hỏi sang không gian 768 chiều, mô hình ngôn ngữ sinh câu trả lời, cơ sở dữ liệu MongoDB lưu tài khoản và lịch sử hội thoại, cùng máy chủ web phân phát giao diện tĩnh. Do giao diện được đóng gói thành các tệp tĩnh độc lập với tầng API, việc trình duyệt tải được trang chủ chỉ xác nhận lớp phục vụ tĩnh đang hoạt động chứ chưa phản ánh tính sẵn sàng của chuỗi xử lý RAG.
 
-Điểm cần lưu ý khi chọn phần cứng là kích thước tệp trọng số trên đĩa không phản ánh lượng bộ nhớ cần thiết khi xử lý một lượt hỏi đáp. Bản lượng tử hóa Q4\_K\_M của Qwen2.5-7B-Instruct có dung lượng khoảng 4,68 GB, nhưng khi mô hình được nạp vào bộ nhớ và phải lưu thêm ngữ cảnh sinh văn bản, tổng bộ nhớ cần thiết lớn hơn đáng kể. Tài liệu vận hành của dự án ghi nhận mức khoảng 6 GB RAM cho container chạy mô hình 7B trên CPU. Khi chọn thiết bị, cách xác định đáng tin cậy nhất là đo trực tiếp trên chính máy đích: đo bộ nhớ cư trú và thời gian từ khi gửi yêu cầu đến khi nhận token đầu tiên (time to first token, TTFT) với một câu hỏi đại diện cho tải thực tế.
+Về định cỡ phần cứng, dung lượng tệp trọng số trên đĩa không đồng nhất với lượng RAM cần thiết khi thực thi. Bản lượng tử hóa \texttt{Q4\_\allowbreak{}K\_\allowbreak{}M} của \texttt{Qwen2.5-7B-Instruct} chiếm khoảng 4,68~GB trên đĩa, nhưng khi nạp vào bộ nhớ kèm ngữ cảnh sinh văn bản 8.192 token (\texttt{KV cache}), container thực thi trên CPU cần khoảng 6~GB RAM; bên cạnh đó, mô hình nhúng \texttt{Nomic Embed Text v1.5} chiếm khoảng 550~MB trong bộ nhớ đệm sau lần tải đầu tiên. Vì thế, việc chọn cấu hình máy chủ phải dựa trên phép đo trực tiếp bộ nhớ cư trú và thời gian tới token đầu tiên (\texttt{TTFT}) với câu hỏi đại diện cho tải thực tế.
 
-Tương ứng với quy mô dữ liệu của hệ thống, mô hình embedding Nomic Embed Text v1.5 có dung lượng khoảng 550 MB và được tải tự động từ Hugging Face ở lần chạy đầu tiên, sau đó được tái sử dụng từ bộ nhớ đệm.
-
-\subsection{Thành phần dữ liệu đầu vào và điều kiện phiên bản}
-
-Hệ thống phân biệt rõ hai loại tài nguyên: dữ liệu do dự án sở hữu và dữ liệu do pipeline bên ngoài xuất ra.
-
-Thư mục \texttt{model/\allowbreak{}} chứa trọng số mô hình ngôn ngữ ở định dạng GGUF, được gắn vào container backend dưới đường dẫn \texttt{/\allowbreak{}models} ở chế độ chỉ đọc. Thư mục \texttt{data/\allowbreak{}} chứa các tệp mà pipeline khai phá xuất ra, được gắn vào \texttt{/\allowbreak{}data} cũng ở chế độ chỉ đọc. Cụ thể, \texttt{WORLD\_\allowbreak{}DATA\_\allowbreak{}DIR} trỏ tới \texttt{/\allowbreak{}data/\allowbreak{}world} chứa bốn tệp phục vụ cây tri thức 3D \chapterSevenDash{} \texttt{tree.\allowbreak{}json}, \texttt{centroids\_\allowbreak{}l1.\allowbreak{}json}, \texttt{centroids\_\allowbreak{}l2.\allowbreak{}json} và \texttt{categories.\allowbreak{}json} \chapterSevenDash{} còn \texttt{MINING\_\allowbreak{}DIR} trỏ tới \texttt{/\allowbreak{}data/\allowbreak{}gold/\allowbreak{}mining} chứa \texttt{graph\_\allowbreak{}coauthorship.\allowbreak{}json} (điểm PageRank đồng tác giả) và \texttt{association\_\allowbreak{}rules.\allowbreak{}json} (luật kết hợp FP-Growth).
-
-Điểm cần lưu ý về các tệp dữ liệu tùy chọn: nếu thư mục world hoặc mining vắng mặt, tiến trình backend vẫn khởi động bình thường. Một số chức năng sẽ bị hạn chế \chapterSevenDash{} sự kiện \texttt{route} trong ngữ cảnh truy hồi sẽ có \texttt{steps:\allowbreak{} []}, tính năng xếp hạng lại theo PageRank không hoạt động, và trường \texttt{category\_\allowbreak{}index} trả về giá trị \texttt{-\allowbreak{}1}. Đây là một quyết định thiết kế có chủ ý: hệ thống vẫn cung cấp được chức năng hỏi đáp cơ bản ngay cả khi pipeline chưa xuất xong dữ liệu, thay vì từ chối khởi động. Người vận hành cần biết điều này để không nhầm một thiếu sót dữ liệu với một lỗi triển khai.
-
-Điều kiện bắt buộc về phiên bản: mã bài báo trong chỉ mục vector và trong dữ liệu khai phá phải cùng thuộc một phiên bản. Nếu hai nguồn lệch phiên bản, kết quả truy hồi sẽ trả về các đoạn văn bản không khớp với cây tri thức đang hiển thị trên giao diện, dẫn tới tình huống trích dẫn mở được bài báo sai.
-
-\subsection{Yêu cầu về phần mềm nền tảng}
-
-Backend yêu cầu Node.js 22 trở lên (do \texttt{node-\allowbreak{}llama-\allowbreak{}cpp} và các thư viện native cần ABI tương thích), frontend yêu cầu Node.js 20 trở lên. Hệ thống container hoá cần Docker kèm Docker Compose v2.
-
-Đối với môi trường phát triển, hệ thống MongoDB từ xa đặt sau Cloudflare Access nên không thể truy cập trực tiếp bằng giao thức TCP thông thường. Người vận hành phải chạy một tiến trình \texttt{cloudflared access tcp} như một daemon cục bộ:
+Về nền tảng phần mềm, phân hệ backend yêu cầu Node.js từ phiên bản~22 trở lên nhằm bảo đảm tương thích nhị phân cho các thư viện native như \texttt{node-\allowbreak{}llama-\allowbreak{}cpp}, trong khi phân hệ frontend yêu cầu Node.js từ phiên bản~20 trở lên; môi trường đóng gói sử dụng Docker kèm Docker Compose~v2. Ở môi trường phát triển cục bộ, cụm MongoDB từ xa đặt sau Cloudflare Access nên không thể mở kết nối TCP trực tiếp mà phải khởi chạy tiến trình \texttt{cloudflared} làm \texttt{tunnel} trung gian:
 
 \begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{bash}
 cloudflared access tcp --hostname mongodb.minio-quangmanh.io.vn --url localhost:27018
 \end{minted}
 
-Cổng 27018 được chọn có chủ ý để tránh xung đột với MongoDB cục bộ ở cổng 27017. Chỉ mục vector Qdrant được phục vụ qua HTTPS nên không cần đường hầm tương tự.
+Cổng ánh xạ \texttt{27018} được chọn nhằm tránh xung đột với cổng mặc định \texttt{27017} của MongoDB cài cục bộ trên máy phát triển, trong khi Qdrant phục vụ qua HTTPS nên kết nối trực tiếp không cần \texttt{tunnel}. Hệ quả vận hành cần tính đến là mỗi lượt khứ hồi tới MongoDB từ xa qua \texttt{tunnel} tiêu tốn 15--25~ms và tiến trình \texttt{cloudflared} phải duy trì liên tục; nếu \texttt{tunnel} ngắt, mọi thao tác ghi hội thoại và xác thực đều thất bại dù các thành phần còn lại vẫn phản hồi bình thường.
 
-Điểm vận hành đáng lưu ý nhất của kiến trúc này là: mọi lượt khứ hồi tới MongoDB từ xa đều đi qua đường hầm và tiêu tốn khoảng 15–25 ms. Người vận hành cần duy trì tiến trình \texttt{cloudflared} trong suốt thời gian ứng dụng chạy; khi tiến trình này tắt, toàn bộ chức năng cần ghi vào cơ sở dữ liệu sẽ thất bại dù các thành phần khác vẫn hoạt động.
+\subsection{Tài nguyên dữ liệu đầu vào và ràng buộc đồng bộ phiên bản}
+\label{subsec:tai-nguyen-dau-vao}
 
+Kiến trúc triển khai tách bạch ba thư mục tài nguyên đầu vào gắn vào container ứng dụng dưới chế độ chỉ đọc (\texttt{:ro}):
+\begin{itemize}[label=--]
+    \item \textbf{Trọng số mô hình ngôn ngữ (\texttt{/models})}: Ánh xạ từ thư mục \texttt{model/\allowbreak{}} chứa tệp trọng số định dạng \texttt{GGUF}.
+    \item \textbf{Dữ liệu cây tri thức 3D (\texttt{/\allowbreak{}data/\allowbreak{}world})}: Ánh xạ từ \texttt{data/\allowbreak{}world} qua biến \texttt{WORLD\_\allowbreak{}DATA\_\allowbreak{}DIR}, cung cấp bốn tệp cấu trúc phân cấp (\texttt{tree.\allowbreak{}json}, \texttt{centroids\_\allowbreak{}l1.\allowbreak{}json}, \texttt{centroids\_\allowbreak{}l2.\allowbreak{}json} và \texttt{categories.\allowbreak{}json}).
+    \item \textbf{Dữ liệu khai phá học thuật (\texttt{/\allowbreak{}data/\allowbreak{}gold/\allowbreak{}mining})}: Ánh xạ qua biến \texttt{MINING\_\allowbreak{}DIR}, chứa \texttt{graph\_\allowbreak{}coauthorship.\allowbreak{}json} (điểm PageRank đồng tác giả) và \texttt{association\_\allowbreak{}rules.\allowbreak{}json} (luật kết hợp FP-Growth).
+\end{itemize}
 
-\section{Đóng gói ứng dụng và các thành phần hệ thống}
+Nhằm tránh gián đoạn dịch vụ khi pipeline tiền xử lý chưa xuất xong dữ liệu bổ trợ, hệ thống áp dụng cơ chế suy giảm mềm (\texttt{graceful degradation}): nếu thư mục \texttt{world} hoặc \texttt{mining} vắng mặt, tiến trình backend vẫn khởi động phục vụ hỏi đáp lõi, đồng thời trả \texttt{steps:\allowbreak{} []} trong sự kiện \texttt{route}, tắt bước xếp hạng lại theo PageRank và gán \texttt{category\_\allowbreak{}index = -1}. Tuy nhiên, một bất biến bắt buộc khi cập nhật dữ liệu là mã bài báo trong chỉ mục vector Qdrant và trong các tệp khai phá phải thuộc cùng một phiên bản phát hành; sự sai lệch giữa hai nguồn khiến cây tri thức và liên kết trích dẫn mở nhầm bài báo khác dù hệ thống không phát sinh lỗi HTTP.
+
+% ==============================================================================
+\section{Đóng gói ứng dụng và kiến trúc container}
 \label{sec:dong-goi-ung-dung}
 
-\subsection{Dockerfile của backend: hai stage build và runtime}
+Toàn bộ hạ tầng chạy \texttt{on-premise} được tổ chức thành các khối container phân lớp theo luồng tiếp nhận lưu lượng từ người dùng tới tầng dữ liệu. Hình~\ref{fig:kien-truc-trien-khai} minh hoạ kiến trúc triển khai tổng thể gồm tầng biên Nginx, tầng ứng dụng NestJS tích hợp suy luận cục bộ và các nguồn lưu trữ gắn ngoài.
 
-\texttt{backend\_\allowbreak{}rag/\allowbreak{}Dockerfile} dùng hai giai đoạn trên nền \texttt{node:\allowbreak{}22-\allowbreak{}bookworm-\allowbreak{}slim}.
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=1.2cm]
+        % Cột 1: Client
+        \node[ragbox, text width=2.5cm] (CLI) at (0, 1.2) {Người dùng /\\Trình duyệt};
 
-Build stage (\texttt{build}) thực hiện bốn bước theo thứ tự để tối ưu bộ nhớ đệm của Docker: sao chép \texttt{package.\allowbreak{}json} và \texttt{package-\allowbreak{}lock.\allowbreak{}json} trước, chạy \texttt{npm ci} để cài đặt theo tệp khóa, sao chép riêng các tệp cấu hình biên dịch (\texttt{tsconfig.\allowbreak{}json}, \texttt{tsconfig.\allowbreak{}build.\allowbreak{}json}, \texttt{nest-\allowbreak{}cli.\allowbreak{}json}), rồi mới sao chép mã nguồn \texttt{src}. Nhờ thứ tự này, Docker tái sử dụng layer \texttt{npm ci} khi chỉ mã nguồn thay đổi và các tệp khai báo phụ thuộc vẫn giữ nguyên. Sau đó \texttt{npm run build} biên dịch TypeScript sang thư mục \texttt{dist} và \texttt{npm prune -\allowbreak{}-\allowbreak{}omit=\allowbreak{}dev} loại bỏ các gói chỉ phục vụ phát triển.
+        % Cột 2: Tầng biên (Nginx + SPA + SSL/Logs)
+        \node[ragbox, text width=3.8cm, minimum height=1.4cm] (NGINX) at (5.8, 1.2) {Reverse Proxy Nginx\\(\texttt{nginx:alpine})\\TLS, \texttt{buffering off}};
+        \node[ragbox, text width=3.8cm] (SSL) at (5.8, 3.8) {Chứng thư TLS (\texttt{/ssl})\\\& Nhật ký (\texttt{prod-logs})};
+        \node[ragbox, text width=3.8cm] (SPA) at (5.8, -2.2) {Tệp tĩnh SPA\\(\footnotesize\texttt{frontend\_rag/dist})};
 
-Runtime stage chỉ chứa các thành phần cần để chạy backend: \texttt{node\_\allowbreak{}modules} đã được cắt tỉa (chuyển quyền sở hữu cho tài khoản \texttt{node} ngay trong lệnh \texttt{COPY -\allowbreak{}-\allowbreak{}chown}), thư mục \texttt{dist} đã biên dịch, và \texttt{package.\allowbreak{}json}. Runtime image đặt \texttt{NODE\_\allowbreak{}ENV=\allowbreak{}production} và \texttt{PORT=\allowbreak{}3000}, chạy dưới tài khoản không phải root.
+        % Cột 3: Tầng ứng dụng (NestJS Container)
+        \node[ragbox, text width=4.0cm, minimum height=1.5cm] (API) at (13.3, 1.2) {API NestJS (\texttt{node:22-slim})\\\texttt{trust proxy=1}, \texttt{helmet},\\Rate limit, Pino JSON};
+        \node[ragbox, text width=4.0cm, minimum height=1.5cm] (AI) at (13.3, -2.2) {Local AI Runtime\\Nomic v1.5 + Qwen2.5-7B\\(\texttt{LlmQueue}, Laya ONNX)};
 
-Hai chi tiết nhỏ nhưng quan trọng về mặt vận hành:
+        % Cột 4: Tầng dữ liệu & Tài nguyên
+        \node[ragdb, text width=3.5cm, minimum height=1.45cm, inner ysep=7pt] (MONGO) at (20.1, 2.6) {MongoDB 7.0 (\texttt{rs0})\\\texttt{:27018}, \texttt{mongo-data}};
+        \node[ragdb, text width=3.5cm, minimum height=1.45cm, inner ysep=7pt] (QDRANT) at (20.1, -0.1) {Qdrant (\texttt{:6333})\\Chỉ đọc (\texttt{host-gateway})};
+        \node[ragbox, text width=3.6cm] (VOLS) at (20.1, -2.7) {Bind mount \texttt{:ro}\\\texttt{/models}, \texttt{/data} \& \texttt{hf-cache}};
 
-Thứ nhất, runtime image tạo sẵn thư mục bộ nhớ đệm Hugging Face tại \texttt{node\_\allowbreak{}modules/\allowbreak{}@\allowbreak{}huggingface/\allowbreak{}transformers/\allowbreak{}.\allowbreak{}cache} và chuyển quyền sở hữu cho tài khoản \texttt{node}. Điều này là cần thiết vì thư mục này được gắn thêm dưới dạng volume \texttt{hf-\allowbreak{}cache} trong Compose; nếu Docker tạo volume trên một thư mục chưa tồn tại trong image, volume sẽ thuộc sở hữu root và tiến trình chạy dưới tài khoản \texttt{node} sẽ không ghi được.
+        % Nhóm nền theo tầng kiến trúc
+        \begin{scope}[on background layer]
+            \node[raggroup, fit=(NGINX)(SSL)(SPA), label={[font=\small\bfseries, text=primaryBlue, yshift=3pt]above:Tầng biên (Edge Compose)}] {};
+            \node[raggroup, fit=(API)(AI), label={[font=\small\bfseries, text=primaryBlue, yshift=3pt]above:Container Ứng dụng (non-root)}] {};
+            \node[raggroup, fit=(MONGO)(QDRANT)(VOLS), label={[font=\small\bfseries, text=primaryBlue, yshift=3pt]above:Tầng dữ liệu \& Tài nguyên}] {};
+        \end{scope}
 
-Thứ hai, Dockerfile khai báo sẵn lệnh \texttt{HEALTHCHECK} gọi \texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}127.\allowbreak{}0.\allowbreak{}0.\allowbreak{}1:\allowbreak{}3000/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} với chu kỳ 15 giây, thời gian chờ 3 giây và thời gian khởi động 30 giây. Endpoint \texttt{live} trả HTTP 200 khi tiến trình còn trả lời mà không gọi bất kỳ phụ thuộc nào, nên nó phù hợp cho mục đích kiểm tra trạng thái hoạt động của container.
+        % Luồng kết nối
+        \draw[ragarrow] (CLI.east) -- node[above, font=\scriptsize, align=center] {HTTPS :443\\(:80$\rightarrow$301)} (NGINX.west);
+        \draw[ragarrow] (NGINX.south) -- node[right, font=\scriptsize] {Tệp tĩnh \texttt{/}} (SPA.north);
+        \draw[ragdashed, <->] (NGINX.north) -- node[right, font=\scriptsize] {Nạp TLS / Ghi log} (SSL.south);
+        \draw[ragarrow] (NGINX.east) -- node[above, font=\scriptsize, align=center] {HTTP \texttt{/api/*}\\SSE, IP gốc} (API.west);
+        \draw[ragarrow] (API.south) -- node[right, font=\scriptsize] {Gọi nội bộ} (AI.north);
+        \draw[ragarrow] (API.east) -- node[above, sloped, font=\scriptsize] {Đọc/ghi} (MONGO.west);
+        \draw[ragarrow] (AI.east) -- node[above, sloped, font=\scriptsize] {Truy vấn} (QDRANT.west);
+        \draw[ragarrow] (AI.south east) -- node[below, sloped, font=\scriptsize] {Nạp chỉ đọc} (VOLS.west);
+    \end{tikzpicture}%
+    }
+    \caption{Kiến trúc triển khai container và reverse proxy của hệ thống.}
+    \label{fig:kien-truc-trien-khai}
+\end{figure}
 
-\subsection{Dockerfile của frontend: build frontend và phục vụ tệp tĩnh bằng Nginx}
+\subsection{Đóng gói đa tầng cho backend và giao diện tĩnh}
+\label{subsec:dong-goi-dockerfile}
 
-\texttt{frontend\_\allowbreak{}rag/\allowbreak{}Dockerfile} có hai giai đoạn với vai trò khác hẳn backend.
+Phân hệ backend được đóng gói bằng \texttt{multi-\allowbreak{}stage build} hai giai đoạn trên ảnh nền \texttt{node:\allowbreak{}22-\allowbreak{}bookworm-\allowbreak{}slim}. Giai đoạn biên dịch (\texttt{build}) sắp xếp các chỉ thị theo trình tự tối ưu bộ nhớ đệm tầng của Docker: sao chép trước \texttt{package.\allowbreak{}json} và \texttt{package-\allowbreak{}lock.\allowbreak{}json}, chạy \texttt{npm ci}, tiếp theo là các tệp cấu hình biên dịch (\texttt{tsconfig.\allowbreak{}json}, \texttt{tsconfig.\allowbreak{}build.\allowbreak{}json}, \texttt{nest-\allowbreak{}cli.\allowbreak{}json}) rồi mới sao chép thư mục \texttt{src}. Nhờ cấu trúc phân tầng này, khi mã nguồn thay đổi nhưng danh sách phụ thuộc giữ nguyên, Docker tái sử dụng lại toàn bộ tầng cài đặt \texttt{npm ci}; kết thúc giai đoạn biên dịch, lệnh \texttt{npm run build} xuất mã nguồn sang \texttt{dist} và \texttt{npm prune -\allowbreak{}-\allowbreak{}omit=\allowbreak{}dev} loại bỏ các gói phát triển.
 
-Giai đoạn \texttt{builder} dùng \texttt{node:\allowbreak{}20}, chạy \texttt{npm install}, sao chép toàn bộ mã nguồn và \texttt{npm run build}. Lệnh build trong \texttt{package.\allowbreak{}json} là \texttt{tsc -\allowbreak{}b \&\& vite build}, tức là kiểm tra kiểu dữ liệu bằng TypeScript trước rồi mới đóng gói bằng Vite. Giai đoạn \texttt{nginx:\allowbreak{}alpine} chỉ chứa kết quả đóng gói tĩnh trong \texttt{/\allowbreak{}usr/\allowbreak{}share/\allowbreak{}nginx/\allowbreak{}html}.
+Giai đoạn thực thi (\texttt{runtime}) chỉ giữ lại \texttt{node\_\allowbreak{}modules} đã cắt tỉa, \texttt{dist} và \texttt{package.\allowbreak{}json} dưới tài khoản không đặc quyền \texttt{node} (\texttt{NODE\_\allowbreak{}ENV=\allowbreak{}production}, \texttt{PORT=\allowbreak{}3000}). Hai chi tiết cài đặt trong \texttt{Dockerfile} ảnh hưởng trực tiếp tới khả năng vận hành của container:
+\begin{itemize}[label=--]
+    \item \textbf{Khởi tạo quyền ghi trước cho bộ nhớ đệm mô hình}: Image tạo sẵn thư mục \texttt{node\_\allowbreak{}modules/\allowbreak{}@\allowbreak{}huggingface/\allowbreak{}transformers/\allowbreak{}.\allowbreak{}cache} và chuyển quyền sở hữu cho tài khoản \texttt{node}. Nếu bỏ qua bước này, Docker sẽ tự động tạo thư mục dưới quyền \texttt{root} khi gắn volume \texttt{hf-\allowbreak{}cache}, khiến tiến trình ứng dụng không thể lưu bộ nhớ đệm mô hình nhúng.
+    \item \textbf{Chỉ thị kiểm tra sống (\texttt{HEALTHCHECK}) nội bộ}: Container định kỳ gọi \texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}127.\allowbreak{}0.\allowbreak{}0.\allowbreak{}1:\allowbreak{}3000/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} với chu kỳ 15~giây, thời hạn chờ 3~giây và thời gian khởi động 30~giây. Endpoint \texttt{live} phản hồi HTTP~200 mà không truy vấn các dịch vụ phụ thuộc, giúp trình điều phối phân biệt chính xác tiến trình bị treo với sự cố từ CSDL bên ngoài.
+\end{itemize}
 
-Một dòng quan trọng cần lưu ý là \texttt{RUN rm /\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}conf.\allowbreak{}d/\allowbreak{}default.\allowbreak{}conf}. Lệnh này xoá cấu hình máy chủ mặc định của Nginx, vốn lắng nghe ở cổng 80 với \texttt{root} trỏ tới thư mục mặc định. Nếu giữ lại, container sẽ phục vụ sai nội dung và không nhận được khối cấu hình \texttt{server} do người vận hành cung cấp. Vì vậy, bản triển khai bắt buộc phải cung cấp cấu hình Nginx riêng, điều được trình bày ở Mục 7.6.
+Phân hệ frontend sử dụng \texttt{frontend\_\allowbreak{}rag/\allowbreak{}Dockerfile} gồm hai giai đoạn: \texttt{builder} chạy trên \texttt{node:\allowbreak{}20} để thực thi \texttt{tsc -\allowbreak{}b \&\& vite build} (kiểm tra kiểu tĩnh trước khi đóng gói), sau đó chép sản phẩm tĩnh sang \texttt{nginx:\allowbreak{}alpine} đồng thời xoá bỏ tệp \texttt{/\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}conf.\allowbreak{}d/\allowbreak{}default.\allowbreak{}conf} nhằm ngăn máy chủ mặc định phục vụ sai khối cấu hình \texttt{server}. Tuy nhiên, khi vận hành thực tế bằng bộ tệp Compose ở thư mục gốc, hệ thống sử dụng ảnh \texttt{nginx:\allowbreak{}alpine} thuần và gắn trực tiếp thư mục \texttt{.\allowbreak{}/\allowbreak{}frontend-\allowbreak{}rag/\allowbreak{}dist} lên máy chủ vào \texttt{/\allowbreak{}usr/\allowbreak{}share/\allowbreak{}nginx/\allowbreak{}html}. Quyết định này cho phép phát hành giao diện mới chỉ bằng cách biên dịch lại gói tĩnh và tải lại container Nginx mà không cần dựng lại Docker image, đồng thời dùng chung một cấu hình nền cho cả hai môi trường; đổi lại, thư mục \texttt{dist/\allowbreak{}} (đã loại trừ trong \texttt{.\allowbreak{}gitignore}) bắt buộc phải được biên dịch sẵn trước khi khởi chạy stack.
 
-Tuy nhiên trong bản triển khai thực tế của dự án, frontend \textbf{không được đóng gói thành Docker image chứa Nginx riêng}. Hai tệp Compose ở thư mục gốc kho thay vào đó dùng image \texttt{nginx:\allowbreak{}alpine} thuần và ánh xạ thư mục chứa bản build trên máy host:
+\subsection{Kiến trúc Docker Compose hai tầng và ràng buộc chỉ đọc}
+\label{subsec:kien-truc-compose}
+
+Hệ thống phân tách hạ tầng triển khai thành hai tầng Docker Compose độc lập nhằm tách vòng đời của lớp tiếp nhận lưu lượng biên khỏi vòng đời lưu trữ dữ liệu:
+
+\begin{itemize}[label=--]
+    \item \textbf{Tầng dữ liệu và dịch vụ API (\texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml})}: Định nghĩa ba dịch vụ và ba volume cố định (\texttt{mongo-\allowbreak{}data}, \texttt{qdrant-\allowbreak{}data}, \texttt{hf-\allowbreak{}cache}). Dịch vụ \texttt{mongo} chạy trên ảnh \texttt{mongo:\allowbreak{}7} dưới cấu hình đơn nút bật \texttt{replica set rs0} (điều kiện bắt buộc để hỗ trợ transaction khi ghi phiên và tin nhắn hội thoại), mở cổng máy chủ \texttt{\$\{RAGTS\_\allowbreak{}MONGO\_\allowbreak{}PORT:\allowbreak{}-\allowbreak{}27018\}:\allowbreak{}27017}. Dịch vụ \texttt{qdrant} (\texttt{qdrant/\allowbreak{}qdrant:\allowbreak{}v1.\allowbreak{}15.\allowbreak{}4}) được cô lập trong Compose \texttt{profile standalone} để phục vụ kiểm thử độc lập; ở chế độ mặc định chỉ có \texttt{mongo} và \texttt{app} (\texttt{\$\{RAGTS\_\allowbreak{}PORT:\allowbreak{}-\allowbreak{}3000\}:\allowbreak{}3000}) khởi chạy sau khi vượt qua điều kiện \texttt{service\_\allowbreak{}healthy}.
+    \item \textbf{Tầng tiếp nhận lưu lượng biên (\texttt{docker-\allowbreak{}compose.\allowbreak{}yaml} và \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml})}: Quản lý Nginx cùng bản dựng giao diện tĩnh và chứng thư \texttt{TLS} độc lập với CSDL nền. Cần lưu ý một điểm chưa đồng nhất trong bộ tệp cấu hình hiện tại của kho mã nguồn: tầng biên đang khai báo dịch vụ backend tên \texttt{backend-\allowbreak{}rag} trên cổng \texttt{8000}, trong khi tầng dữ liệu dùng tên dịch vụ \texttt{app} trên cổng \texttt{3000}; do đó trước khi ghép chung hai tầng ở production, người vận hành phải đồng bộ lại tên dịch vụ và cổng trong khối \texttt{upstream} của Nginx (chi tiết phân tích tại Mục~\ref{sec:han-che}).
+\end{itemize}
+
+Để ngăn xung đột tên biến môi trường giữa kịch bản chạy trực tiếp ngoài Docker (nơi \texttt{MONGO\_\allowbreak{}URI} trỏ tới \texttt{localhost:\allowbreak{}27018} qua \texttt{tunnel}) và kịch bản chạy trong container (nơi \texttt{MONGO\_\allowbreak{}URI} phải trỏ tới \texttt{mongo:\allowbreak{}27017}), Compose sử dụng không gian tên tiền tố \texttt{RAGTS\_\allowbreak{}} từ tệp \texttt{.\allowbreak{}env} máy chủ rồi ánh xạ vào biến nội bộ của container. Trích đoạn YAML dưới đây thể hiện hai cơ chế bảo vệ cốt lõi ở tầng Compose gồm khối \texttt{healthcheck} tự khởi tạo \texttt{replica set} trên volume trống (tối đa 30 lần thử $\times$ 5~giây = 150~giây) và các \texttt{bind mount} chỉ đọc gắn kèm cầu nối tới Qdrant trên máy chủ:
 
 \begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{yaml}
-- ./frontend-rag/dist:/usr/share/nginx/html
+services:
+  mongo:
+    image: mongo:7
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }"]
+      interval: 5s
+      retries: 30
+  app:
+    depends_on:
+      mongo: { condition: service_healthy }
+    volumes:
+      - ../model:/models:ro
+      - ../data:/data:ro
+      - hf-cache:/app/node_modules/@huggingface/transformers/.cache
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 \end{minted}
 
-Cách này có hai hệ quả. Thứ nhất, việc triển khai lại giao diện chỉ cần build lại frontend rồi tải lại container Nginx, không cần build lại image \chapterSevenDash{} nhanh hơn đáng kể so với cách đóng gói tệp vào image. Thứ hai, cấu hình Nginx do người vận hành cung cấp thay vì nằm trong image, nên một bản cấu hình duy nhất phục vụ được cho cả môi trường phát triển lẫn production, chỉ khác nhau ở tệp ánh xạ. Đổi lại, thư mục \texttt{dist/\allowbreak{}} phải được build sẵn trên máy chủ trước khi khởi động Compose, và \texttt{dist/\allowbreak{}} cũng nằm trong \texttt{.\allowbreak{}gitignore}.
+Cờ \texttt{:\allowbreak{}ro} hiện thực hoá bất biến an toàn dữ liệu của hệ thống: tiến trình ứng dụng tuyệt đối không có quyền ghi vào tệp trọng số mô hình hay kho dữ liệu khai phá do pipeline xuất ra, loại bỏ nguy cơ làm sai lệch chỉ mục. Song song đó, chỉ thị \texttt{extra\_\allowbreak{}hosts} cho phép container kết nối tới dịch vụ Qdrant của pipeline đang chạy trên máy chủ qua địa chỉ \texttt{QDRANT\_\allowbreak{}URL=\allowbreak{}http:\allowbreak{}/\allowbreak{}/\allowbreak{}host.\allowbreak{}docker.\allowbreak{}internal:\allowbreak{}6333} mà không phải nhân bản dữ liệu vào container riêng.
 
-Dockerfile của frontend mô tả cách build giao diện và phục vụ các tệp tĩnh bằng Nginx. Trong CI, có thể dùng Dockerfile này để tạo một image độc lập. Khi triển khai bằng Compose ở thư mục gốc, Nginx phục vụ cùng bản build từ thư mục được mount trên host.
-
-\subsection{Cấu trúc dịch vụ trong Docker Compose}
-
-Tệp \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml} định nghĩa ba dịch vụ và ba volume.
-
-Dịch vụ \texttt{mongo} dùng image \texttt{mongo:\allowbreak{}7} với lệnh \texttt{['-\allowbreak{}-\allowbreak{}replSet', 'rs0', '-\allowbreak{}-\allowbreak{}bind\_\allowbreak{}ip\_\allowbreak{}all']}. Việc MongoDB chạy ở chế độ replica set một nút tên \texttt{rs0} là điều kiện tiên quyết cho các giao dịch (transaction) khi ghi lịch sử hội thoại. Cổng ánh xạ ra máy chủ là \texttt{\$\{RAGTS\_\allowbreak{}MONGO\_\allowbreak{}PORT:\allowbreak{}-\allowbreak{}27018\}:\allowbreak{}27017}, cổng 27018 vẫn được giữ để tránh xung đột với MongoDB cục bộ. Khối \texttt{healthcheck} của dịch vụ này là điểm thiết kế đáng chú ý: câu lệnh kiểm tra thử gọi \texttt{rs.\allowbreak{}status().\allowbreak{}ok} và nếu gặp ngoại lệ thì khởi tạo replica set ngay trong lần chạy đầu tiên:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{text}
-try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }
-\end{minted}
-
-Cơ chế này giúp container MongoDB khởi động được trên một volume trống mà không cần thao tác thủ công nào. Với chu kỳ 5 giây và tối đa 30 lần thử lại, Compose sẽ chờ tối đa 150 giây để MongoDB đạt trạng thái healthy.
-
-Dịch vụ \texttt{qdrant} dùng image \texttt{qdrant/\allowbreak{}qdrant:\allowbreak{}v1.\allowbreak{}15.\allowbreak{}4} nhưng thuộc Compose profile \texttt{standalone}. Cơ chế profile này cho phép chạy một bản Qdrant rỗng chỉ khi được yêu cầu tường minh bằng \texttt{docker compose -\allowbreak{}-\allowbreak{}profile standalone up}, trong khi lần chạy thông thường chỉ khởi động MongoDB và ứng dụng. Đây là sự phân tách có chủ đích: theo quy ước bất biến của hệ thống, chỉ mục vector \texttt{scientific\_\allowbreak{}papers\_\allowbreak{}gold} do pipeline bên ngoài ghi vào, và backend chỉ đọc. Bản Qdrant rỗng trong profile \texttt{standalone} chỉ dành cho việc chẩn đoán và chạy thử độc lập, kèm tệp \texttt{scripts/\allowbreak{}seed-\allowbreak{}qdrant.\allowbreak{}ts} nạp chỉ mục giả.
-
-Dịch vụ \texttt{app} build từ thư mục hiện tại và ánh xạ cổng \texttt{\$\{RAGTS\_\allowbreak{}PORT:\allowbreak{}-\allowbreak{}3000\}:\allowbreak{}3000}. Khối \texttt{depends\_\allowbreak{}on} với điều kiện \texttt{condition:\allowbreak{} service\_\allowbreak{}healthy} bảo đảm ứng dụng chỉ khởi động sau khi MongoDB đã vượt qua health check, tránh tình trạng ứng dụng khởi động trước và liên tục thử kết nối lại.
-
-Ba volume được định nghĩa là \texttt{mongo-\allowbreak{}data} (lưu trữ cố định của MongoDB), \texttt{qdrant-\allowbreak{}data} và \texttt{hf-\allowbreak{}cache} (bộ nhớ đệm mô hình embedding).
-
-\subsection{Kiến trúc hai tầng của Compose}
-
-Một điểm cần làm rõ về cấu trúc triển khai: hệ thống có \textbf{hai tầng Compose độc lập} chứ không phải một.
-
-Tầng thứ nhất là \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml}, chịu trách nhiệm về hạ tầng dữ liệu và dịch vụ API: MongoDB với replica set, Qdrant rỗng theo profile, và container ứng dụng. Tầng này không có Nginx.
-
-Tầng thứ hai là cặp \texttt{docker-\allowbreak{}compose.\allowbreak{}yaml} và \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml} ở thư mục gốc kho, chịu trách nhiệm về tầng tiếp nhận lưu lượng: Nginx và một instance backend, với \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} hoặc \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} tương ứng. Tầng này không có MongoDB.
-
-Việc tách cấu hình Nginx khỏi tầng dữ liệu cho phép quản lý cấu hình Nginx và chứng thư TLS độc lập với vòng đời của cơ sở dữ liệu, và bản triển khai production có thể dùng một backend đã có sẵn dữ liệu thay vì dựng lại toàn bộ stack. Đổi lại, người vận hành phải nhớ khởi động hai tệp Compose theo đúng thứ tự, và tên service \texttt{backend-\allowbreak{}rag} phải khớp giữa tầng biên và tầng dữ liệu.
-
-Cần lưu ý rằng cấu hình ở tầng biên sử dụng cổng và tên service riêng (\texttt{backend-\allowbreak{}rag}, cổng 8000), khác với tầng dữ liệu (\texttt{app}, cổng 3000, \texttt{mongo}, cổng 27018). Sự khác biệt này phản ánh một giai đoạn phát triển khác nhau trong lịch sử dự án: tầng biên được thiết kế khi backend còn dùng cổng 8000 và LanceDB, còn tầng dữ liệu hiện tại đã chuyển sang Qdrant và cổng 3000. Khi triển khai production thực tế, hai tầng này cần được đồng bộ lại về cùng một tên service và cổng.
-
-\subsection{Quy ước đặt tên biến môi trường trong Compose}
-
-Compose nhận các biến có tiền tố \texttt{RAGTS\_\allowbreak{}} từ máy chủ rồi ánh xạ sang tên biến mà ứng dụng đọc trong container. Ví dụ \texttt{RAGTS\_\allowbreak{}QDRANT\_\allowbreak{}URL} xác định giá trị của \texttt{QDRANT\_\allowbreak{}URL}, còn \texttt{RAGTS\_\allowbreak{}MODEL\_\allowbreak{}FILE} xác định tên tệp mô hình dưới \texttt{/\allowbreak{}models}. Nguyên nhân của quy ước này là xung đột tên biến: tệp \texttt{.\allowbreak{}env} ở thư mục gốc \texttt{backend\_\allowbreak{}rag} dùng cho chạy trực tiếp ngoài Docker (nơi \texttt{MONGO\_\allowbreak{}URI} trỏ tới \texttt{localhost:\allowbreak{}27018} qua đường hầm Cloudflare), trong khi trong container, \texttt{MONGO\_\allowbreak{}URI} phải trỏ tới tên dịch vụ \texttt{mongo:\allowbreak{}27017}. Nếu dùng chung một tập tên biến, môi trường phát triển và môi trường container sẽ ghi đè lẫn nhau. Tiền tố \texttt{RAGTS\_\allowbreak{}} tách hai không gian này, trong khi Compose tự đọc tệp \texttt{.\allowbreak{}env} để lấy các biến đó.
-
-\subsection{Kết nối dịch vụ bên ngoài và cấu hình bind mount chỉ đọc}
-
-Compose khai báo hai bind mount chỉ đọc cho mô hình và dữ liệu:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{yaml}
-volumes:
-  - ../model:/models:ro
-  - ../data:/data:ro
-  - hf-cache:/app/node_modules/@huggingface/transformers/.cache
-extra_hosts:
-  - 'host.docker.internal:host-gateway'
-\end{minted}
-
-Cờ \texttt{:\allowbreak{}ro} (chỉ đọc) trên hai thư mục đầu tiên thể hiện nguyên tắc bất biến của hệ thống: dữ liệu đầu vào và trọng số không bao giờ bị sửa bởi tiến trình ứng dụng. Điều này không chỉ là biện pháp an toàn dữ liệu mà còn là bảo đảm về tính đúng đắn: nếu ứng dụng có thể ghi vào chỉ mục hoặc dữ liệu khai phá, thì tính toàn vẹn giữa chỉ mục vector và cây tri thức sẽ không còn được bảo đảm.
-
-Dòng \texttt{extra\_\allowbreak{}hosts} khai báo \texttt{host.\allowbreak{}docker.\allowbreak{}internal} trỏ tới cổng của máy chủ. Đây là mấu chốt cho cấu hình mặc định \texttt{QDRANT\_\allowbreak{}URL=\allowbreak{}http:\allowbreak{}/\allowbreak{}/\allowbreak{}host.\allowbreak{}docker.\allowbreak{}internal:\allowbreak{}6333}, cho phép container ứng dụng đọc chỉ mục vector của pipeline đang chạy trên máy chủ mà không cần khởi động thêm một container Qdrant.
-
-
+% ==============================================================================
 \section{Quản lý cấu hình và biến môi trường}
 \label{sec:quan-ly-cau-hinh}
 
-\subsection{Kiểm tra cấu hình tại thời điểm khởi động}
+\subsection{Xác thực lược đồ biến môi trường phía backend}
+\label{subsec:xac-thuc-env-be}
 
-Một trong những quyết định kỹ thuật đáng chú ý nhất của backend là việc kiểm tra toàn bộ biến môi trường bằng lược đồ Zod (\texttt{src/\allowbreak{}config/\allowbreak{}env.\allowbreak{}schema.\allowbreak{}ts}) ngay trước khi khởi tạo ứng dụng, thay vì để các giá trị sai lọt xuống tầng nghiệp vụ.
+Thay vì để giá trị cấu hình sai lọt xuống tầng nghiệp vụ và gây lỗi cục bộ giữa lúc đang phục vụ yêu cầu, backend thực hiện kiểm tra toàn diện biến môi trường bằng lược đồ Zod (\texttt{src/\allowbreak{}config/\allowbreak{}env.\allowbreak{}schema.\allowbreak{}ts}) ngay đầu hàm khởi tạo trong \texttt{src/\allowbreak{}main.\allowbreak{}ts}:
 
-Đoạn khởi động trong \texttt{src/\allowbreak{}main.\allowbreak{}ts} thực hiện kiểm tra này và xử lý lỗi theo cách có chủ ý:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
+\begin{tsbox}{Xác thực biến môi trường và dừng sớm với EnvValidationError}
 try {
   parseEnv(process.env);
 } catch (e) {
@@ -151,591 +181,315 @@ try {
   }
   throw e;
 }
-\end{minted}
+\end{tsbox}
 
-Hàm \texttt{parseEnv} dùng \texttt{z.\allowbreak{}object(\{.\allowbreak{}.\allowbreak{}.\allowbreak{}\}).\allowbreak{}safeParse()}, rồi ánh xạ mọi vấn đề thành thông điệp dạng \texttt{TÊN\_\allowbreak{}BIẾN:\allowbreak{} lý do}. Lớp \texttt{EnvValidationError} ghép các thông điệp thành một danh sách, nên khi có nhiều biến sai, toàn bộ danh sách được in ra cùng lúc thay vì phải sửa lại từng lỗi một. Điểm quan trọng về mặt vận hành: tiến trình dừng ngay với mã thoát 1 trước khi kết nối MongoDB, trước khi nạp mô hình và trước khi lắng nghe cổng. Một cấu hình sai bị phát hiện ở thời điểm khởi động rẻ hơn nhiều lần so với việc phát hiện giữa chừng lúc hệ thống đã nhận yêu cầu thật.
+Hàm \texttt{parseEnv} gọi \texttt{z.\allowbreak{}object(\{.\allowbreak{}.\allowbreak{}.\allowbreak{}\}).\allowbreak{}safeParse()}, ánh xạ các trường vi phạm thành danh sách theo mẫu \textit{TÊN\_BIẾN}\texttt{: }\textit{lý do} và ném \texttt{EnvValidationError}. Cơ chế gom lỗi một lần giúp khắc phục đồng loạt các biến thiếu thay vì sửa từng lần khởi động, đồng thời buộc tiến trình thoát ngay với mã~1 trước khi thiết lập kết nối MongoDB, nạp mô hình AI hay lắng nghe cổng. Lược đồ chia biến môi trường thành ba nhóm:
 
-\subsection{Biến bắt buộc, biến có giá trị mặc định và ràng buộc độ dài khóa}
-
-Lược đồ phân biệt ba nhóm biến:
-
-\begin{itemize}[label=\(\bullet\)]
-    \item \textbf{Bắt buộc} (không có giá trị mặc định): \texttt{MONGO\_\allowbreak{}URI}, \texttt{QDRANT\_\allowbreak{}URL}, \texttt{MODEL\_\allowbreak{}PATH}, \texttt{WORLD\_\allowbreak{}DATA\_\allowbreak{}DIR}, \texttt{MINING\_\allowbreak{}DIR}. Thiếu bất kỳ biến nào cũng khiến tiến trình dừng.
-    \item \textbf{Có giá trị mặc định hợp lý}: \texttt{PORT} (3000), \texttt{NODE\_\allowbreak{}ENV} (\texttt{development}), \texttt{QDRANT\_\allowbreak{}COLLECTION} (\texttt{scientific\_\allowbreak{}papers\_\allowbreak{}gold}), \texttt{EMBEDDING\_\allowbreak{}MODEL} (\texttt{nomic-\allowbreak{}ai/\allowbreak{}nomic-\allowbreak{}embed-\allowbreak{}text-\allowbreak{}v1.\allowbreak{}5}), \texttt{LLM\_\allowbreak{}GPU} (\texttt{auto}), \texttt{LLM\_\allowbreak{}CONCURRENCY} (1), \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE} (8), \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} (60000), \texttt{CORS\_\allowbreak{}ORIGINS} (\texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}localhost:\allowbreak{}5174}).
-    \item \textbf{Độ dài tối thiểu của khóa ký}: \texttt{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET} và \texttt{JWT\_\allowbreak{}REFRESH\_\allowbreak{}SECRET} bắt buộc dài ít nhất 32 ký tự, được kiểm tra bằng một hàm trợ giúp \texttt{secret(name)} dùng chung.
+\begin{itemize}[label=--]
+    \item \textbf{Biến bắt buộc không có giá trị mặc định}: \texttt{MONGO\_\allowbreak{}URI}, \texttt{QDRANT\_\allowbreak{}URL}, \texttt{MODEL\_\allowbreak{}PATH}, \texttt{WORLD\_\allowbreak{}DATA\_\allowbreak{}DIR} và \texttt{MINING\_\allowbreak{}DIR}.
+    \item \textbf{Biến có giá trị mặc định an toàn}: \texttt{PORT} (3000), \texttt{NODE\_\allowbreak{}ENV} (\texttt{development}), \texttt{QDRANT\_\allowbreak{}COLLECTION} (\texttt{scientific\_\allowbreak{}papers\_\allowbreak{}gold}), \texttt{EMBEDDING\_\allowbreak{}MODEL} (\texttt{nomic-\allowbreak{}ai/\allowbreak{}nomic-\allowbreak{}embed-\allowbreak{}text-\allowbreak{}v1.\allowbreak{}5}), \texttt{LLM\_\allowbreak{}GPU} (\texttt{auto}), \texttt{LLM\_\allowbreak{}CONCURRENCY} (1), \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE} (8), \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} (60000) và \texttt{CORS\_\allowbreak{}ORIGINS} (\texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}localhost:\allowbreak{}5174}); các tham số số học sử dụng \texttt{z.\allowbreak{}coerce.\allowbreak{}number().\allowbreak{}int().\allowbreak{}min()} để vừa chuyển đổi chuỗi từ tệp \texttt{.\allowbreak{}env}, vừa chặn số âm.
+    \item \textbf{Ràng buộc độ dài khoá mật mã}: \texttt{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET} và \texttt{JWT\_\allowbreak{}REFRESH\_\allowbreak{}SECRET} phải đạt tối thiểu 32 ký tự qua hàm kiểm tra dùng chung \texttt{secret(name)}.
 \end{itemize}
 
-Việc dùng \texttt{z.\allowbreak{}coerce.\allowbreak{}number().\allowbreak{}int().\allowbreak{}min(min).\allowbreak{}default(def)} cho các biến số cho phép giá trị trong tệp môi trường được ghi dưới dạng chuỗi mà vẫn được kiểm tra đúng kiểu, đồng thời chặn giá trị âm bằng ràng buộc \texttt{min}.
-
-\subsection{Kiểm tra cấu hình riêng cho production}
-
-Lược đồ sử dụng \texttt{superRefine} để áp dụng thêm ba quy tắc chỉ khi \texttt{NODE\_\allowbreak{}ENV =\allowbreak{}=\allowbreak{}=\allowbreak{} 'production'}:
-
+Với \texttt{NODE\_\allowbreak{}ENV === 'production'}, phương thức \texttt{superRefine} kích hoạt thêm ba ràng buộc nghiêm ngặt (không áp dụng ở môi trường phát triển vì MongoDB cục bộ có thể không bật xác thực):
 \begin{enumerate}
-    \item Cả hai khóa ký đều không được chứa placeholder. Danh sách \texttt{PLACEHOLDER\_\allowbreak{}MARKERS =\allowbreak{} ['change-\allowbreak{}me', 'your-\allowbreak{}secret', 'replace-\allowbreak{}me']} được kiểm tra với phép so khớp không phân biệt hoa thường trên cả hai khóa. Cơ chế này nhắm vào tệp \texttt{.\allowbreak{}env.\allowbreak{}example} đi kèm trong kho mã nguồn \chapterSevenDash{} nếu ai đó sao chép nguyên tệp mẫu sang môi trường thật mà quên thay khóa, ứng dụng sẽ từ chối khởi động.
-    \item Hai khóa phải khác nhau. Dùng cùng một giá trị cho access token và refresh token sẽ làm mất sự phân tách giữa hai loại token trong cơ chế token rotation.
-    \item \texttt{MONGO\_\allowbreak{}URI} phải chứa thông tin đăng nhập. Quy tắc này áp dụng khi URI bắt đầu bằng \texttt{mongodb:\allowbreak{}/\allowbreak{}/\allowbreak{}} và không có ký tự \texttt{@\allowbreak{}}.
+    \item \textbf{Loại bỏ chuỗi giữ chỗ (\texttt{placeholder})}: Kiểm tra không phân biệt hoa thường trên cả hai khoá JWT để chặn các chuỗi mẫu từ \texttt{.\allowbreak{}env.\allowbreak{}example} thuộc danh sách \texttt{PLACEHOLDER\_\allowbreak{}MARKERS} (\texttt{change-\allowbreak{}me}, \texttt{your-\allowbreak{}secret}, \texttt{replace-\allowbreak{}me}).
+    \item \textbf{Tách biệt khoá ký token}: Bắt buộc \texttt{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET} và \texttt{JWT\_\allowbreak{}REFRESH\_\allowbreak{}SECRET} khác nhau nhằm bảo toàn biên cô lập trong cơ chế xoay vòng token.
+    \item \textbf{Bắt buộc xác thực cơ sở dữ liệu}: Mọi chuỗi kết nối dạng \texttt{mongodb:\allowbreak{}/\allowbreak{}/\allowbreak{}} phải chứa ký tự \texttt{@\allowbreak{}} mang thông tin tài khoản và mật khẩu.
 \end{enumerate}
 
-Các quy tắc trên chỉ có hiệu lực ở production. Điều này cần thiết vì ở môi trường phát triển, MongoDB cục bộ không có cơ chế xác thực, và việc bắt buộc có thông tin đăng nhập sẽ làm hỏng quy trình làm việc hằng ngày.
+\subsection{Cấu hình biên dịch frontend và ranh giới secret}
+\label{subsec:cau-hinh-fe-secret}
 
-\subsection{Biến môi trường của frontend}
+Ở tầng giao diện, Vite thực hiện thay thế tĩnh các biến có tiền tố \texttt{VITE\_\allowbreak{}} vào mã JavaScript ngay tại thời điểm đóng gói (\texttt{build time}). Bảng~\ref{tab:bien-moi-truong-fe} liệt kê sáu biến cấu hình chuẩn trong tệp mẫu \texttt{.\allowbreak{}env.\allowbreak{}example} của frontend.
 
-Ở frontend, Vite chỉ thay thế các biến có tiền tố \texttt{VITE\_\allowbreak{}} ngay khi build frontend. Cấu hình chuẩn được đặt trong tệp \texttt{.\allowbreak{}env.\allowbreak{}example}:
+\begin{table}[htbp]
+    \centering
+    \caption{Danh mục biến môi trường của giao diện frontend.}
+    \label{tab:bien-moi-truong-fe}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}p{0.27\textwidth}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Biến} & \textbf{Giá trị mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{VITE\_\allowbreak{}API\_\allowbreak{}BASE} & \texttt{/\allowbreak{}api/\allowbreak{}v1} & Tiền tố đường dẫn gọi REST API \\
+        \texttt{VITE\_\allowbreak{}BACKEND\_\allowbreak{}URL} & \texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}localhost:\allowbreak{}3000} & Đích proxy của Vite trong chế độ phát triển \\
+        \texttt{VITE\_\allowbreak{}USE\_\allowbreak{}MOCK} & \texttt{true} & Bật dữ liệu giả lập cho luồng hỏi đáp và tra cứu bài báo \\
+        \texttt{VITE\_\allowbreak{}PIPELINE\_\allowbreak{}BASE} & \texttt{/\allowbreak{}pipeline} & Tiền tố đường dẫn tới dịch vụ pipeline \\
+        \texttt{VITE\_\allowbreak{}PIPELINE\_\allowbreak{}URL} & \texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}localhost:\allowbreak{}8000} & Đích chuyển tiếp tới dịch vụ pipeline \\
+        \texttt{VITE\_\allowbreak{}MOCK\_\allowbreak{}WORLD} & \texttt{true} & Dựng thế giới 3D giả lập thay vì tải từ pipeline \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.31\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.32\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.37\dimexpr\linewidth-4\tabcolsep\relax}@{}}
-\toprule
-\textbf{Biến} & \textbf{Giá trị mặc định} & \textbf{Ý nghĩa} \\
-\midrule
-\endhead
-\texttt{VITE\_\allowbreak{}API\_\allowbreak{}BASE} & \texttt{/\allowbreak{}api/\allowbreak{}v1} & Tiền tố đường dẫn API \\
-\texttt{VITE\_\allowbreak{}BACKEND\_\allowbreak{}URL} & \texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}localhost:\allowbreak{}3000} & Đích mà proxy của Vite chuyển tiếp trong chế độ phát triển \\
-\texttt{VITE\_\allowbreak{}USE\_\allowbreak{}MOCK} & \texttt{true} & \texttt{true} chạy bằng dữ liệu giả lập, \texttt{false} gọi backend thật \\
-\texttt{VITE\_\allowbreak{}PIPELINE\_\allowbreak{}BASE} & \texttt{/\allowbreak{}pipeline} & Tiền tố đường dẫn tới pipeline \\
-\texttt{VITE\_\allowbreak{}PIPELINE\_\allowbreak{}URL} & \texttt{http:\allowbreak{}/\allowbreak{}/\allowbreak{}localhost:\allowbreak{}8000} & Đích pipeline \\
-\texttt{VITE\_\allowbreak{}MOCK\_\allowbreak{}WORLD} & \texttt{true} & \texttt{true} dựng thế giới 3D giả lập, \texttt{false} tải từ pipeline \\
-\bottomrule
-\end{longtable}
-\endgroup
+Hai cờ giả lập mặc định mang giá trị \texttt{true} và được tách độc lập theo phạm vi tính năng: \texttt{VITE\_\allowbreak{}USE\_\allowbreak{}MOCK} điều khiển luồng hỏi đáp cùng tra cứu bài báo (tắt khi chạy lệnh \texttt{npm run dev:\allowbreak{}live} để gọi backend thật), còn \texttt{VITE\_\allowbreak{}MOCK\_\allowbreak{}WORLD} điều khiển dữ liệu đồ thị thế giới 3D từ nhóm endpoint \texttt{/\allowbreak{}world/\allowbreak{}*} của pipeline. Do Vite nhúng giá trị biến trực tiếp vào bundle lúc biên dịch, mọi thay đổi trên tệp \texttt{.\allowbreak{}env} của frontend đòi hỏi phải build lại gói tĩnh (hoặc dựng lại container image nếu đóng gói cố định), không thể có hiệu lực chỉ bằng thao tác khởi động lại container.
 
-Hai cờ cấu hình \texttt{VITE\_\allowbreak{}USE\_\allowbreak{}MOCK} và \texttt{VITE\_\allowbreak{}MOCK\_\allowbreak{}WORLD} có mặc định là \texttt{true} và được tách bạch theo phạm vi chức năng: một cờ cho luồng hỏi đáp và tra cứu bài báo, cờ còn lại cho thế giới 3D và luồng thu thập dữ liệu. Việc tách bạch này phản ánh thực tế là pipeline chưa phục vụ các tuyến \texttt{/\allowbreak{}world/\allowbreak{}*}, trong khi backend đã phục vụ đầy đủ. Trong \texttt{package.\allowbreak{}json} có hai lệnh tương ứng: \texttt{npm run dev} chạy toàn bộ bằng dữ liệu giả lập và không cần backend, còn \texttt{npm run dev:\allowbreak{}live} đặt \texttt{VITE\_\allowbreak{}USE\_\allowbreak{}MOCK=\allowbreak{}false} để gọi backend thật.
+Về ranh giới bảo mật bí mật (\texttt{secret boundary}), toàn bộ khoá ký JWT, khoá truy cập Qdrant và thông tin đăng nhập MongoDB chỉ tồn tại ở phía backend. Giao diện web được phục vụ dưới dạng tệp tĩnh công khai về trình duyệt nên các biến \texttt{VITE\_\allowbreak{}*} tuyệt đối không chứa thông tin nhạy cảm; mọi phiên làm việc có trạng thái đều xác thực qua header \texttt{Authorization:\allowbreak{} Bearer}.
 
-Một hệ quả quan trọng của cơ chế thay thế biến của Vite: giá trị được ghi vào JavaScript bundle khi build. Khi đổi một trong hai cờ cấu hình trong tệp \texttt{.\allowbreak{}env}, phải build lại frontend, nếu không trình duyệt vẫn dùng giá trị cũ. Với bản triển khai dạng container image, điều này có nghĩa là phải build lại image chứ không chỉ khởi động lại container.
-
-\subsection{Phạm vi sử dụng secret ở backend và frontend}
-
-Khóa ký JWT, khóa truy cập Qdrant và thông tin đăng nhập MongoDB chỉ thuộc về phía backend. Giao diện web được phục vụ dưới dạng tệp tĩnh và không chứa secret; mọi yêu cầu có trạng thái đều đi qua API với header \texttt{Authorization:\allowbreak{} Bearer}. Điều này đồng nghĩa với việc tệp \texttt{.\allowbreak{}env} của frontend không được chứa secret, và các biến \texttt{VITE\_\allowbreak{}*} \chapterSevenDash{} vốn được nhúng công khai vào gói JavaScript \chapterSevenDash{} tuyệt đối không được dùng để lưu thông tin xác thực.
-
-
+% ==============================================================================
 \section{Triển khai Backend, Frontend và Database}
 \label{sec:trien-khai-be-fe-db}
 
-\subsection{Bước 1 \texorpdfstring{{\normalfont\fontfamily{lmr}\selectfont\textemdash}}{—} Chuẩn bị chỉ mục truy hồi}
+\subsection{Trình tự khởi chạy và kiểm chứng đầu cuối}
+\label{subsec:trinh-tu-khoi-chay}
 
-Theo mặc định, ứng dụng trong container truy cập Qdrant của pipeline qua \texttt{host.\allowbreak{}docker.\allowbreak{}internal:\allowbreak{}6333} và đọc collection \texttt{scientific\_\allowbreak{}papers\_\allowbreak{}gold}. Trước khi thử tìm kiếm, cần xác nhận chỉ mục đã được nạp và chứa đúng số chiều vector.
+Quy trình triển khai hệ thống hoàn chỉnh tuân theo trình tự ba bước từ tầng dữ liệu lõi tới tầng tiếp nhận lưu lượng bên ngoài:
 
-Cơ chế kiểm tra số chiều được cài đặt trong \texttt{VectorStoreService.\allowbreak{}onModuleInit()}: khi khởi động, service đọc cấu hình collection và so sánh kích thước vector với hằng số \texttt{EMBEDDING\_\allowbreak{}DIM} (768 chiều). Nếu lệch, service ghi cảnh báo \texttt{QDRANT\_\allowbreak{}DIMENSION\_\allowbreak{}MISMATCH}. Cùng lúc đó, service kiểm tra sự tồn tại của trường \texttt{twig\_\allowbreak{}id} trong lược đồ payload; nếu thiếu, nó ghi cảnh báo \texttt{QDRANT\_\allowbreak{}NO\_\allowbreak{}TWIG\_\allowbreak{}ID} và nội dung cảnh báo cho biết chức năng so sánh sẽ không được giới hạn theo nhánh.
+\begin{enumerate}
+    \item \textbf{Chuẩn bị chỉ mục truy hồi}: Theo mặc định, container backend kết nối tới Qdrant của pipeline tại \texttt{host.\allowbreak{}docker.\allowbreak{}internal:\allowbreak{}6333} và đọc tập dữ liệu chuẩn \texttt{scientific\_\allowbreak{}papers\_\allowbreak{}gold}. Khi khởi động, \texttt{VectorStoreService.\allowbreak{}onModuleInit()} kiểm tra cấu hình collection so với hằng số \texttt{EMBEDDING\_\allowbreak{}DIM} (768 chiều) và sự tồn tại của trường \texttt{twig\_\allowbreak{}id} trong payload; khi phát hiện lệch cấu hình, hệ thống ghi cảnh báo \texttt{QDRANT\_\allowbreak{}DIMENSION\_\allowbreak{}MISMATCH} hoặc \texttt{QDRANT\_\allowbreak{}NO\_\allowbreak{}TWIG\_\allowbreak{}ID} (báo hiệu chức năng so sánh sẽ không lọc theo nhánh) mà vẫn duy trì hoạt động theo triết lý cô lập lỗi cục bộ tại Chương~\ref{chap:thiet-ke-kien-truc}. Trường hợp triển khai độc lập bằng Compose \texttt{profile standalone}, người vận hành trỏ \texttt{RAGTS\_\allowbreak{}QDRANT\_\allowbreak{}URL=\allowbreak{}http:\allowbreak{}/\allowbreak{}/\allowbreak{}qdrant:\allowbreak{}6333} và nạp dữ liệu thử qua \texttt{scripts/\allowbreak{}seed-\allowbreak{}qdrant.\allowbreak{}ts} (script này từ chối mọi collection không có hậu tố \texttt{\_\allowbreak{}test} để chống ghi đè nhầm dữ liệu thật).
 
-Hai cảnh báo này là ví dụ điển hình của triết lý "lỗi cục bộ, không làm sập hệ thống" đã được Chương 3 xác lập. Sai cấu hình chỉ mục không làm ứng dụng dừng, nhưng luôn để lại dấu vết trong nhật ký để người vận hành phát hiện.
-
-Khi chạy độc lập không có pipeline, bản hồ Compose \texttt{standalone} tạo một Qdrant rỗng. Trường hợp này cần đặt \texttt{RAGTS\_\allowbreak{}QDRANT\_\allowbreak{}URL=\allowbreak{}http:\allowbreak{}/\allowbreak{}/\allowbreak{}qdrant:\allowbreak{}6333}, nạp chỉ mục bằng \texttt{scripts/\allowbreak{}seed-\allowbreak{}qdrant.\allowbreak{}ts} và chọn đúng collection trước khi thử tìm kiếm. Tệp này có một biện pháp an toàn đáng chú ý: nó từ chối mọi collection không có hậu tố \texttt{\_\allowbreak{}test}, nhằm ngăn việc vô tình ghi đè chỉ mục thật.
-
-\subsection{Bước 2 \texorpdfstring{{\normalfont\fontfamily{lmr}\selectfont\textemdash}}{—} Khởi động MongoDB và API}
-
-Sau khi chuẩn bị mô hình và cấp các biến môi trường, chạy lệnh sau từ thư mục \texttt{backend\_\allowbreak{}rag}:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{bash}
-docker compose up -d --build
-\end{minted}
-
-Trước khi chạy, cần cấp tối thiểu hai khóa ký cùng khóa truy cập Qdrant:
-
+    \item \textbf{Khởi động MongoDB và dịch vụ API}: Sau khi chuẩn bị tệp mô hình và cấp tối thiểu ba biến bí mật trên shell, người vận hành khởi chạy tầng dữ liệu và API từ thư mục \texttt{backend\_\allowbreak{}rag}:
 \begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{bash}
 export JWT_ACCESS_SECRET=...
 export JWT_REFRESH_SECRET=...
 export QDRANT_API_KEY=...
+docker compose up -d --build
 \end{minted}
+    Tệp Compose áp dụng cú pháp \texttt{\$\{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET:\allowbreak{}?...\}} nhằm chặn khởi tạo container ngay khi thiếu biến môi trường, tạo thành tuyến phòng thủ tầng hạ tầng bổ trợ cho lớp kiểm tra ngữ nghĩa bằng Zod ở tầng ứng dụng. Mặc định cả MongoDB (cổng \texttt{27018}) và API (cổng \texttt{3000}) chỉ mở trên địa chỉ \texttt{loopback} của máy chủ, bảo đảm mọi kết nối ngoài đều đi qua Nginx.
 
-Tệp Compose sử dụng cú pháp \texttt{\$\{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET:\allowbreak{}?set JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET (>=\allowbreak{} 32 chars)\}}. Toán tử \texttt{:\allowbreak{}?} khiến Compose dừng lại với thông báo lỗi nếu biến đó không được đặt hoặc rỗng. Đây là cơ chế kiểm tra cấu hình tại tầng Compose, bổ sung cho lớp kiểm tra Zod ở tầng ứng dụng. Hai lớp bảo vệ có phạm vi khác nhau: Compose ngăn khởi động container với cấu hình thiếu, còn Zod ngăn ứng dụng chạy được với cấu hình sai nghĩa.
-
-Về mặt mạng, cả MongoDB (cổng 27018) và API (cổng 3000) mặc định chỉ mở trên địa chỉ loopback của máy chủ. Điều này đúng với mô hình triển khai đề xuất, trong đó Nginx là thành phần duy nhất tiếp nhận kết nối từ bên ngoài.
-
-\subsection{Bước 3 \texorpdfstring{{\normalfont\fontfamily{lmr}\selectfont\textemdash}}{—} Đưa giao diện vào hoạt động}
-
-Build Docker image từ thư mục \texttt{frontend\_\allowbreak{}rag}, cung cấp cấu hình Nginx và nối container frontend vào cùng mạng với dịch vụ \texttt{app}. Chuỗi kiểm tra sau khi triển khai nên diễn ra theo thứ tự từ lớp trong ra ngoài:
-
-\begin{enumerate}
-    \item Kiểm tra liveness của container: \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} trả HTTP 200.
-    \item Kiểm tra readiness của backend: \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}ready}.
-    \item Kiểm tra qua địa chỉ công khai: mở một đường dẫn trực tiếp của giao diện, xác nhận trang dựng đầy đủ.
-    \item Kiểm tra chức năng nghiệp vụ: gửi một câu hỏi có bài báo đã biết trong chỉ mục, quan sát trình duyệt nhận dần câu trả lời và mở được đúng bài báo từ nguồn trích dẫn.
-\end{enumerate}
-
-Bước cuối cùng là bước có giá trị chứng nhận cao nhất, vì nó kiểm tra đồng thời toàn bộ quy trình xử lý yêu cầu: nhúng câu hỏi, định tuyến trên cây tri thức, truy vấn Qdrant, xếp hạng lại, sinh văn bản và truyền theo luồng SSE. Ở bản production, bước này phải thực hiện qua địa chỉ HTTPS chứ không phải qua địa chỉ cục bộ, để đồng thời xác nhận chứng thư, chuyển hướng và luồng SSE đi qua proxy.
-
-Vì Nginx trong dự án được vận hành bằng hai tệp Compose riêng ở thư mục gốc kho, trình tự triển khai đầy đủ cho bản production là:
-
+    \item \textbf{Triển khai tầng biên và kiểm chứng từ trong ra ngoài}: Chuẩn bị cặp chứng thư \texttt{ssl/\allowbreak{}cert.\allowbreak{}pem} và \texttt{ssl/\allowbreak{}key.\allowbreak{}pem}, biên dịch gói tĩnh frontend và khởi chạy stack production từ thư mục gốc:
 \begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{bash}
-# 1. Đặt chứng thư và khóa riêng (thư mục này đã nằm trong .gitignore)
-#    ssl/cert.pem và ssl/key.pem
-
-# 2. Dựng bản phân phối giao diện — Nginx ánh xạ thư mục này vào /usr/share/nginx/html
 cd frontend_rag && npm run build && cd ..
-
-# 3. Khởi động toàn bộ stack
 docker compose -f docker-compose.prod.yaml up -d --build
 \end{minted}
+    Ngay sau khi các container khởi chạy, quá trình nghiệm thu phải thực hiện tuần tự bốn phép thử từ trong ra ngoài: kiểm tra \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} (HTTP~200), kiểm tra \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}ready}, truy cập đường dẫn công khai của giao diện để xác nhận dựng trang đầy đủ, và gửi một câu hỏi có bài báo đã biết trong chỉ mục qua địa chỉ HTTPS. Phép thử hỏi đáp cuối cùng xác thực trọn vẹn đồng thời cả chuỗi tin cậy chứng thư, chuyển hướng giao thức, nhúng câu hỏi, định tuyến cây tri thức, truy vấn Qdrant, xếp hạng lại, sinh văn bản và luồng \texttt{SSE} đi qua reverse proxy.
+\end{enumerate}
 
-Chi tiết về hai tệp Compose và cách ánh xạ cấu hình Nginx được trình bày ở Mục 7.6.2.
+\subsection{Tổng hợp thành phần, cổng kết nối và kiểm tra trạng thái}
+\label{subsec:tong-hop-cong}
 
-\subsection{Các thành phần, cổng kết nối và cách kiểm tra}
+Bảng~\ref{tab:cong-ket-noi-he-thong} tổng hợp danh mục các thành phần vận hành, cổng công khai trên máy chủ, nguồn cấu hình và chỉ tiêu kiểm tra tương ứng.
 
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.22\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.18\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.31\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.29\dimexpr\linewidth-6\tabcolsep\relax}@{}}
-\toprule
-\textbf{Thành phần} & \textbf{Cổng (máy chủ)} & \textbf{Nguồn cấu hình} & \textbf{Kiểm tra} \\
-\midrule
-\endhead
-MongoDB 7 (replica set \texttt{rs0}) & 27018 & \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml} & \texttt{rs.\allowbreak{}status().\allowbreak{}ok} \\
-API NestJS & 3000 & \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml} & \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} \\
-Nginx (phát triển) & 80 & \texttt{docker-\allowbreak{}compose.\allowbreak{}yaml} + \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} & Tải trang chủ \\
-Nginx (production) & 80 \ensuremath{\rightarrow} 301, 443 & \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml} + \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} & Kiểm tra chuỗi tin cậy \\
-Giao diện tĩnh & \chapterSevenDash{} & \texttt{frontend\_\allowbreak{}rag/\allowbreak{}dist} \ensuremath{\rightarrow} \texttt{/\allowbreak{}usr/\allowbreak{}share/\allowbreak{}nginx/\allowbreak{}html} & Tải trang chủ \\
-Qdrant (chỉ đọc) & 6333 (ngoài container) & \texttt{RAGTS\_\allowbreak{}QDRANT\_\allowbreak{}URL} & \texttt{getCollection} \\
-Mô hình ngôn ngữ & \chapterSevenDash{} & \texttt{/\allowbreak{}models} (chỉ đọc) & Sự kiện \texttt{LLM\_\allowbreak{}READY} \\
-Mô hình ngôn ngữ & \chapterSevenDash{} & \texttt{/\allowbreak{}models} (chỉ đọc) & Sự kiện \texttt{LLM\_\allowbreak{}READY} \\
-\bottomrule
-\end{longtable}
-\endgroup
+\begin{table}[htbp]
+    \centering
+    \caption{Danh mục cổng dịch vụ và phương thức kiểm tra trạng thái.}
+    \label{tab:cong-ket-noi-he-thong}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.18\textwidth}>{\raggedright\arraybackslash}p{0.31\textwidth}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Cổng máy chủ} & \textbf{Nguồn cấu hình} & \textbf{Phương thức kiểm tra} \\
+        \midrule
+        MongoDB 7.0 (\texttt{rs0}) & 27018 & \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml} & Kiểm tra \texttt{rs.\allowbreak{}status().\allowbreak{}ok} \\
+        API NestJS & 3000 & \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml} & \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} \\
+        Nginx (phát triển) & 80 & \texttt{docker-\allowbreak{}compose.\allowbreak{}yaml} + \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} & Tải trang chủ HTTP \\
+        Nginx (production) & 80 $\rightarrow$ 301, 443 & \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml} + \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} & Chuỗi tin cậy TLS và luồng SSE \\
+        Giao diện tĩnh SPA & -- & \texttt{frontend\_\allowbreak{}rag/\allowbreak{}dist} $\rightarrow$ \texttt{/\allowbreak{}usr/\allowbreak{}share/\allowbreak{}nginx/\allowbreak{}html} & Tải trang chủ và tài nguyên JS/CSS \\
+        Qdrant (chỉ đọc) & 6333 (ngoài container) & Biến \texttt{RAGTS\_\allowbreak{}QDRANT\_\allowbreak{}URL} & Phương thức \texttt{getCollection} \\
+        Mô hình nhúng ONNX & -- & Volume \texttt{hf-\allowbreak{}cache} & Cờ sẵn sàng từ \texttt{EmbeddingPort} \\
+        Mô hình ngôn ngữ LLM & -- & Mount chỉ đọc \texttt{/\allowbreak{}models} & Sự kiện nhật ký \texttt{LLM\_\allowbreak{}READY} \\
+        Dữ liệu tri thức \& khai phá & -- & Mount chỉ đọc \texttt{/\allowbreak{}data} & Trường \texttt{world\_\allowbreak{}version} ở \texttt{/\allowbreak{}health} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-
+% ==============================================================================
 \section{Triển khai Local AI Runtime và các model cần thiết}
 \label{sec:trien-khai-local-ai}
 
-\subsection{Hai mô hình đảm nhận hai bước khác nhau}
+\subsection{Cung cấp trọng số và ràng buộc tương thích không gian vector}
+\label{subsec:tai-trong-so}
 
-Cấu hình suy luận cục bộ của RAG\_TS dựa trên hai mô hình độc lập, mỗi mô hình phục vụ một bước khác nhau trong đường xử lý.
+Hoạt động suy luận cục bộ dựa trên hai mô hình đảm nhiệm hai chặng độc lập như đã thiết kế ở Chương~\ref{chap:data-pipeline-ai}: Transformers.js nạp \textbf{Nomic Embed Text v1.5} (qua \texttt{EMBEDDING\_\allowbreak{}MODEL}, mặc định \texttt{nomic-\allowbreak{}ai/\allowbreak{}nomic-\allowbreak{}embed-\allowbreak{}text-\allowbreak{}v1.\allowbreak{}5}) để ánh xạ truy vấn vào không gian 768 chiều của Qdrant, còn \texttt{node-\allowbreak{}llama-\allowbreak{}cpp} nạp \textbf{Qwen2.5-7B-Instruct} bản \texttt{Q4\_\allowbreak{}K\_\allowbreak{}M} (qua \texttt{MODEL\_\allowbreak{}PATH}, mặc định \texttt{/\allowbreak{}models/\allowbreak{}\$\{RAGTS\_\allowbreak{}MODEL\_\allowbreak{}FILE:\allowbreak{}-\allowbreak{}qwen2.\allowbreak{}5-\allowbreak{}7b-\allowbreak{}instruct-\allowbreak{}q4\_\allowbreak{}k\_\allowbreak{}m.\allowbreak{}gguf\}}).
 
-Transformers.js nạp \textbf{Nomic Embed Text v1.5} để ánh xạ câu hỏi vào cùng không gian 768 chiều với các đoạn bài báo trong Qdrant. Mô hình embedding này được chỉ định qua \texttt{EMBEDDING\_\allowbreak{}MODEL}, mặc định là \texttt{nomic-\allowbreak{}ai/\allowbreak{}nomic-\allowbreak{}embed-\allowbreak{}text-\allowbreak{}v1.\allowbreak{}5}, và có thể trỏ tới một mã trên Hugging Face hoặc một thư mục cục bộ.
+Một ràng buộc vận hành trọng yếu là \textbf{mọi thay đổi mô hình nhúng đều bắt buộc phải lập lại toàn bộ chỉ mục vector trên tập đoạn văn bản}. Hai mô hình khác nhau tạo ra hai hệ toạ độ ngữ nghĩa độc lập ngay cả khi có cùng kích thước 768 chiều; kiểm tra \texttt{QDRANT\_\allowbreak{}DIMENSION\_\allowbreak{}MISMATCH} lúc khởi động chỉ phát hiện được sai lệch về số chiều chứ không phát hiện được sai lệch hệ quy chiếu vector, dẫn tới lỗi âm thầm (hệ thống vẫn trả lời và gắn trích dẫn bình thường nhưng điểm tương đồng ngữ nghĩa bị nhiễu loạn).
 
-Sau bước truy hồi, \texttt{node-\allowbreak{}llama-\allowbreak{}cpp} chạy \textbf{Qwen2.5-7B-Instruct}, bản lượng tử hóa Q4\_K\_M. Mô hình được trỏ tới qua \texttt{MODEL\_\allowbreak{}PATH}, mặc định trong Compose là \texttt{/\allowbreak{}models/\allowbreak{}\$\{RAGTS\_\allowbreak{}MODEL\_\allowbreak{}FILE:\allowbreak{}-\allowbreak{}qwen2.\allowbreak{}5-\allowbreak{}7b-\allowbreak{}instruct-\allowbreak{}q4\_\allowbreak{}k\_\allowbreak{}m.\allowbreak{}gguf\}}.
+Để chuẩn bị trọng số mô hình ngôn ngữ (khoảng 4,68~GB) từ \href{https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF}{kho mô hình Hugging Face}, người vận hành chạy lệnh \texttt{npm run download:model} trong thư mục \texttt{backend\_\allowbreak{}rag}. Script \texttt{scripts/\allowbreak{}download-\allowbreak{}model.\allowbreak{}ts} chọn đường dẫn đích theo thứ tự ưu tiên \texttt{MODEL\_\allowbreak{}PATH}, \texttt{LLM\_\allowbreak{}MODEL\_\allowbreak{}PATH}, rồi đường dẫn mặc định \texttt{.\allowbreak{}.\allowbreak{}/\allowbreak{}model/\allowbreak{}qwen2.\allowbreak{}5-\allowbreak{}7b-\allowbreak{}instruct-\allowbreak{}q4\_\allowbreak{}k\_\allowbreak{}m.\allowbreak{}gguf}, đồng thời kiểm tra kích thước tệp hiện có: tệp lớn hơn 4~GB được coi là hoàn chỉnh để bỏ qua, tệp nhỏ hơn bị tải lại từ đầu và ghi tiến độ theo từng mốc 50~MB. Mô hình nhúng tự tải về ở lần chạy đầu tiên nếu chưa có bản sao trong bộ nhớ đệm \texttt{hf-\allowbreak{}cache}.
 
-Cảnh báo vận hành quan trọng nhất của phần này: \textbf{thay mô hình embedding đòi hỏi phải lập chỉ mục lại bằng chính mô hình mới}. Nguyên nhân nằm ở việc hai mô hình khác nhau tạo ra hai hệ toạ độ vector khác nhau, kể cả khi số chiều trùng khớp. Khi đó, vector câu hỏi sẽ được so sánh với các vector đoạn văn bản được tạo bởi một mô hình hoàn toàn khác, và kết quả truy hồi sẽ là ngẫu nhiên theo đúng nghĩa đen. Đây là một trong những lỗi cấu hình đắt giá nhất mà dấu hiệu bên ngoài rất dễ gây hiểu nhầm: hệ thống vẫn trả lời, vẫn trích dẫn, nhưng chất lượng truy hồi suy giảm âm thầm. Cơ chế kiểm tra \texttt{QDRANT\_\allowbreak{}DIMENSION\_\allowbreak{}MISMATCH} chỉ bắt được trường hợp sai \emph{số chiều}, không bắt được trường hợp sai \emph{mô hình cùng số chiều}.
+\subsection{Nạp mô hình nền, hàng đợi suy luận và tham số vận hành}
+\label{subsec:nap-nen-hang-doi}
 
-\subsection{Tải trọng số}
+Vì quá trình nạp tệp trọng số 7B vào RAM hoặc VRAM mất khoảng 5~giây trên GPU Metal (và lâu hơn trên CPU trong môi trường container không có tăng tốc phần cứng như Docker trên macOS), dịch vụ \texttt{LlmService} khởi chạy tác vụ nạp bất đồng bộ ở chế độ nền nhằm tránh chặn quá trình mở cổng API của NestJS:
 
-Trên máy chuẩn bị mô hình, có thể chạy lệnh sau từ \texttt{backend\_\allowbreak{}rag} sau khi cài các phụ thuộc phát triển:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{bash}
-npm run download:model
-\end{minted}
-
-Tệp \texttt{scripts/\allowbreak{}download-\allowbreak{}model.\allowbreak{}ts} tải từ địa chỉ \texttt{https:\allowbreak{}/\allowbreak{}/\allowbreak{}huggingface.\allowbreak{}co/\allowbreak{}bartowski/\allowbreak{}Qwen2.\allowbreak{}5-\allowbreak{}7B-\allowbreak{}Instruct-\allowbreak{}GGUF/\allowbreak{}resolve/\allowbreak{}main/\allowbreak{}Qwen2.\allowbreak{}5-\allowbreak{}7B-\allowbreak{}Instruct-\allowbreak{}Q4\_\allowbreak{}K\_\allowbreak{}M.\allowbreak{}gguf} với dung lượng khoảng 4,68 GB. Script có hai chi tiết vận hành đáng lưu ý:
-
-\begin{itemize}[label=\(\bullet\)]
-    \item Thứ tự ưu tiên đường dẫn đích là \texttt{MODEL\_\allowbreak{}PATH}, rồi \texttt{LLM\_\allowbreak{}MODEL\_\allowbreak{}PATH}, rồi mặc định \texttt{.\allowbreak{}.\allowbreak{}/\allowbreak{}model/\allowbreak{}qwen2.\allowbreak{}5-\allowbreak{}7b-\allowbreak{}instruct-\allowbreak{}q4\_\allowbreak{}k\_\allowbreak{}m.\allowbreak{}gguf}. Nhờ vậy, cùng một lệnh tải có thể dùng được cho cả chạy ngoài Docker lẫn chạy trong container.
-    \item Script kiểm tra kích thước tệp đã tồn tại: nếu lớn hơn 4 GB thì coi như tải xong và bỏ qua, còn nếu nhỏ hơn thì coi như bản tải dở dang và tải lại từ đầu. Ngưỡng 4 GB được chọn dựa trên việc dung lượng thực tế của bản Q4\_K\_M là 4,68 GB, nên một tệp dưới ngưỡng này chắc chắn là bản không hoàn chỉnh. Script cũng in tiến độ theo từng mốc 50 MB.
-\end{itemize}
-
-Mô hình embedding cũng cần truy cập nguồn tải ở lần nạp đầu tiên, trừ khi đã có sẵn mô hình cục bộ trong bộ nhớ đệm \texttt{hf-\allowbreak{}cache}.
-
-\subsection{Nạp mô hình ở chế độ nền và xử lý yêu cầu trong thời gian khởi động}
-
-Mô hình 7B mất một khoảng thời gian đáng kể để nạp, nên \texttt{LlmService} nạp ở chế độ nền thay vì chặn quá trình khởi động:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
+\begin{tsbox}{Khởi tạo tiến trình nạp mô hình ngôn ngữ ở chế độ nền}
 onModuleInit(): void {
   // Loading a 7B model takes a while: do it in the background, health reports `ready`.
   void this.load();
 }
-\end{minted}
+\end{tsbox}
 
-Trong \texttt{onModuleInit}, \texttt{void this.load()} khởi chạy tác vụ nạp mô hình mà không chặn quá trình khởi động của API. Trong lúc mô hình đang nạp, cờ \texttt{ready} vẫn là \texttt{false}. Endpoint hỏi đáp trả HTTP~503 kèm mã \texttt{llm unavailable}, giúp người vận hành phân biệt lỗi mô hình chưa sẵn sàng với lỗi truy cập chỉ mục hoặc cơ sở dữ liệu.
+Trong lúc \texttt{ready} giữ giá trị \texttt{false}, các endpoint sức khỏe đã phản hồi bình thường để vượt qua kiểm tra \texttt{HEALTHCHECK}, còn endpoint hỏi đáp chủ động trả HTTP~503 kèm mã lỗi \texttt{llm unavailable}. Ở pha phục vụ yêu cầu, cơ chế hàng đợi \texttt{LlmQueue} và tín hiệu huỷ \texttt{AbortSignal} (chi tiết cài đặt tại Mục~\ref{sec:local-ai-runtime}, Chương~\ref{chap:data-pipeline-ai}) phân định rõ ba trạng thái lỗi vận hành: mã \texttt{503 llm unavailable} báo hiệu mô hình đang nạp hoặc gặp sự cố cục bộ có khả năng tự phục hồi; mã \texttt{429 llm queue is full} thực thi cơ chế giảm tải có kiểm soát (\texttt{load shedding}) khi hàng đợi chạm ngưỡng \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE}; và mã \texttt{504 llm timeout} cảnh báo lượt sinh văn bản đã vượt giới hạn \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS}.
 
-Tài liệu vận hành của dự án ghi nhận thời gian nạp khoảng 5 giây trên nền Metal. Cần lưu ý rằng Docker trên macOS không có Metal, nên LLM sẽ chạy trên CPU.
+Về hiệu chỉnh tham số trong Docker Compose, cấu hình đặt \texttt{LLM\_\allowbreak{}GPU=\allowbreak{}auto}, \texttt{LLM\_\allowbreak{}CONCURRENCY=\allowbreak{}1}, \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE=\allowbreak{}8} và nâng \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} lên \texttt{120000} (120~giây), cao hơn gấp đôi so với giá trị mặc định \texttt{60000} (60~giây) ở tầng ứng dụng và \texttt{.\allowbreak{}env.\allowbreak{}example} (khớp ngưỡng chặng sinh văn bản tại Mục~\ref{subsec:hieu-nang}). Việc duy trì hai ngưỡng thời hạn này mang tính chủ đích: mức 60~giây đóng vai trò giới hạn bảo vệ an toàn trên máy phát triển, trong khi mức 120~giây ở cấu hình Compose cung cấp biên độ dự phòng cho lượt sinh ngữ cảnh dài trên phần cứng container không có tăng tốc GPU. Khi chẩn đoán độ trễ thực tế, cần đối chiếu đồng thời thiết bị runtime được chọn, cấu hình thực thi và thời gian chờ trong hàng đợi để phân biệt nghẽn do tranh chấp đồng thời với nghẽn do tốc độ sinh token.
 
-\subsection{Cơ chế hàng đợi và giới hạn tải}
+Bên cạnh hai mô hình chính, thành phần chấm điểm ONNX Laya (đảm nhiệm xếp hạng lại và đánh giá độ căn cứ tại Mục~\ref{sec:ai-components}) được kích hoạt có điều kiện qua biến \texttt{LAYA\_\allowbreak{}MODEL\_\allowbreak{}DIR}. Nếu biến này bỏ trống hoặc không gắn thư mục trọng số, hệ thống tự động bỏ qua các bước chấm điểm bằng Laya tương tự cách xử lý suy giảm mềm của \texttt{WORLD\_\allowbreak{}DATA\_\allowbreak{}DIR}.
 
-\texttt{LlmService} bọc engine sinh văn bản trong một hàng đợi giới hạn (\texttt{LlmQueue}) với hai tham số: số lượt sinh song song (\texttt{LLM\_\allowbreak{}CONCURRENCY}, mặc định 1) và độ dài hàng chờ tối đa (\texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE}, mặc định 8).
-
-Cơ chế hàng đợi có hai đặc tính thiết kế đáng chú ý:
-
-Thứ nhất, khi hàng đợi đầy, hệ thống từ chối có kiểm soát bằng mã \texttt{429 Too Many Requests} thay vì để yêu cầu chờ vô hạn. Đây là cơ chế giảm tải khi bão hòa: từ chối sớm bảo toàn tài nguyên cho những người dùng đang được phục vụ, thay vì để toàn bộ người dùng cùng chờ.
-
-Thứ hai, khi một người dùng ngắt kết nối giữa chừng, lượt chờ của họ rời khỏi hàng đợi ngay lập tức. Cơ chế này dựa trên \texttt{AbortSignal}: mỗi lượt chờ đăng ký một trình xử lý huỷ, khi tín hiệu huỷ phát ra, lượt chờ tương ứng được rút khỏi mảng và bị từ chối. Điều này tránh tình huống một người dùng đã đóng trình duyệt vẫn chiếm chỗ trong hàng đợi.
-
-Ngoài ra, \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} đặt timeout cho một lượt sinh. Khi hết thời gian, yêu cầu bị hủy và trả về lỗi \texttt{504} với mã \texttt{llm timeout}. Lỗi \texttt{503} với mã \texttt{llm unavailable} được dùng cho trường hợp mô hình chưa nạp xong hoặc gặp lỗi sinh.
-
-Sự phân biệt này quan trọng cho vận hành: \texttt{503} cho biết hệ thống chưa sẵn sàng (có thể tự phục hồi), còn \texttt{429} cho biết hệ thống đã sẵn sàng nhưng đang quá tải (cần giảm tải hoặc tăng tài nguyên), còn \texttt{504} cho biết một lượt cụ thể vượt thời gian cho phép.
-
-\subsection{Cấu hình hàng đợi trong Compose}
-
-Compose đặt mặc định \texttt{LLM\_\allowbreak{}GPU=\allowbreak{}auto}, \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE=\allowbreak{}8} và \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS=\allowbreak{}120000}. Tệp môi trường mẫu \texttt{.\allowbreak{}env.\allowbreak{}example} đặt timeout là 60 giây. Sự khác biệt này là có chủ ý: giá trị trong Compose là giá trị cho môi trường thật, nơi phần cứng mạnh hơn và thời gian sinh có thể dài hơn; còn giá trị trong tệp mẫu là giá trị an toàn cho máy phát triển.
-
-Khi đánh giá độ trễ, cần ghi lại đồng thời cấu hình thực thi, thiết bị mà runtime chọn, và thời gian chờ trong hàng đợi. Ba thông tin này phân biệt được hai nguyên nhân hoàn toàn khác nhau: nghẽn do nhiều người dùng đồng thời, và nghẽn do bản thân tốc độ sinh token của mô hình.
-
-\subsection{Ghi chú về gói Laya và xếp hạng lại}
-
-Ngoài nhúng và sinh văn bản, backend hỗ trợ gói ONNX Laya dùng để xếp hạng lại các đoạn truy hồi, đánh giá bằng chứng và kiểm tra mức độ câu trả lời bám sát nguồn. Khi sử dụng, người vận hành gắn thư mục mô hình và truyền đường dẫn trong container qua biến \texttt{LAYA\_\allowbreak{}MODEL\_\allowbreak{}DIR}. Khi để trống đường dẫn, backend bỏ qua các bước dùng Laya \chapterSevenDash{} cơ chế tắt tính năng theo kiểu "không cấu hình thì không chạy", tương tự cách \texttt{WORLD\_\allowbreak{}DATA\_\allowbreak{}DIR} và \texttt{MINING\_\allowbreak{}DIR} xử lý.
-
-
+% ==============================================================================
 \section{Cấu hình Nginx và Reverse Proxy}
 \label{sec:cau-hinh-nginx}
 
-\subsection{Hai bộ cấu hình Nginx trong dự án}
+\subsection{Thiết kế cấu hình proxy cho môi trường phát triển và production}
+\label{subsec:cau-hinh-nginx-env}
 
-Hệ thống có hai bộ cấu hình Nginx riêng biệt, cùng nằm ở thư mục gốc kho mã nguồn và được thêm vào trong commit \texttt{3580935} với thông điệp \emph{"feat: setup NginX for develop and production environment with Docker"}. Việc tách hai bộ cấu hình nhằm đáp ứng hai yêu cầu vận hành vốn không thể dung hòa trong một tệp duy nhất: bản phát triển phải chạy được ngay với HTTP thuần trên \texttt{localhost}, còn bản production phải thực hiện TLS termination tại Nginx và chuyển hướng toàn bộ lưu lượng HTTP sang HTTPS.
+Hệ thống tách biệt hai tệp cấu hình \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} và \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} ở thư mục gốc do hai mục tiêu vận hành đối lập: môi trường phát triển ưu tiên phục vụ HTTP thuần tối giản trên \texttt{localhost}, còn môi trường production bắt buộc kết thúc mã hóa \texttt{TLS} tại biên (\texttt{TLS termination}) và chuyển hướng toàn bộ lưu lượng HTTP sang HTTPS. Bảng~\ref{tab:so-sanh-nginx-conf} đối chiếu đặc tính giữa hai bộ cấu hình này.
 
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.22\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.18\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.31\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.29\dimexpr\linewidth-6\tabcolsep\relax}@{}}
-\toprule
-\textbf{Tệp} & \textbf{Mục đích} & \textbf{Cổng} & \textbf{Điểm khác biệt chính} \\
-\midrule
-\endhead
-\texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} & Môi trường phát triển & 80 & Không TLS, không chuyển hướng, không log riêng \\
-\texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} & Môi trường production & 80 \ensuremath{\rightarrow} 301, 443 & TLS termination, chuyển hướng HTTPS, log riêng, hỗ trợ WebSocket \\
-\bottomrule
-\end{longtable}
-\endgroup
+\begin{table}[htbp]
+    \centering
+    \caption{So sánh hai bộ cấu hình Nginx trong dự án.}
+    \label{tab:so-sanh-nginx-conf}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.20\textwidth}>{\raggedright\arraybackslash}p{0.18\textwidth}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tệp cấu hình} & \textbf{Mục đích} & \textbf{Cổng lắng nghe} & \textbf{Đặc tính triển khai} \\
+        \midrule
+        \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} & Phát triển cục bộ & 80 & Không cấu hình TLS, không chuyển hướng, không tách tệp nhật ký riêng \\
+        \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} & Triển khai thật & 80 $\rightarrow$ 301, 443 & TLS termination, chuyển hướng HTTPS, \texttt{proxy\_\allowbreak{}buffering off}, log riêng, hỗ trợ WebSocket \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-Cấu hình production, lấy từ \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf}:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{nginx}
-events {
-    worker_connections 1024;
-}
-
-http {
-    include mime.types;
-
-    upstream backend_rag_cluster {
-        server backend-rag:8000 max_fails=3 fail_timeout=30s; # 'backend-rag' là tên service trong Docker
-    }
-
-    server {
-        listen 80;
-        server_name tenmien.com www.tenmien.com;
-        return 301 https://$host$request_uri;
-    }
-
-    server {
-        listen 443 ssl;
-        server_name tenmien.com www.tenmien.com;
-
-        ssl_certificate "/etc/nginx/ssl/cert.pem";
-        ssl_certificate_key "/etc/nginx/ssl/key.pem";
-
-        access_log /var/log/nginx/rag_access.log;
-        error_log /var/log/nginx/rag_error.log warn;
-
-        proxy_read_timeout 300;
-        proxy_connect_timeout 300;
-        proxy_send_timeout 300;
-
-        location / {
-            root "/usr/share/nginx/html";
-            try_files $uri /index.html;
-        }
-
-        location /api/ {
-            proxy_pass http://backend_rag_cluster;
-
-            proxy_redirect off;
-            proxy_buffering off;
-
-            proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
-
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-
-            # Hỗ trợ WebSockets
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-        }
-    }
-}
-\end{minted}
-
-Cấu hình phát triển, lấy từ \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf}:
+Trích đoạn từ \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} dưới đây tập trung vào các chỉ thị thiết kế trọng yếu tại tầng biên (sử dụng tên miền mẫu \texttt{rag.\allowbreak{}example.\allowbreak{}edu.\allowbreak{}vn}):
 
 \begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{nginx}
-events {}
+upstream backend_rag_cluster {
+    server backend-rag:8000 max_fails=3 fail_timeout=30s;
+}
 
-http {
-    include mime.types;
+server {
+    listen 80;
+    server_name rag.example.edu.vn www.rag.example.edu.vn;
+    return 301 https://$host$request_uri;
+}
 
-    upstream backend_rag_cluster {
-        server backend-rag:8000;
-    }
+server {
+    listen 443 ssl;
+    server_name rag.example.edu.vn www.rag.example.edu.vn;
+    ssl_certificate "/etc/nginx/ssl/cert.pem";
+    ssl_certificate_key "/etc/nginx/ssl/key.pem";
+    access_log /var/log/nginx/rag_access.log;
+    error_log /var/log/nginx/rag_error.log warn;
 
-    server {
-        listen 80;
-        server_name localhost;
+    proxy_read_timeout 300;
+    proxy_connect_timeout 300;
+    proxy_send_timeout 300;
 
-        location / {
-            root /usr/share/nginx/html;
-            try_files $uri /index.html;
-        }
-
-        location /api/ {
-            proxy_pass http://backend_rag_cluster;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
+    location / { root "/usr/share/nginx/html"; try_files $uri /index.html; }
+    location /api/ {
+        proxy_pass http://backend_rag_cluster;
+        proxy_redirect off;
+        proxy_buffering off;
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 }
 \end{minted}
 
-Bảy quyết định thiết kế đáng chú ý trong hai bộ cấu hình này:
+Cấu hình reverse proxy trên thể hiện sáu quyết định kỹ thuật trọng tâm:
+\begin{itemize}[label=--]
+    \item \textbf{Trừu tượng hoá đích bằng \texttt{upstream}}: Tách định danh \texttt{backend\_\allowbreak{}rag\_\allowbreak{}cluster} khỏi địa chỉ container giúp mở rộng đa bản sao tại một nơi duy nhất; ở bản production, cặp tham số \texttt{max\_\allowbreak{}fails=3} và \texttt{fail\_\allowbreak{}timeout=30s} cho phép cô lập tạm thời máy chủ backend gặp lỗi liên tiếp trong 30~giây.
+    \item \textbf{Tắt bộ đệm phản hồi (\texttt{proxy\_\allowbreak{}buffering off}) cho luồng \texttt{SSE}}: Mặc định Nginx gom nhỏ gói tin trước khi trả về trình duyệt, khiến câu trả lời hiển thị giật cục theo khối lớn và làm tăng \texttt{TTFT} cảm nhận. Việc tắt bộ đệm ở bản production bảo đảm từng token được đẩy thẳng xuống giao diện theo thời gian thực.
+    \item \textbf{Đồng bộ ngưỡng chờ 300~giây lớn hơn \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS}}: Ba tham số \texttt{proxy\_\allowbreak{}read\_\allowbreak{}timeout}, \texttt{proxy\_\allowbreak{}connect\_\allowbreak{}timeout} và \texttt{proxy\_\allowbreak{}send\_\allowbreak{}timeout} đều đặt 300~giây (thay vì mặc định 60~giây), tạo biên an toàn lớn hơn giới hạn 60--120~giây của LLM ở Mục~\ref{subsec:nap-nen-hang-doi}. Nhờ đó, khi suy luận hết hạn, lỗi \texttt{504} có cấu trúc của backend tới được người dùng thay vì bị Nginx ngắt sớm bằng trang lỗi proxy trống và gây lãng phí lượt sinh đang chạy.
+    \item \textbf{Chuyển tiếp header nguồn gốc}: Các header \texttt{Host}, \texttt{X-\allowbreak{}Real-\allowbreak{}IP}, \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For} và \texttt{X-\allowbreak{}Forwarded-\allowbreak{}Proto} bảo toàn địa chỉ IP thật và giao thức gốc để tầng backend giới hạn tần suất chính xác (Mục~\ref{subsec:trust-proxy-rate-limit}).
+    \item \textbf{Dự phòng WebSocket và \texttt{proxy\_\allowbreak{}next\_\allowbreak{}upstream}}: Khai báo sẵn hai header \texttt{Upgrade} và \texttt{Connection} cho các kênh hai chiều tương lai, đồng thời chỉ định rõ các mã lỗi cho phép chuyển hướng dự phòng sang bản sao kế tiếp khi nâng cấp cụm đa thực thể.
+    \item \textbf{Tách luồng nhật ký bền vững}: Phân tách \texttt{rag\_\allowbreak{}access.\allowbreak{}log} và \texttt{rag\_\allowbreak{}error.\allowbreak{}log} (lọc từ mức \texttt{warn} trở lên) vào các volume \texttt{dev-\allowbreak{}logs} / \texttt{prod-\allowbreak{}logs} trên máy chủ để tồn tại xuyên suốt các lần tái tạo container.
+\end{itemize}
 
-\textbf{Thứ nhất, sử dụng khối \texttt{upstream} thay vì trỏ thẳng vào địa chỉ container.} Khối \texttt{upstream backend\_\allowbreak{}rag\_\allowbreak{}cluster} định nghĩa một tên logic cho backend, tách cấu hình định tuyến khỏi tên service thực tế trong Docker. Điều này cho phép chuyển backend sang nhiều bản sao chỉ bằng cách sửa một khối, mà không phải sửa mọi khối \texttt{location}. Ở bản production, khối này còn gắn hai tham số \texttt{max\_\allowbreak{}fails=\allowbreak{}3} và \texttt{fail\_\allowbreak{}timeout=\allowbreak{}30s}, quy định rằng Nginx sẽ đánh dấu một bản sao là lỗi sau 3 lần thất bại và chỉ thử lại sau 30 giây.
+Khi đưa Nginx vào vận hành qua hai tệp Compose tầng biên ở thư mục gốc (\texttt{docker-\allowbreak{}compose.\allowbreak{}yaml} và \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml}), sự khác biệt giữa môi trường phát triển và production được tóm tắt trong Bảng~\ref{tab:so-sanh-compose}.
 
-\textbf{Thứ hai, \texttt{proxy\_\allowbreak{}buffering off} xuất hiện ở bản production nhưng không có ở bản phát triển.} Đây là điểm cốt lõi cho luồng SSE. Khi Nginx bật response buffering theo mặc định, các phần nhỏ sẽ bị gom lại trước khi chuyển tiếp, khiến giao diện hiển thị câu trả lời theo từng đoạn lớn thay vì theo dòng, và làm chậm thời điểm người dùng nhìn thấy token đầu tiên. Bật \texttt{proxy\_\allowbreak{}buffering off} ở bản production nhưng bỏ ở bản phát triển phản ánh đúng đặc thù: chỉ bản triển khai thật mới cần phục vụ luồng SSE, còn bản phát triển chỉ phục vụ giao diện và các lời gọi API không phát trực tiếp.
+\begin{table}[htbp]
+    \centering
+    \caption{So sánh cấu trúc hai tệp Docker Compose môi trường dev và production.}
+    \label{tab:so-sanh-compose}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.26\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Hạng mục} & \textbf{Phát triển (\texttt{docker-compose.yaml})} & \textbf{Production (\texttt{docker-compose.prod.yaml})} \\
+        \midrule
+        Cổng công khai & 80 & 80 và 443 \\
+        Tệp cấu hình Nginx & \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} & \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} \\
+        Gắn thư mục chứng thư & Không sử dụng & \texttt{.\allowbreak{}/\allowbreak{}ssl:\allowbreak{}/\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}ssl} \\
+        Volume nhật ký & \texttt{dev-\allowbreak{}logs} & \texttt{prod-\allowbreak{}logs} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-\textbf{Thứ ba, ba giá trị thời gian chờ được đặt cùng nhau ở mức 300 giây.} \texttt{proxy\_\allowbreak{}read\_\allowbreak{}timeout}, \texttt{proxy\_\allowbreak{}connect\_\allowbreak{}timeout} và \texttt{proxy\_\allowbreak{}send\_\allowbreak{}timeout} đều bằng 300, thay vì mặc định 60 giây của Nginx. Con số này phải lớn hơn timeout suy luận của LLM. Đây là mối liên hệ trực tiếp với cấu hình ở Mục 7.5: nếu \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} được đặt là 120000 (120 giây) trong Compose, thì thời gian chờ 300 giây của Nginx tạo biên an toàn hợp lý \chapterSevenDash{} Nginx chờ lâu hơn backend, nên khi backend hết thời gian và trả lỗi \texttt{504}, người dùng nhận được thông báo lỗi có nghĩa từ ứng dụng thay vì một trang lỗi 504 trống từ proxy. Ngược lại, nếu đặt thời gian chờ của Nginx ngắn hơn timeout của LLM, người dùng sẽ thấy lỗi proxy trong khi mô hình vẫn đang sinh câu trả lời, tức là tài nguyên GPU bị lãng phí.
+Hai ràng buộc vận hành cần chú ý đối với Bảng~\ref{tab:so-sanh-compose}: thứ nhất, thư mục \texttt{ssl/\allowbreak{}} (cùng \texttt{dist/\allowbreak{}}) được đưa vào \texttt{.\allowbreak{}gitignore} ngay từ đầu để ngăn tuyệt đối việc lộ khoá riêng \texttt{TLS} trong lịch sử mã nguồn, buộc người vận hành cấp chứng thư trực tiếp trên máy chủ; thứ hai, chỉ thị \texttt{depends\_\allowbreak{}on:\allowbreak{} -\allowbreak{} backend-\allowbreak{}rag} chỉ bảo đảm thứ tự khởi động tiến trình chứ không đợi API sẵn sàng, nên các yêu cầu sớm trong vài giây đầu sẽ nhận \texttt{502} tạm thời từ Nginx rồi tự phục hồi ngay khi backend mở cổng.
 
-\textbf{Thứ tư, Nginx chuyển tiếp bốn HTTP header tới backend.} Ba header đầu (\texttt{Host}, \texttt{X-\allowbreak{}Real-\allowbreak{}IP}, \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For}) là bắt buộc để backend nhận được địa chỉ client thật, và \texttt{X-\allowbreak{}Forwarded-\allowbreak{}Proto} cho biết giao thức gốc là gì. Điều này gắn trực tiếp với cơ chế giới hạn tần suất được trình bày ở Mục 7.6.3: nếu Nginx không gửi \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For}, Express sẽ coi mọi yêu cầu là đến từ một địa chỉ duy nhất là Nginx, và toàn bộ người dùng sẽ dùng chung một bộ đếm.
+\subsection{Cấu hình \texttt{trust proxy} và bảo toàn giới hạn tần suất theo IP}
+\label{subsec:trust-proxy-rate-limit}
 
-\textbf{Thứ năm, hỗ trợ WebSocket được cấu hình sẵn.} Hai dòng \texttt{proxy\_\allowbreak{}set\_\allowbreak{}header Upgrade \$http\_\allowbreak{}upgrade;} và \texttt{proxy\_\allowbreak{}set\_\allowbreak{}header Connection "upgrade";} cho phép các kết nối WebSocket đi xuyên qua proxy. Hiện tại hệ thống chưa dùng WebSocket \chapterSevenDash{} luồng SSE dùng HTTP chunked \chapterSevenDash{} nhưng việc cấu hình sẵn giúp không phải sửa cấu hình reverse proxy khi bổ sung một kênh truyền thời gian thực khác.
+Do \texttt{ThrottlerGuard} áp dụng cơ chế giới hạn tần suất dựa trên địa chỉ IP máy khách (\texttt{req.\allowbreak{}ip}), Express chỉ giải mã đúng IP thật từ header \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For} của Nginx khi cấu hình \texttt{trust proxy} (\texttt{RAGTS\_\allowbreak{}TRUST\_\allowbreak{}PROXY\_\allowbreak{}HOPS}) được thiết lập tương thích trong \texttt{src/\allowbreak{}common/\allowbreak{}security.\allowbreak{}ts}:
 
-\textbf{Thứ sáu, \texttt{proxy\_\allowbreak{}next\_\allowbreak{}upstream} liệt kê đầy đủ các mã lỗi.} Cấu hình khai báo \texttt{error timeout invalid\_\allowbreak{}header http\_\allowbreak{}500 http\_\allowbreak{}502 http\_\allowbreak{}503 http\_\allowbreak{}504}, nghĩa là Nginx sẽ thử bản sao backend tiếp theo khi bản sao hiện tại trả về một trong các lỗi đó. Cơ chế failover chỉ hoạt động khi khối \texttt{upstream} khai báo nhiều hơn một bản sao; với cấu hình hiện tại chỉ có một \texttt{server}, Nginx không có backend thứ hai để thử lại.
-
-\textbf{Thứ bảy, nhật ký được tách thành hai tệp riêng.} \texttt{access\_\allowbreak{}log /\allowbreak{}var/\allowbreak{}log/\allowbreak{}nginx/\allowbreak{}rag\_\allowbreak{}access.\allowbreak{}log} ghi lại các yêu cầu, còn \texttt{error\_\allowbreak{}log /\allowbreak{}var/\allowbreak{}log/\allowbreak{}nginx/\allowbreak{}rag\_\allowbreak{}error.\allowbreak{}log warn} chỉ ghi các sự kiện mức cảnh báo trở lên. Hai tệp này được ánh xạ vào volume \texttt{prod-\allowbreak{}logs} (bản production) và \texttt{dev-\allowbreak{}logs} (bản phát triển), nên nhật ký của Nginx tồn tại lâu hơn vòng đời container và có thể thu thập bằng \texttt{docker logs} hoặc đẩy sang hệ thống tổng hợp.
-
-\subsection{Đưa Nginx vào vận hành: hai tệp Compose}
-
-Nginx không được khởi động trong \texttt{backend\_\allowbreak{}rag/\allowbreak{}docker-\allowbreak{}compose.\allowbreak{}yml} mà bằng hai tệp Compose riêng ở thư mục gốc kho, phân biệt rõ môi trường.
-
-Tệp \texttt{docker-\allowbreak{}compose.\allowbreak{}yaml} cho môi trường phát triển:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{yaml}
-services:
-  backend-rag:
-    build: ./backend-rag
-    ports:
-      - "8000:8000"
-    environment:
-      - QDRANT_URL=
-      - QDRANT_API_KEY=
-      - MINIO_ENDPOINT=
-      - MINIO_ACCESS_KEY=
-      - MINIO_SECRET_KEY=
-
-  # Container cho NginX (Web Server & Reverse Proxy)
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      # Ánh xạ file cấu hình dành riêng cho dev
-      - ./nginx.dev.conf:/etc/nginx/nginx.conf
-      - ./frontend-rag/dist:/usr/share/nginx/html
-      - ./dev-logs:/var/log/nginx
-    depends_on:
-      - backend-rag
-\end{minted}
-
-Tệp \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml} cho môi trường production:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{yaml}
-services:
-  backend-rag:
-    build: ./backend-rag
-    ports:
-      - "8000:8000"
-    environment:
-      - QDRANT_URL=
-      - QDRANT_API_KEY=
-      - MINIO_ENDPOINT=
-      - MINIO_ACCESS_KEY=
-      - MINIO_SECRET_KEY=
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Ánh xạ file cấu hình production (có chứa tên miền thật)
-      - ./nginx.prod.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-      - ./frontend-rag/dist:/usr/share/nginx/html
-      - ./prod-logs:/var/log/nginx
-    depends_on:
-      - backend-rag
-\end{minted}
-
-Bốn điểm khác biệt giữa hai bản cần lưu ý khi vận hành:
-
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.31\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.32\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.37\dimexpr\linewidth-4\tabcolsep\relax}@{}}
-\toprule
-\textbf{Hạng mục} & \textbf{Phát triển} & \textbf{Production} \\
-\midrule
-\endhead
-Cổng công khai & 80 & 80 và 443 \\
-Tệp cấu hình & \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} & \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf} \\
-Gắn thư mục chứng thư & Không & \texttt{.\allowbreak{}/\allowbreak{}ssl:\allowbreak{}/\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}ssl} \\
-Volume nhật ký & \texttt{dev-\allowbreak{}logs} & \texttt{prod-\allowbreak{}logs} \\
-\bottomrule
-\end{longtable}
-\endgroup
-
-Điểm thứ nhất: gắn thư mục \texttt{.\allowbreak{}/\allowbreak{}ssl} vào \texttt{/\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}ssl} chỉ xuất hiện ở bản production. Thư mục \texttt{ssl/\allowbreak{}} chứa \texttt{cert.\allowbreak{}pem} và \texttt{key.\allowbreak{}pem} được thêm vào \texttt{.\allowbreak{}gitignore} ngay từ commit đầu tiên, nên tệp chứng thư và khóa riêng không bao giờ được commit lên kho mã nguồn \chapterSevenDash{} đây là yêu cầu bắt buộc, không phải lựa chọn. Người vận hành phải tự đặt hai tệp này vào thư mục trước khi khởi động bản production.
-
-Điểm thứ hai: cả hai bản đều ánh xạ thư mục \texttt{frontend-\allowbreak{}rag/\allowbreak{}dist} vào \texttt{/\allowbreak{}usr/\allowbreak{}share/\allowbreak{}nginx/\allowbreak{}html} thay vì sao chép tệp vào ảnh. Cách làm này cho phép triển khai lại giao diện bằng cách build lại frontend rồi tải lại container Nginx, mà không cần build lại image.
-
-Điểm thứ ba: khối \texttt{depends\_\allowbreak{}on:\allowbreak{} -\allowbreak{} backend-\allowbreak{}rag} chỉ bảo đảm thứ tự khởi động chứ không bảo đảm backend đã sẵn sàng nhận yêu cầu. Với Nginx, tác động của điều này ít nghiêm trọng hơn so với backend vì các yêu cầu đến sớm sẽ chỉ nhận lỗi 502 tạm thời từ \texttt{proxy\_\allowbreak{}next\_\allowbreak{}upstream}, sau đó được phục vụ bình thường khi backend sẵn sàng.
-
-Điểm thứ tư: tên service \texttt{backend-\allowbreak{}rag} trong Compose khớp với tên trong khối \texttt{upstream} của cả hai tệp cấu hình Nginx. Đây là điểm liên hệ bắt buộc phải giữ đồng bộ: nếu đổi tên service trong Compose mà không sửa \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} và \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf}, Nginx sẽ không phân giải được tên và mọi yêu cầu API sẽ trả lỗi 502.
-
-\subsection{Cấu hình \texttt{trust proxy} và rate limiting theo địa chỉ IP}
-
-Khi dùng địa chỉ IP máy khách để giới hạn tần suất, cần cấu hình Nginx chuyển tiếp địa chỉ và đặt \texttt{RAGTS\_\allowbreak{}TRUST\_\allowbreak{}PROXY\_\allowbreak{}HOPS} theo số proxy tin cậy thực tế.
-
-Cơ chế này gắn với hệ thống giới hạn tần suất của backend. \texttt{ThrottlerGuard} khóa theo địa chỉ IP của client, và Express chỉ đọc được địa chỉ thật qua \texttt{req.\allowbreak{}ip} khi cấu hình \texttt{trust proxy} được đặt đúng. Trong \texttt{src/\allowbreak{}common/\allowbreak{}security.\allowbreak{}ts}:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
+\begin{tsbox}{Cấu hình tham số trust proxy theo môi trường thực thi}
 export function trustProxySetting(nodeEnv: string): number | 'loopback' | false {
   if (nodeEnv === 'production') return 1; // one reverse proxy hop in front of the app
   if (nodeEnv === 'test') return 'loopback';
   return false; // dev: the client IP must stay the real one so `@Ip()` is meaningful
 }
-\end{minted}
+\end{tsbox}
 
-Giá trị \texttt{1} ở production nghĩa là "một lớp proxy đáng tin cậy phía trước ứng dụng" \chapterSevenDash{} tức là Nginx. Hàm \texttt{app.\allowbreak{}setup.\allowbreak{}ts} đặt giá trị này \emph{trước} khi Express đọc địa chỉ client, với chú thích giải thích rõ: \texttt{trust proxy} phải được đặt trước vì rate limiter khóa theo địa chỉ đó.
+Trong \texttt{app.\allowbreak{}setup.\allowbreak{}ts}, hàm này được áp dụng trước mọi middleware đọc địa chỉ IP nhằm phản ánh chính xác số chặng proxy tin cậy (giá trị \texttt{1} đại diện cho một lớp Nginx duy nhất phía trước ứng dụng). Đặt sai tham số này dẫn tới hai rủi ro đối nghịch: nếu đặt số hop lớn hơn thực tế, kẻ tấn công có thể giả mạo header \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For} để vượt qua cơ chế chặn; ngược lại nếu đặt bằng \texttt{false} sau proxy, toàn bộ người dùng cùng dùng chung địa chỉ IP nội bộ của Nginx và chia sẻ chung một bộ đếm, làm người dùng hợp pháp bị chặn oan. Các ngưỡng giới hạn cụ thể theo từng nhóm endpoint được cấu hình tập trung trong \texttt{src/\allowbreak{}common/\allowbreak{}throttler.\allowbreak{}ts} (khớp với Bảng~\ref{tab:gioi-han-tan-suat} tại Mục~\ref{sec:auth}); hệ thống đăng ký duy nhất một bộ giới hạn toàn cục qua \texttt{APP\_\allowbreak{}GUARD} và dùng decorator \texttt{@\allowbreak{}RateLimit(.\allowbreak{}.\allowbreak{}.\allowbreak{})} để thu hẹp ngưỡng ở các endpoint nhạy cảm nhằm bảo đảm mọi API bổ sung về sau đều tự động được bảo vệ mặc định.
 
-Nếu đặt sai, có hai hậu quả nghiêm trọng. Nếu đặt quá nhiều lớp proxy tin cậy, kẻ tấn công có thể giả mạo địa chỉ qua header \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For} và bỏ qua hoàn toàn giới hạn tần suất. Nếu đặt quá ít, tất cả người dùng đi qua cùng một proxy sẽ dùng chung một bộ đếm, khiến người dùng hợp pháp bị chặn vì hành vi của người khác.
-
-Các mức giới hạn được định nghĩa tập trung trong \texttt{src/\allowbreak{}common/\allowbreak{}throttler.\allowbreak{}ts}:
-
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.31\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.32\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.37\dimexpr\linewidth-4\tabcolsep\relax}@{}}
-\toprule
-\textbf{Tuyến} & \textbf{Giới hạn} & \textbf{Lý do} \\
-\midrule
-\endhead
-\texttt{POST /\allowbreak{}auth/\allowbreak{}register} & 5 / 60 giây & Chống tạo tài khoản hàng loạt và làm cạn CPU bởi Argon2 \\
-\texttt{POST /\allowbreak{}auth/\allowbreak{}login} & 10 / 60 giây & Chống đoán mật khẩu theo bộ từ điển \\
-\texttt{POST /\allowbreak{}auth/\allowbreak{}refresh} & 30 / 60 giây & Hạn chế phát hành token hàng loạt \\
-\texttt{POST /\allowbreak{}auth/\allowbreak{}change-\allowbreak{}password} & 5 / 60 giây & Hạn chế thay đổi mật khẩu liên tục \\
-\texttt{POST /\allowbreak{}rag/\allowbreak{}chat}, \texttt{/\allowbreak{}rag/\allowbreak{}chat/\allowbreak{}stream} & 20 / 60 giây & LLM mặc định chỉ xử lý một lượt sinh tại một thời điểm \\
-Mặc định (mọi tuyến khác) & 120 / 60 giây & Giới hạn mặc định cho các endpoint còn lại \\
-\bottomrule
-\end{longtable}
-\endgroup
-
-Chỉ một rate limiter tên \texttt{default} được đăng ký toàn cục, còn các tuyến nhạy cảm thu hẹp giới hạn của riêng mình bằng decorator \texttt{@\allowbreak{}RateLimit(.\allowbreak{}.\allowbreak{}.\allowbreak{})}. Đây là điểm thiết kế đáng chú ý: nếu đăng ký một rate limiter riêng cho mỗi tuyến, tất cả các rate limiter đó sẽ áp dụng lên mọi tuyến \chapterSevenDash{} điều không mong muốn. \texttt{ThrottlerGuard} được gắn qua \texttt{APP\_\allowbreak{}GUARD} nên kể cả các tuyến được thêm sau này cũng tự động được giới hạn, kể cả khi người đóng góp mới không nhớ gắn decorator.
-
-
+% ==============================================================================
 \section{Cấu hình HTTPS và bảo mật kết nối}
 \label{sec:cau-hinh-https}
 
-\subsection{TLS termination tại Nginx}
+\subsection{TLS termination tại biên và các lớp bảo mật ứng dụng}
+\label{subsec:tls-va-bao-mat}
 
-Bản production của hệ thống thực hiện TLS termination ngay tại Nginx, theo đúng mô hình "kết thúc tại biên" (TLS termination at the edge): chứng thư được nạp một lần bởi Nginx, phần còn lại của hệ thống \chapterSevenDash{} từ Nginx đến container backend \chapterSevenDash{} chạy trong mạng nội bộ của Docker và không cần mã hóa.
+Hệ thống áp dụng mô hình kết thúc mã hóa tại biên (\texttt{TLS termination at the edge}) ngay trên Nginx như đã cấu hình trong Mục~\ref{subsec:cau-hinh-nginx-env}: chứng thư \texttt{/\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}ssl/\allowbreak{}cert.\allowbreak{}pem} và khoá riêng \texttt{key.\allowbreak{}pem} được nạp tập trung tại cổng \texttt{443 ssl}, còn lưu lượng từ cổng \texttt{80} được chuyển hướng vĩnh viễn (\texttt{HTTP 301}) sang HTTPS với nguyên vẹn đường dẫn và chuỗi truy vấn (tránh làm gãy liên kết sâu từ các trình duyệt nhúng). Giao tiếp từ Nginx vào container backend di chuyển hoàn toàn trong mạng riêng Docker nên không lặp lại chi phí bắt tay mã hóa. Khi triển khai thật, cần thay thế cặp tên miền giữ chỗ \texttt{rag.\allowbreak{}example.\allowbreak{}edu.\allowbreak{}vn} và \texttt{www.\allowbreak{}rag.\allowbreak{}example.\allowbreak{}edu.\allowbreak{}vn} bằng tên miền vận hành chính thức, đồng thời lưu ý việc cấu hình tường minh phiên bản giao thức \texttt{TLSv1.\allowbreak{}2}/\texttt{TLSv1.\allowbreak{}3} (thay cho mặc định của ảnh \texttt{nginx:\allowbreak{}alpine}) được ghi nhận là một điểm cần hoàn thiện tại Mục~\ref{sec:han-che}.
 
-Trong \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf}, khối máy chủ ở cổng 443 khai báo \texttt{listen 443 ssl} cùng hai đường dẫn tới tệp chứng thư:
+Phối hợp với lớp \texttt{TLS} ở tầng biên, backend triển khai bốn lớp bảo mật bổ trợ ở tầng ứng dụng theo nguyên tắc phòng thủ nhiều lớp (\texttt{defense in depth}):
+\begin{itemize}[label=--]
+    \item \textbf{Tiêu đề bảo mật HTTP qua \texttt{helmet}}: Thiết lập chính sách \texttt{CSP} chặt chẽ (\texttt{default-\allowbreak{}src 'self'}, \texttt{script-\allowbreak{}src 'self'}, \texttt{frame\allowbreak{}Ancestors 'none'}, \texttt{object-\allowbreak{}src 'none'}), áp dụng \texttt{HSTS} ở production với thời hạn một năm (\texttt{maxAge:\allowbreak{} 31.536.000} kèm tuỳ chọn \texttt{include\allowbreak{}SubDomains}), đồng thời tắt \texttt{crossOrigin\allowbreak{}Embedder\allowbreak{}Policy} vì luồng \texttt{SSE} và runtime \texttt{GGUF} cục bộ không yêu cầu cô lập cross-origin.
+    \item \textbf{Ẩn tài liệu đặc tả API ở production}: Swagger chỉ được kích hoạt khi \texttt{NODE\_\allowbreak{}ENV !== 'production'} nhằm ngăn lộ danh sách đầy đủ các đường dẫn quản trị cho các công cụ rà quét tự động.
+    \item \textbf{Giới hạn tần suất theo IP thật}: Thực thi đồng bộ qua \texttt{ThrottlerGuard} và chỉ thị chuyển tiếp địa chỉ từ Nginx (Mục~\ref{subsec:trust-proxy-rate-limit}).
+    \item \textbf{Lọc thông tin nhạy cảm trên endpoint sức khỏe}: Ở production, \texttt{HealthController} chỉ trả về trạng thái tổng quát, phiên bản, thời gian chạy (\texttt{uptime}) và trạng thái nhị phân từng thành phần; các chi tiết kỹ thuật nhạy cảm như định danh mô hình, thiết bị GPU và độ dài hàng đợi chỉ cấp cho quản trị viên qua \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}admin/\allowbreak{}health}.
+\end{itemize}
 
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{nginx}
-server {
-    listen 443 ssl;
-    server_name tenmien.com www.tenmien.com;
+\subsection{Quy trình kiểm chứng trước khi phát hành}
+\label{subsec:kiem-chung-phat-hanh}
 
-    ssl_certificate "/etc/nginx/ssl/cert.pem";
-    ssl_certificate_key "/etc/nginx/ssl/key.pem";
-    ...
-}
-\end{minted}
-
-Hai đường dẫn này trỏ tới thư mục \texttt{/\allowbreak{}etc/\allowbreak{}nginx/\allowbreak{}ssl} bên trong container, là nơi thư mục \texttt{.\allowbreak{}/\allowbreak{}ssl} của máy chủ được gắn vào theo khai báo trong \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml}. Thư mục \texttt{ssl/\allowbreak{}} chứa hai tệp \texttt{cert.\allowbreak{}pem} và \texttt{key.\allowbreak{}pem} và đã được liệt kê trong \texttt{.\allowbreak{}gitignore} kể từ commit đầu tiên, cùng với \texttt{dist/\allowbreak{}}. Việc loại trừ này là bắt buộc: khóa riêng TLS không bao giờ được phép xuất hiện trong lịch sử kho mã nguồn, kể cả khi kho đó là kho nội bộ.
-
-Khối máy chủ ở cổng 80 chuyển hướng sang địa chỉ HTTPS của cùng tên miền:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{nginx}
-server {
-    listen 80;
-    server_name tenmien.com www.tenmien.com;
-    return 301 https://$host$request_uri;
-}
-\end{minted}
-
-Có một lý do kỹ thuật để giữ cả hai cổng: nhiều ứng dụng dựa trên web hiện đại, chẳng hạn trình duyệt nhúng, mong đợi chuyển hướng từ HTTP sang HTTPS. Chuyển hướng 301 giữ nguyên đường dẫn và chuỗi truy vấn, nên không phá vỡ các liên kết sâu vào trong ứng dụng.
-
-Hai cấu hình cùng khai báo \texttt{server\_\allowbreak{}name tenmien.\allowbreak{}com www.\allowbreak{}tenmien.\allowbreak{}com} \chapterSevenDash{} bao gồm cả dạng không có tiền tố \texttt{www}. Cần lưu ý rằng giá trị \texttt{tenmien.\allowbreak{}com} trong tệp là giá trị thay thế, phải được thay bằng tên miền thật của đơn vị triển khai trước khi đưa vào phục vụ. Tương tự, đường dẫn chứng thư phải khớp với cặp tệp mà người vận hành đặt vào thư mục \texttt{ssl/\allowbreak{}}.
-
-Một điểm cần lưu ý về mức độ mã hóa: vì khối \texttt{server} ở cổng 443 không khai báo tham số \texttt{ssl\_\allowbreak{}protocols} hay \texttt{ssl\_\allowbreak{}ciphers}, Nginx sẽ dùng bộ mặc định của bản \texttt{nginx:\allowbreak{}alpine} đang chạy. Điều này chấp nhận được ở mức cấu hình hiện tại, nhưng là hạn chế đã biết cần nêu trong Mục 7.8.10: nên chốt rõ \texttt{ssl\_\allowbreak{}protocols TLSv1.\allowbreak{}2 TLSv1.\allowbreak{}3} và \texttt{ssl\_\allowbreak{}prefer\_\allowbreak{}server\_\allowbreak{}ciphers off} khi đưa vào phục vụ thật.
-
-\subsection{Các lớp bảo mật tích hợp trong backend}
-
-Ngoài TLS ở tầng reverse proxy, backend còn áp dụng nhiều lớp bảo mật ở tầng ứng dụng. Việc hiểu rõ phạm vi của từng lớp giúp tránh nhầm lẫn khi xử lý sự cố.
-
-\textbf{HTTP security header.} \texttt{helmet} được áp dụng cho mọi phản hồi trong \texttt{app.\allowbreak{}setup.\allowbreak{}ts}. Chính sách CSP được tùy biến theo đặc thù của API: \texttt{default-\allowbreak{}src 'self'}, \texttt{script-\allowbreak{}src 'self'}, \texttt{frameAncestors 'none'}, \texttt{object-\allowbreak{}src 'none'}. Cơ chế HSTS chỉ bật ở production với \texttt{maxAge:\allowbreak{} 31 536 000} (một năm) và \texttt{includeSubDomains:\allowbreak{} true}. Về chính sách cross-origin, \texttt{crossOriginEmbedderPolicy} bị tắt vì luồng SSE và công cụ GGUF cục bộ không cần cross-origin isolation.
-
-\textbf{Ẩn tài liệu API ở production.} Backend chỉ bật Swagger khi \texttt{NODE\_\allowbreak{}ENV !=\allowbreak{}=\allowbreak{} 'production'}. Đây là biện pháp có chủ ý chứ không phải sự bỏ sót: tài liệu Swagger tiết lộ danh sách endpoint của hệ thống, bao gồm cả các endpoint quản trị, và là tài liệu tham khảo hữu ích cho kẻ thăm dò hệ thống.
-
-\textbf{Giới hạn tần suất toàn cục.} Như đã trình bày ở Mục 7.6.3.
-
-\textbf{Giới hạn thông tin trả về từ health endpoint.} \texttt{HealthController} có cơ chế che giấu thông tin riêng: ở production, phản hồi chỉ giữ lại trạng thái tổng quát, phiên bản, uptime và trạng thái của từng thành phần; chi tiết nhạy cảm như mã mô hình, thiết bị GPU và độ dài hàng đợi chỉ cung cấp cho quản trị viên qua \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}admin/\allowbreak{}health}.
-
-\subsection{Quy trình kiểm tra trước khi đưa phiên bản mới vào phục vụ}
-
-Trước khi đưa phiên bản mới vào phục vụ, người vận hành thực hiện theo thứ tự sau:
+Trước khi đưa phiên bản cấu hình hoặc chứng thư mới vào phục vụ chính thức, người vận hành thực hiện tuần tự năm bước kiểm chứng sau:
 
 \begin{enumerate}
-    \item Chạy \texttt{nginx -\allowbreak{}t} để kiểm tra cú pháp cấu hình.
-    \item Nạp lại cấu hình.
-    \item Dùng trình duyệt kiểm tra tên miền, chuỗi tin cậy cùng ngày hết hạn của chứng thư.
-    \item Gửi câu hỏi qua chính địa chỉ HTTPS và quan sát luồng SSE đến khi hoàn tất.
-    \item Kiểm tra phản hồi của \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} và \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}ready} qua chính kết nối HTTPS.
+    \item Thực thi \texttt{nginx -\allowbreak{}t} để xác nhận tính hợp lệ cú pháp của toàn bộ tệp cấu hình.
+    \item Tải lại tiến trình Nginx (\texttt{reload}) mà không làm gián đoạn các kết nối hiện hữu.
+    \item Kiểm tra trực tiếp trên trình duyệt tên miền công khai, chuỗi chứng thư tin cậy và ngày hết hạn chứng thư đang được máy chủ phục vụ (không chỉ kiểm tra tệp trên đĩa nhằm phát hiện trường hợp Nginx chưa nạp chứng thư mới).
+    \item Gửi một câu hỏi thử nghiệm qua chính địa chỉ HTTPS để xác nhận chuyển hướng 301, bắt tay \texttt{TLS} và luồng token \texttt{SSE} truyền liên tục không bị nghẽn đệm.
+    \item Kiểm tra \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} và \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}ready} trực tiếp qua HTTPS để bảo đảm định tuyến ngược hoạt động thông suốt.
 \end{enumerate}
 
-Bước 4 và bước 5 phải thực hiện qua địa chỉ HTTPS chứ không phải qua địa chỉ cục bộ, vì nhiều cấu hình sai chỉ biểu hiện ở tầng TLS hoặc ở phía proxy.
-
-Khi gia hạn chứng thư, cần nạp lại Nginx rồi đối chiếu ngày hết hạn mà máy khách thực sự nhận được \chapterSevenDash{} không chỉ đối chiếu với tệp trên đĩa, vì cấu hình có thể chưa được nạp lại.
-
-
+% ==============================================================================
 \section{Giám sát, ghi log và quản lý hoạt động hệ thống}
 \label{sec:giam-sat-logging}
 
-\subsection{Các health endpoint của backend}
+\subsection{Kiểm tra sức khỏe dịch vụ và thăm dò nền}
+\label{subsec:health-probes}
 
-Hệ thống phân biệt ba mức kiểm tra, mỗi mức phục vụ một đối tượng khác nhau.
+Backend cung cấp ba mức endpoint sức khỏe phục vụ những mục tiêu giám sát khác nhau: \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}live} phản hồi HTTP~200 ngay khi tiến trình Node.js còn sống (không truy vấn phụ thuộc ngoài, dùng cho \texttt{HEALTHCHECK} của Docker và cân bằng tải); \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}ready} kiểm tra trạng thái kết nối các thành phần phụ thuộc (trả 503 nếu mất MongoDB hoặc Qdrant, và trả 200 kèm trạng thái \texttt{degraded} nếu chỉ thiếu LLM); và \texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health} bổ sung phiên bản hệ thống, \texttt{uptime} và \texttt{world\_\allowbreak{}version}. Logic tổng hợp trạng thái được cài đặt tường minh trong hàm \texttt{overallStatus}:
 
-\textbf{Liveness (\texttt{/api/v1/health/live}).} Endpoint trả HTTP~200 khi tiến trình backend còn phản hồi. Docker dùng endpoint này cho \texttt{HEALTHCHECK} của container; load balancer cũng có thể dùng nó để kiểm tra kết nối tới backend. Endpoint không truy vấn MongoDB hay Qdrant. Nhờ đó, khi một dịch vụ phụ thuộc phản hồi chậm, kết quả liveness vẫn phản ánh đúng trạng thái của tiến trình backend.
-
-\textbf{Readiness (\texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health/\allowbreak{}ready}).} Dựa trên kết quả thăm dò phụ thuộc. Nếu MongoDB hoặc Qdrant mất kết nối, tuyến trả HTTP 503. Nếu chỉ mô hình sinh chưa sẵn sàng, tuyến vẫn trả HTTP 200 với trạng thái \texttt{degraded}.
-
-\textbf{Trạng thái tổng hợp (\texttt{/\allowbreak{}api/\allowbreak{}v1/\allowbreak{}health}).} Trả về đối tượng đầy đủ gồm trạng thái, phiên bản, uptime, phiên bản dữ liệu world và trạng thái của từng thành phần.
-
-Quy tắc tổng hợp nằm trong hàm \texttt{overallStatus}:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
+\begin{tsbox}{Quy tắc xác định trạng thái tổng thể hệ thống}
 export function overallStatus(c: Components): HealthStatus {
   if (!c.mongo || !c.qdrant) return 'down';
   if (!c.llm) return 'degraded';
   return 'ok';
 }
-\end{minted}
+\end{tsbox}
 
-Phân biệt ba trạng thái này có ý nghĩa vận hành rõ ràng. \texttt{down} nghĩa là hệ thống không thể phục vụ chức năng cốt lõi vì mất kết nối cơ sở dữ liệu hoặc chỉ mục. \texttt{degraded} nghĩa là hệ thống vẫn phục vụ được nhưng chưa sinh câu trả lời được. \texttt{ok} nghĩa là mọi thành phần đều sẵn sàng.
+Sự phân định ba trạng thái (\texttt{down}, \texttt{degraded}, \texttt{ok}) có ý nghĩa vận hành trực tiếp: mã HTTP~200 kèm trạng thái \texttt{degraded} nghĩa là người dùng vẫn đăng nhập và tra cứu bài báo được nhưng chưa thể sinh câu trả lời, do đó công cụ giám sát tự động cần phân tích trường \texttt{status} trong thân JSON thay vì chỉ kiểm tra mã trạng thái HTTP.
 
-Do vậy, để xác nhận chức năng hỏi đáp, cần đọc cả nội dung phản hồi chứ không chỉ mã HTTP, và phải thực hiện một lượt sinh thử. Một tuyến trả 200 với trạng thái \texttt{degraded} không đồng nghĩa với hệ thống sẵn sàng phục vụ.
+Nhằm tránh nghẽn tại endpoint sức khỏe khi lưu lượng cao, \texttt{HealthService} không thăm dò trực tiếp MongoDB/Qdrant mỗi khi nhận yêu cầu HTTP mà chạy vòng thăm dò nền chu kỳ 10~giây (\texttt{CHECK\_\allowbreak{}INTERVAL\_\allowbreak{}MS = 10\_\allowbreak{}000}). Thiết kế này kết hợp ba cơ chế bảo vệ: đặt thời hạn cứng 2~giây cho mỗi lượt kiểm tra MongoDB để tránh treo tiến trình, gộp các lượt thăm dò chồng chéo bằng cờ khoá \texttt{this.\allowbreak{}running}, và gọi \texttt{unref()} trên timer để bộ định thời không giữ event loop của Node.js khi ứng dụng tắt. Mỗi lần trạng thái thành phần đảo chiều, dịch vụ phát sự kiện cảnh báo chuẩn hoá \texttt{HEALTH\_\allowbreak{}CHANGED}:
 
-\subsection{Cơ chế thăm dò nền và sự kiện thay đổi trạng thái}
-
-\texttt{HealthService} không gọi phụ thuộc ngay khi nhận yêu cầu. Thay vào đó, nó chạy một vòng thăm dò nền mỗi 10 giây:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
-export const CHECK_INTERVAL_MS = 10_000;
-\end{minted}
-
-Mỗi yêu cầu HTTP chỉ đọc kết quả của lần thăm dò gần nhất. Cách tổ chức này có ba lợi ích rõ ràng: health endpoint không bao giờ trở thành điểm nghẽn khi tải cao; lượt thăm dò MongoDB được đặt thời hạn cứng 2 giây nên không treo; và các lời gọi thăm dò đồng thời được gộp lại bằng cơ chế \texttt{this.\allowbreak{}running}, tránh phát sinh nhiều lượt thăm dò chồng lên nhau.
-
-Khi trạng thái một thành phần thay đổi, service ghi sự kiện \texttt{HEALTH\_\allowbreak{}CHANGED} kèm tên thành phần và chiều chuyển đổi:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
+\begin{tsbox}{Ghi log cảnh báo khi trạng thái thành phần thay đổi}
 this.logger.warn(
   { component: k, from: prev[k] ? 'up' : 'down', to: next[k] ? 'up' : 'down' },
   'HEALTH_CHANGED',
 );
-\end{minted}
+\end{tsbox}
 
-Sự kiện này là công cụ chẩn đoán quan trọng khi người dùng báo "giao diện vẫn tải được nhưng hỏi đáp chậm". Người vận hành có thể đối chiếu sự kiện này với độ dài hàng đợi và thời điểm nhận token đầu tiên để xác định nguyên nhân nằm ở phụ thuộc hay ở hàng đợi suy luận.
+Đối chiếu dấu thời gian của sự kiện \texttt{HEALTH\_\allowbreak{}CHANGED} với độ dài hàng đợi \texttt{LlmQueue} cho phép phân lập nhanh nguyên nhân suy giảm hiệu năng là do dịch vụ phụ thuộc gián đoạn hay do quá tải suy luận cục bộ.
 
-Backend gọi \texttt{unref()} trên timer dùng cho health check. Khi các tác vụ khác đã hoàn tất, timer này không giữ Node.js event loop chạy thêm.
+\subsection{Nhật ký có cấu trúc, che dữ liệu nhạy cảm và truy vết lỗi}
+\label{subsec:structured-logging}
 
-\subsection{Log có cấu trúc và cơ chế redaction}
+Tầng backend sử dụng thư viện Pino qua \texttt{nestjs-\allowbreak{}pino} để xuất nhật ký dạng một dòng JSON trên mỗi yêu cầu HTTP gồm các trường chuẩn \texttt{method}, \texttt{path} (loại bỏ chuỗi truy vấn), \texttt{status} và \texttt{user\_\allowbreak{}id}. Mức ghi nhật ký ánh xạ tự động theo kết quả phản hồi: \texttt{error} cho lỗi 5xx, \texttt{warn} cho lỗi 4xx và \texttt{info} cho các trường hợp bình thường; riêng các sự kiện kết thúc bằng \texttt{\_\allowbreak{}ABORTED} (khi người dùng chủ động huỷ kết nối \texttt{SSE}) được hạ xuống mức \texttt{info} nhằm tránh gây nhiễu cảnh báo giả. Để bảo vệ dữ liệu xác thực và quyền riêng tư của nội dung nghiên cứu, danh sách \texttt{REDACT\_\allowbreak{}PATHS} tự động che bằng chuỗi \texttt{[redacted]} trước khi ghi ra dòng log:
 
-Nhật ký được ghi bằng Pino qua \texttt{nestjs-\allowbreak{}pino}, với mỗi yêu cầu HTTP tương ứng đúng một dòng JSON.
-
-Định dạng dòng nhật ký được chuẩn hoá theo hợp đồng API: \texttt{method}, \texttt{path} (không kèm chuỗi truy vấn), \texttt{status}, \texttt{user\_\allowbreak{}id}, cùng các trường ngữ cảnh do nghiệp vụ bổ sung. Log level được chọn theo mã trạng thái: \texttt{error} cho lỗi 5xx, \texttt{warn} cho lỗi 4xx, \texttt{info} cho các trường hợp còn lại. Riêng các sự kiện kết thúc bằng \texttt{\_\allowbreak{}ABORTED} được hạ xuống mức \texttt{info} vì một yêu cầu bị người dùng hủy không phải lỗi hệ thống.
-
-Cơ chế che thông tin nhạy cảm được khai báo bằng danh sách \texttt{REDACT\_\allowbreak{}PATHS}:
-
-\begin{minted}[fontsize=\footnotesize,breaklines,breakanywhere]{typescript}
+\begin{tsbox}{Danh mục đường dẫn thuộc tính nhạy cảm cần lọc trong nhật ký}
 export const REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
@@ -752,191 +506,79 @@ export const REDACT_PATHS = [
   '*.access_token',
   '*.query',
 ];
-\end{minted}
+\end{tsbox}
 
-Giá trị bị thay bằng chuỗi \texttt{[redacted]}. Danh sách bao gồm cả header \texttt{Authorization} và \texttt{Cookie}, các biến thể mật khẩu, cả hai loại token, và trường \texttt{query} \chapterSevenDash{} tức là nội dung câu hỏi của người dùng. Việc không ghi nội dung truy vấn là quyết định bảo vệ quyền riêng tư: dữ liệu câu hỏi của người dùng không nên xuất hiện trong nhật ký hệ thống.
+Thay vì lưu nội dung thô của câu hỏi người dùng (\texttt{query}), nhật ký chỉ ghi độ dài chuỗi qua trường \texttt{query\_\allowbreak{}len} để hỗ trợ điều tra các câu hỏi quá dài làm chậm quá trình tạo \texttt{KV cache} mà vẫn bảo toàn tính riêng tư.
 
-Đối với truy vấn của người dùng, log ghi độ dài qua trường \texttt{query\_len} để phục vụ chẩn đoán mà vẫn giữ kín nội dung truy vấn.
+Do nhật ký Pino chỉ ghi nhận những yêu cầu đã vượt qua Nginx, công tác giám sát toàn diện bắt buộc kết hợp đối chiếu thêm hai tệp nhật ký tầng biên trong volume \texttt{prod-\allowbreak{}logs}: nếu một yêu cầu lỗi không xuất hiện trong \texttt{rag\_\allowbreak{}access.\allowbreak{}log}, nguyên nhân nằm ở tầng DNS hoặc mạng ngoài; nếu xuất hiện mã \texttt{502}/\texttt{504}, nguyên nhân nằm trên kênh truyền từ Nginx tới backend hoặc suy luận quá hạn được ghi tiếp trong \texttt{rag\_\allowbreak{}error.\allowbreak{}log} (lọc từ mức \texttt{warn}). Công tác kiểm tra định kỳ hằng ngày tập trung theo dõi tỉ lệ mã 5xx trong access log, các dòng cảnh báo mới và hiện tượng phình tệp nhật ký do rà quét 404 lặp lại.
 
-\subsection{Giám sát ở tầng Nginx}
+Để nối liền chuỗi truy vết xuyên suốt giữa phản hồi người dùng, Nginx và các tầng nghiệp vụ nội bộ, middleware đầu tiên \texttt{requestIdMiddleware} gán cho mỗi yêu cầu một mã định danh \texttt{UUIDv7}. Nếu client gửi kèm header \texttt{X-\allowbreak{}Request-\allowbreak{}Id}, middleware chỉ tái sử dụng khi giá trị vượt qua kiểm tra định dạng UUID hợp lệ (ngăn tấn công chèn ký tự điều khiển làm sai cấu trúc log), ngược lại tự sinh \texttt{UUIDv7} mới. Mã này được giữ trong ngữ cảnh bất đồng bộ \texttt{AsyncLocalStorage} để các hàm \texttt{logEvent} và \texttt{logFields} tự động đính kèm vào mọi dòng nhật ký phát sinh, đồng thời phản hồi về client qua header \texttt{X-\allowbreak{}Request-\allowbreak{}Id} và trường \texttt{request\_\allowbreak{}id} trong mọi phản hồi lỗi.
 
-Nhật ký ở tầng ứng dụng chỉ ghi những yêu cầu đã đi qua proxy và tới được backend. Những yêu cầu bị Nginx chặn trước \chapterSevenDash{} ví dụ bị từ chối vì giới hạn tần suất ở tầng proxy, hoặc gặp lỗi TLS \chapterSevenDash{} không xuất hiện trong nhật ký Pino. Vì vậy, giám sát đầy đủ đòi hỏi kết hợp hai nguồn.
+\subsection{Giám sát quản trị, quy trình nâng cấp và xử lý sự cố}
+\label{subsec:giam-sat-va-su-co}
 
-Access log của Nginx, do cấu hình production ghi vào \texttt{/\allowbreak{}var/\allowbreak{}log/\allowbreak{}nginx/\allowbreak{}rag\_\allowbreak{}access.\allowbreak{}log}, cung cấp góc nhìn từ phía biên: địa chỉ client thật (nhờ \texttt{X-\allowbreak{}Real-\allowbreak{}IP} và \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For}), mã trạng thái trả về, và thời gian xử lý. Đây là nguồn để đối chiếu khi người dùng báo "trang không tải được" \chapterSevenDash{} nếu không có dòng trong \texttt{rag\_\allowbreak{}access.\allowbreak{}log}, yêu cầu chưa từng tới Nginx, và vấn đề nằm ở tầng mạng hoặc DNS. Nếu có dòng với mã 502 hoặc 504, lỗi nằm ở đường Nginx đến backend.
+Các API phục vụ giám sát và kiểm toán được bảo vệ đồng thời bởi ba lớp (\texttt{JwtAuthGuard}, \texttt{RolesGuard} với quyền \texttt{admin}, và hàm \texttt{assertAdmin} ở tầng dịch vụ), tuân thủ nguyên tắc chỉ đọc hoặc chỉ bổ sung (\texttt{append-only} trên tập hợp \texttt{admin\_\allowbreak{}audit\_\allowbreak{}logs}) nhằm bảo toàn dấu vết quản trị. Bảng~\ref{tab:api-quan-tri} tổng hợp nhóm endpoint giám sát trọng yếu phục vụ vận hành; danh mục đầy đủ các API quản lý người dùng cùng cơ chế bảo vệ chống tự khoá và thu hồi phiên qua \texttt{token\_\allowbreak{}version} được trình bày chi tiết tại Bảng~\ref{tab:bang-dinh-tuyen-api} và Mục~\ref{sec:auth} (Chương~\ref{chap:thiet-ke-kien-truc}).
 
-Error log \texttt{rag\_\allowbreak{}error.\allowbreak{}log} ở mức \texttt{warn} ghi lại các sự kiện như backend không phản hồi trong \texttt{proxy\_\allowbreak{}read\_\allowbreak{}timeout} (dấu hiệu LLM quá tải), lỗi thư mục chứng thư, hoặc cấu hình không hợp lệ. Mức \texttt{warn} được chọn thay vì \texttt{error} nhằm lọc bỏ phần lớn thông báo thông thường của Nginx, khiến tệp này thực sự dùng để chẩn đoán.
+\begin{table}[htbp]
+    \centering
+    \caption{Nhóm endpoint quản trị phục vụ giám sát và kiểm toán vận hành.}
+    \label{tab:api-quan-tri}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.42\textwidth}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Endpoint quản trị} & \textbf{Vai trò giám sát và chẩn đoán} \\
+        \midrule
+        \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}admin/\allowbreak{}health} & Trả trạng thái chi tiết từng thành phần gồm định danh mô hình, thiết bị thực thi và độ dài hàng đợi \\
+        \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}admin/\allowbreak{}stats} & Thống kê tổng hợp tài nguyên, số phiên và lưu lượng toàn hệ thống \\
+        \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}admin/\allowbreak{}login-\allowbreak{}attempts} & Theo dõi danh sách các nỗ lực đăng nhập thất bại gần đây để phát hiện tấn công dò mật khẩu \\
+        \texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}admin/\allowbreak{}audit-\allowbreak{}logs} & Truy xuất nhật ký kiểm toán hành động quản trị (chỉ ghi thêm, có phân trang) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-Cả hai tệp nằm trong volume \texttt{prod-\allowbreak{}logs} được ánh xạ ra máy chủ, nên chúng tồn tại qua các lần khởi động lại container. Quy trình vận hành hằng ngày nên kiểm tra định kỳ ba nội dung: tỉ lệ yêu cầu có mã 5xx trong access log, số dòng trong error log, và việc tệp nhật ký có phình to bất thường do \texttt{try\_\allowbreak{}files} trả về 404 lặp lại.
+Khi nâng cấp phiên bản hoặc cần khôi phục trạng thái trước sự cố (\texttt{rollback}), quy trình vận hành thực hiện tuần tự bốn bước: (1)~ghi nhận bộ ba định danh tương thích gồm tag Docker image ứng dụng, tên tệp mô hình và phiên bản dữ liệu; (2)~sao lưu MongoDB trước mọi thay đổi lược đồ; (3)~thay thế Docker image mới hoặc khôi phục bộ phiên bản cũ đã lưu khi cần \texttt{rollback}; và (4)~lặp lại phép thử hỏi đáp có trích dẫn qua HTTPS tại Mục~\ref{subsec:trinh-tu-khoi-chay}, kèm kiểm tra khả năng đọc lại lịch sử hội thoại cũ để bảo đảm không phát sinh bất tương thích trên khoá chính \texttt{UUIDv7} và cột xoá mềm \texttt{deleted\_\allowbreak{}at}. Đối với các bản nâng cấp thay đổi lớn ở tầng nghiệp vụ, hệ thống còn phải vượt qua cổng nghiệm thu hiệu năng theo Quy tắc~L1 (duy trì tải liên tục 180~giây đạt \texttt{p95 < 500 ms}, \texttt{p99 < 1.000 ms}, tỉ lệ lỗi dưới 1\% bằng mô hình tải mở \texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate} nhằm tránh sai lệch \texttt{coordinated omission}); kịch bản đo và số liệu thực nghiệm chứng nhận chi tiết được tổng hợp tại Mục~\ref{subsec:ket-qua-hieu-nang} (Chương~\ref{chap:ket-luan}).
 
-\subsection{Request ID và cách truy vết lỗi}
-
-Mỗi yêu cầu đều mang một mã định danh UUIDv7. Middleware \texttt{requestIdMiddleware} là middleware đầu tiên của ứng dụng: nó chấp nhận header \texttt{X-\allowbreak{}Request-\allowbreak{}Id} từ client chỉ khi giá trị đó là một UUID hợp lệ, nếu không thì tự sinh một UUIDv7 mới. Giá trị này được gán vào \texttt{req.\allowbreak{}id}, được gửi lại cho client trong response header \texttt{X-\allowbreak{}Request-\allowbreak{}Id}, và mở một ngữ cảnh yêu cầu thông qua \texttt{AsyncLocalStorage}.
-
-Vì \texttt{AsyncLocalStorage} giữ ngữ cảnh theo luồng thực thi bất đồng bộ, mọi tầng nghiệp vụ có thể gắn trường vào dòng nhật ký hiện tại mà không cần truyền tham số. Hai hàm \texttt{logEvent(event, fields)} và \texttt{logFields(fields)} phục vụ mục đích này. Ngoài request context, phần thân lỗi của mọi endpoint cũng chứa trường \texttt{request\_\allowbreak{}id}, nên khi người dùng báo lỗi chỉ cần dán giá trị header \texttt{X-\allowbreak{}Request-\allowbreak{}Id} là tra được toàn bộ chuỗi thao tác tương ứng.
-
-Việc chỉ chấp nhận UUID hợp lệ từ client có lý do bảo mật: nếu chấp nhận tùy ý, kẻ tấn công có thể chèn ký tự kiểm soát vào nhật ký và gây nhiễu khi phân tích.
-
-\subsection{API quản trị và giám sát}
-
-API quản trị được bảo vệ bởi ba lớp kiểm soát: \texttt{JwtAuthGuard} xác thực, \texttt{RolesGuard} với \texttt{@\allowbreak{}Roles('admin')} phân quyền, và kiểm tra lại ở tầng dịch vụ (\texttt{assertAdmin}) như một lớp phòng thủ sâu hơn.
+Trong vận hành hằng ngày, Bảng~\ref{tab:xu-ly-su-co} tổng hợp các triệu chứng sự cố điển hình kèm nguyên nhân và biện pháp khắc phục tương ứng.
 
 \begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.47\dimexpr\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.53\dimexpr\linewidth-2\tabcolsep\relax}@{}}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.46\dimexpr\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.54\dimexpr\linewidth-2\tabcolsep\relax}@{}}
+\caption{Bảng tra cứu và xử lý sự cố vận hành thường gặp.}
+\label{tab:xu-ly-su-co} \\
 \toprule
-\textbf{Tuyến} & \textbf{Mục đích} \\
+\textbf{Hiện tượng} & \textbf{Nguyên nhân và cách xử lý} \\
+\midrule
+\endfirsthead
+\caption[]{Bảng tra cứu và xử lý sự cố vận hành thường gặp (tiếp theo).} \\
+\toprule
+\textbf{Hiện tượng} & \textbf{Nguyên nhân và cách xử lý} \\
 \midrule
 \endhead
-\texttt{GET /\allowbreak{}admin/\allowbreak{}health} & Trạng thái chi tiết của từng thành phần, gồm mã mô hình và thiết bị \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}stats} & Thống kê toàn hệ thống \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}users} & Danh sách người dùng có phân trang \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id} & Chi tiết một người dùng \\
-\texttt{PATCH /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id/\allowbreak{}roles} & Thay đổi vai trò \\
-\texttt{POST /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id/\allowbreak{}disable} & Khóa tài khoản \\
-\texttt{POST /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id/\allowbreak{}enable} & Mở khóa tài khoản \\
-\texttt{POST /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id/\allowbreak{}revoke-\allowbreak{}tokens} & Thu hồi toàn bộ token của người dùng \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id/\allowbreak{}tokens} & Danh sách refresh token family đang hoạt động \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}users/\allowbreak{}:\allowbreak{}id/\allowbreak{}sessions} & Phiên hội thoại của người dùng \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}sessions/\allowbreak{}:\allowbreak{}sessionId} & Chi tiết một phiên kèm tin nhắn \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}login-\allowbreak{}attempts} & Nhật ký đăng nhập thất bại gần đây \\
-\texttt{GET /\allowbreak{}admin/\allowbreak{}audit-\allowbreak{}logs} & Nhật ký kiểm toán có phân trang \\
+\bottomrule
+\multicolumn{2}{r}{\textit{Xem tiếp ở trang sau}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+Backend dừng ngay khi khởi động, in \texttt{Invalid environment} & Thiếu hoặc sai định dạng biến môi trường trong \texttt{.\allowbreak{}env}; đọc danh sách thông điệp lỗi từ Zod để bổ sung đủ các biến vi phạm \\
+\texttt{components.\allowbreak{}mongo:\allowbreak{} false}, log ghi \texttt{Authentication failed} & Sai tên đăng nhập, mật khẩu hoặc thiếu tham số \texttt{authSource=\allowbreak{}admin} trong \texttt{MONGO\_\allowbreak{}URI} \\
+\texttt{components.\allowbreak{}mongo:\allowbreak{} false}, không thể kết nối & Tiến trình \texttt{cloudflared access tcp} chưa khởi chạy hoặc bị ngắt kết nối \texttt{tunnel} \\
+\texttt{components.\allowbreak{}qdrant:\allowbreak{} false}, API trả 503 \texttt{qdrant unavailable} & Sai địa chỉ \texttt{QDRANT\_\allowbreak{}URL}, sai \texttt{QDRANT\_\allowbreak{}API\_\allowbreak{}KEY} hoặc máy chủ Qdrant ngừng hoạt động \\
+\texttt{components.\allowbreak{}llm:\allowbreak{} false}, API trả 503 \texttt{llm unavailable} & Sai đường dẫn \texttt{MODEL\_\allowbreak{}PATH} hoặc mô hình vẫn đang trong pha nạp nền lúc mới khởi động \\
+Cảnh báo \texttt{QDRANT\_\allowbreak{}DIMENSION\_\allowbreak{}MISMATCH} & Mô hình nhúng hiện tại và chỉ mục Qdrant khác số chiều; cần lập lại chỉ mục tương ứng \\
+Cảnh báo \texttt{QDRANT\_\allowbreak{}NO\_\allowbreak{}TWIG\_\allowbreak{}ID} & Tập dữ liệu Qdrant thiếu trường \texttt{twig\_\allowbreak{}id} trong payload; chức năng tìm kiếm không lọc theo nhánh \\
+Hỏi đáp trả 429 \texttt{llm queue is full} & Hàng đợi suy luận đạt ngưỡng tối đa; điều tiết tải hoặc nâng tham số \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE} \\
+Hỏi đáp trả 504 \texttt{llm timeout} & Thời gian sinh văn bản vượt giới hạn \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} \\
+Giao diện báo không nhận phản hồi từ máy chủ & Backend chưa lắng nghe ở cổng 3000 hoặc frontend đang chạy ở chế độ mock thay vì \texttt{npm run dev:\allowbreak{}live} \\
+\texttt{Port 5174 is already in use} & Có tiến trình khác chiếm cổng phát triển; chuyển cổng bằng \texttt{npm run dev:\allowbreak{}live -\allowbreak{}-\allowbreak{} -\allowbreak{}-\allowbreak{}port 5175} \\
+Giao diện vẫn dùng dữ liệu giả lập sau khi sửa \texttt{.\allowbreak{}env} & Chưa đóng gói lại frontend; Vite ghi giá trị biến \texttt{VITE\_\allowbreak{}*} tĩnh vào bundle tại thời điểm build \\
+Mọi yêu cầu qua Nginx tới \texttt{/\allowbreak{}api/\allowbreak{}} trả 502 & Tên dịch vụ và cổng trong \texttt{upstream} của Nginx không khớp với dịch vụ backend trong Compose hoặc backend chưa sẵn sàng \\
+Container Nginx không khởi động, báo lỗi cấu hình & Thiếu tệp \texttt{ssl/\allowbreak{}cert.\allowbreak{}pem} hoặc \texttt{ssl/\allowbreak{}key.\allowbreak{}pem} được ánh xạ trong \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml} \\
+Giao diện trả 404 sau khi cập nhật & Chưa build lại thư mục \texttt{frontend-\allowbreak{}rag/\allowbreak{}dist} trên máy chủ hoặc sai chỉ thị \texttt{try\_\allowbreak{}files} tới \texttt{/\allowbreak{}index.\allowbreak{}html} \\
+Luồng \texttt{SSE} hiển thị câu trả lời theo từng khối lớn & Thiếu chỉ thị \texttt{proxy\_\allowbreak{}buffering off} trong khối \texttt{location /\allowbreak{}api/\allowbreak{}} của cấu hình Nginx \\
+Nhiều người dùng bị giới hạn tần suất cùng lúc & Nginx thiếu header \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For} hoặc tham số \texttt{trust proxy} đặt chưa khớp số lớp proxy \\
 \bottomrule
 \end{longtable}
 \endgroup
 
-API quản trị chủ yếu phục vụ thao tác đọc (read-mostly): không có đường dẫn nào xoá nội dung hội thoại hay xoá bản ghi kiểm toán. Bảng \texttt{admin\_\allowbreak{}audit\_\allowbreak{}logs} chỉ cho phép ghi thêm bản ghi mới (append-only) \chapterSevenDash{} không có đường dẫn cập nhật hay xoá, kể cả ở tầng dịch vụ. Điều này có nghĩa là mọi hành động quản trị, kể cả hành động chỉ đọc, đều để lại dấu vết với tác nhân, đối tượng, trạng thái trước và sau, địa chỉ IP và mã yêu cầu.
+Nhìn tổng thể qua Bảng~\ref{tab:xu-ly-su-co}, phần lớn các sự cố vận hành xuất phát từ sai lệch cấu hình môi trường hoặc không đồng bộ giữa tầng biên với tầng dịch vụ hơn là lỗi logic nghiệp vụ, và đều được phát hiện trực tiếp thông qua cơ chế fail-fast khi khởi động kết hợp nhật ký JSON có cấu trúc.
 
-Có hai quy tắc bảo vệ chống tự khóa: quản trị viên không thể tự hạ quyền hoặc tự khóa tài khoản của chính mình (\texttt{409 SELF\_\allowbreak{}LOCKOUT\_\allowbreak{}FORBIDDEN}), và quản trị viên đang hoạt động cuối cùng không thể bị hạ quyền hoặc khóa (\texttt{409 LAST\_\allowbreak{}ADMIN\_\allowbreak{}PROTECTED}). Cả hai kiểm tra đều nằm ở tầng dịch vụ chứ không chỉ ở controller.
-
-Điểm vận hành quan trọng: khi vai trò hoặc trạng thái tài khoản thay đổi, hệ thống phải gọi \texttt{AuthService.\allowbreak{}revokeAllForUser(userId)}, vừa thu hồi toàn bộ refresh token, vừa tăng \texttt{users.\allowbreak{}token\_\allowbreak{}version}. Claim \texttt{ver} trong access token mang giá trị \texttt{token\_\allowbreak{}version} tại thời điểm cấp; \texttt{JwtAuthGuard} từ chối token có \texttt{ver} không còn khớp. Nhờ vậy, access token đã cấp cho client mất hiệu lực ngay khi phiên bản token thay đổi, thay vì chờ hết hạn.
-
-\subsection{Quy trình nâng cấp và rollback}
-
-Khi nâng cấp, cần tuân thủ trình tự sau:
-
-\begin{enumerate}
-    \item Ghi lại phiên bản image ứng dụng, tên mô hình và phiên bản dữ liệu tương ứng.
-    \item Sao lưu MongoDB trước các thay đổi cấu trúc.
-    \item Thay image ứng dụng.
-    \item Lặp lại phép thử hỏi đáp có dẫn nguồn tại Mục 7.4.3.
-\end{enumerate}
-
-Thông tin phiên bản ở bước 1 là cơ sở để rollback. Khi cần khôi phục, dùng lại bộ phiên bản tương thích và kiểm tra cả khả năng đọc lịch sử hội thoại lẫn truy hồi bài báo. Bước kiểm tra lịch sử hội thoại là bắt buộc vì lịch sử được lưu bằng khoá UUIDv7 và có cột \texttt{deleted\_\allowbreak{}at} cho xoá mềm; một thay đổi cấu trúc lược đồ không đúng có thể làm mất khả năng đọc dữ liệu cũ mà không gây lỗi ngay lập tức.
-
-\subsection{Quy trình chứng nhận hiệu năng sau thay đổi}
-
-Mọi thay đổi lớn ở tầng nghiệp vụ cần được kiểm chứng bằng bộ kiểm thử tải ba tầng trong thư mục \texttt{benchmark/\allowbreak{}}, theo Quy tắc L1: một mức tải chỉ được công nhận chính thức nếu hệ thống duy trì được mức tải đó liên tục trong 180 giây mà giữ vững \texttt{P95 < 500 ms}, \texttt{P99 < 1000 ms} và tỉ lệ lỗi dưới 1\%.
-
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.31\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.32\dimexpr\linewidth-4\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.37\dimexpr\linewidth-4\tabcolsep\relax}@{}}
-\toprule
-\textbf{Tầng} & \textbf{Kịch bản} & \textbf{Mục tiêu} \\
-\midrule
-\endhead
-A \chapterSevenDash{} Xác định ngưỡng quá tải & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}open\_\allowbreak{}breakpoint.\allowbreak{}ts} & Mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate}), quét từ 50 đến 500 RPS trên 6 tuyến đọc/ghi, xác định mức tải bắt đầu vượt ngưỡng cho phép \\
-B \chapterSevenDash{} Kiểm chứng khả năng duy trì tải & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}certified\_\allowbreak{}holdout.\allowbreak{}ts} + \texttt{collect\_\allowbreak{}telemetry.\allowbreak{}js} & Giữ tải 3 phút tại mức mục tiêu, thu thập chỉ số CPU/RAM mỗi 2 giây \\
-C \chapterSevenDash{} Đo riêng chi phí xử lý mật mã & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}auth\_\allowbreak{}crypto.\allowbreak{}ts} & Tải đồng thời \texttt{POST /\allowbreak{}auth/\allowbreak{}login} (Argon2id 64 MB), \texttt{POST /\allowbreak{}auth/\allowbreak{}refresh} và dò tình trạng kẹt event loop \\
-\bottomrule
-\end{longtable}
-\endgroup
-
-Mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate}) được dùng thay cho mô hình tải đóng có sẵn vì lý do kỹ thuật đã được ghi nhận: trong mô hình tải đóng, khi máy chủ chậm đi, các người dùng ảo cũng tự động gửi ít yêu cầu hơn, làm đẹp số liệu giả tạo \chapterSevenDash{} hiện tượng được gọi là coordinated omission.
-
-Kết quả chứng nhận hiện tại của hệ thống, đo trong 3 phút duy trì tải liên tục theo Quy tắc L1:
-
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.22\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedleft\arraybackslash}p{0.18\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedleft\arraybackslash}p{0.31\dimexpr\linewidth-6\tabcolsep\relax}>{\raggedleft\arraybackslash}p{0.29\dimexpr\linewidth-6\tabcolsep\relax}@{}}
-\toprule
-\textbf{Chỉ số} & \textbf{Trước tối ưu} & \textbf{Sau tối ưu} & \textbf{Cải thiện} \\
-\midrule
-\endhead
-Số người dùng đồng thời & 100 CUs (65 RPS) & 400 CUs (250 RPS) & 4,0 lần \\
-Tổng yêu cầu trong 3 phút & 12.869 & 48.874 & 3,8 lần \\
-Độ trễ trung vị (P50) & 160,29 ms & 29,79 ms & nhanh hơn 5,38 lần \\
-Độ trễ phân vị 95 (P95) & 259,68 ms & 265,54 ms & đạt ngưỡng < 500 ms \\
-Độ trễ phân vị 99 (P99) & 353,35 ms & 475,11 ms & đạt ngưỡng < 1000 ms \\
-Tỉ lệ lỗi HTTP & 0,00\% & 0,00\% & 100\% \\
-\bottomrule
-\end{longtable}
-\endgroup
-
-Điểm đáng chú ý trong bảng này là độ trễ P95 gần như không đổi (259,68 ms so với 265,54 ms) trong khi mức tải tăng gấp bốn lần. Đây là kết quả của việc tối ưu ở tầng kiến trúc \chapterSevenDash{} bộ nhớ đệm \texttt{LRUCache} có gắn thế hệ theo tài khoản, cơ chế \texttt{Singleflight} gộp các yêu cầu thăm dò trùng lặp, truy vấn độc lập chạy song song, và \texttt{.\allowbreak{}lean()} bỏ qua chi phí hydrate của Mongoose \chapterSevenDash{} chứ không phải kết quả của việc tăng tài nguyên máy chủ.
-
-Bốn yếu tố trong số liệu này có ý nghĩa vận hành riêng biệt và nên được ghi nhớ:
-
-\texttt{UV\_\allowbreak{}THREADPOOL\_\allowbreak{}SIZE =\allowbreak{} 4} được đặt ngay dòng đầu tiên của \texttt{src/\allowbreak{}main.\allowbreak{}ts}, trước cả khi nạp \texttt{dotenv}. Con số này phải khớp với \texttt{parallelism:\allowbreak{} 4} của Argon2id trong cấu hình băm mật khẩu. Thử nghiệm tăng lên 12 đã gây tranh chấp băng thông DRAM và làm độ trễ tăng 26,7\%. Dòng đặt này phải đứng trước mọi lệnh khác vì thư viện native đọc giá trị này một lần lúc nạp.
-
-Cơ chế ngăn cache stampede khi cache còn trống: khi hơn 100 người dùng ảo đồng thời yêu cầu \texttt{GET /\allowbreak{}chat-\allowbreak{}sessions/\allowbreak{}:\allowbreak{}id} khi cache chưa có dữ liệu, nhiều yêu cầu sẽ gặp cache miss trong cùng một mili giây và phát sinh các cặp truy vấn MongoDB trùng lặp qua đường hầm. Cơ chế \texttt{Singleflight} gộp các lời gọi trùng lặp thành một lần truy vấn duy nhất.
-
-Hàng đợi suy luận được khảo sát riêng bằng \texttt{k6\_\allowbreak{}queue\_\allowbreak{}experiment.\allowbreak{}ts} để đánh giá cơ chế xếp hàng và hành vi trả mã 429 khi bão hòa.
-
-Bộ kiểm thử tích hợp với dữ liệu thật nạp sẵn 1.500 phiên và 15.000 tin nhắn có trích dẫn, đoạn truy hồi và thời gian xử lý, tạo ra phản hồi khoảng 4,6 KB mỗi lần \chapterSevenDash{} gần với điều kiện thực tế thay vì truy vấn bảng rỗng.
-
-\subsection{Xử lý sự cố thường gặp}
-
-Bảng dưới đây tổng hợp các triệu chứng đã được ghi nhận trong tài liệu vận hành, kèm nguyên nhân và cách xử lý.
-
-\begingroup\small
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.47\dimexpr\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{0.53\dimexpr\linewidth-2\tabcolsep\relax}@{}}
-\toprule
-\textbf{Hiện tượng} & \textbf{Nguyên nhân / Cách xử lý} \\
-\midrule
-\endhead
-Backend dừng ngay, in \texttt{Invalid environment} & Thiếu biến trong tệp môi trường; thông điệp liệt kê đủ tên biến sai \\
-\texttt{components.\allowbreak{}mongo:\allowbreak{} false}, nhật ký \texttt{Authentication failed} & Sai tên đăng nhập hoặc mật khẩu, hoặc thiếu \texttt{authSource=\allowbreak{}admin} trong URI \\
-\texttt{components.\allowbreak{}mongo:\allowbreak{} false}, không kết nối được & Tiến trình \texttt{cloudflared access tcp} chưa chạy hoặc đã tắt \\
-\texttt{components.\allowbreak{}qdrant:\allowbreak{} false}, hỏi đáp trả 503 \texttt{qdrant unavailable} & Sai \texttt{QDRANT\_\allowbreak{}URL} hoặc \texttt{QDRANT\_\allowbreak{}API\_\allowbreak{}KEY}, hoặc máy chủ đang tắt \\
-\texttt{components.\allowbreak{}llm:\allowbreak{} false}, hỏi đáp trả 503 \texttt{llm unavailable} & Sai \texttt{MODEL\_\allowbreak{}PATH}, hoặc mô hình chưa nạp xong (cần chờ vài giây) \\
-Cảnh báo \texttt{QDRANT\_\allowbreak{}DIMENSION\_\allowbreak{}MISMATCH} & Mô hình embedding và chỉ mục dùng số chiều khác nhau; cần lập chỉ mục lại \\
-Cảnh báo \texttt{QDRANT\_\allowbreak{}NO\_\allowbreak{}TWIG\_\allowbreak{}ID} & Chỉ mục chưa có trường \texttt{twig\_\allowbreak{}id}; chức năng so sánh không giới hạn theo nhánh \\
-Hỏi đáp trả 429 \texttt{llm queue is full} & Hàng đợi LLM đầy; giảm tải hoặc tăng \texttt{LLM\_\allowbreak{}MAX\_\allowbreak{}QUEUE} \\
-Hỏi đáp trả 504 \texttt{llm timeout} & Lượt sinh vượt \texttt{LLM\_\allowbreak{}TIMEOUT\_\allowbreak{}MS} \\
-Giao diện báo "Backend không phản hồi" & Backend chưa chạy ở cổng 3000, hoặc đang chạy \texttt{npm run dev} thay vì \texttt{npm run dev:\allowbreak{}live} \\
-\texttt{Port 5174 is already in use} & Có tiến trình khác chiếm cổng; chạy \texttt{npm run dev:\allowbreak{}live -\allowbreak{}-\allowbreak{} -\allowbreak{}-\allowbreak{}port 5175} \\
-Giao diện vẫn dùng dữ liệu giả lập sau khi đổi \texttt{.\allowbreak{}env} & Chưa build lại frontend; Vite ghi giá trị biến vào bundle khi build \\
-Mọi yêu cầu API trả 502 qua Nginx & Tên service trong \texttt{nginx.\allowbreak{}*.\allowbreak{}conf} không khớp với tên service trong Compose, hoặc backend chưa sẵn sàng \\
-Nginx không khởi động, báo lỗi cấu hình & Thiếu \texttt{ssl/\allowbreak{}cert.\allowbreak{}pem} hoặc \texttt{ssl/\allowbreak{}key.\allowbreak{}pem} trong thư mục \texttt{ssl/\allowbreak{}} mà \texttt{docker-\allowbreak{}compose.\allowbreak{}prod.\allowbreak{}yaml} ánh xạ \\
-Giao diện trả về 404 sau khi triển khai lại & Thư mục \texttt{frontend-\allowbreak{}rag/\allowbreak{}dist} chưa được dựng lại, hoặc \texttt{try\_\allowbreak{}files} không trỏ tới \texttt{/\allowbreak{}index.\allowbreak{}html} \\
-Luồng SSE nhận câu trả lời theo từng đoạn lớn thay vì theo dòng & Thiếu \texttt{proxy\_\allowbreak{}buffering off} trong khối \texttt{location /\allowbreak{}api/\allowbreak{}} \\
-Mọi người dùng bị giới hạn tần suất cùng lúc & Thiếu header \texttt{X-\allowbreak{}Forwarded-\allowbreak{}For} hoặc \texttt{trust proxy} chưa được đặt đúng số lớp proxy \\
-\bottomrule
-\end{longtable}
-\endgroup
-
-Một nhận xét xuyên suốt bảng này: phần lớn các lỗi vận hành đều không phải lỗi hệ thống mà là lỗi cấu hình môi trường, và gần như tất cả đều để lại dấu vết trong nhật ký hệ thống. Đây là hệ quả trực tiếp của việc kiểm tra cấu hình tại thời điểm khởi động và của cơ chế ghi sự kiện có cấu trúc: người vận hành không phải đoán nguyên nhân, mà chỉ cần đọc dòng nhật ký tương ứng.
-
-\subsection{Giới hạn đã biết và hướng cải tiến vận hành}
-
-Cuối chương, cần ghi nhận những hạn chế còn tồn tại trong quy trình vận hành hiện tại, vì chúng quyết định hướng phát triển của Chương 8.
-
-Thứ nhất, \textbf{giới hạn của hàng đợi suy luận khi ngắt kết nối}. Slot suy luận của LLM chỉ được giải phóng khi sinh tới token đầu tiên, tức khoảng 15 giây với \texttt{top\_\allowbreak{}k} là 5 trên nền Metal. Trong khoảng thời gian đó, một lượt đã hủy vẫn chiếm chỗ. Đây là hệ quả không tránh được của việc xử lý prompt dài để tạo KV cache cho mô hình.
-
-Thứ hai, \textbf{khoảng cách giữa môi trường phát triển và môi trường thật}. Docker trên macOS không có Metal nên LLM chạy trên CPU; mô hình 7B cần khoảng 6 GB RAM cho container. Máy ảo Docker cấp phát 8 GB kèm container khác có thể bị dừng với exit code 137.
-
-Thứ ba, \textbf{sự phụ thuộc vào dữ liệu của pipeline bên ngoài}. Khi pipeline chưa xuất tệp world và các trường payload \texttt{twig\_\allowbreak{}id}, \texttt{chunk\_\allowbreak{}index}, sự kiện \texttt{route} trả về rỗng và chức năng so sánh không lọc theo nhánh. Đây là hạn chế về mặt dữ liệu chứ không phải về mặt triển khai.
-
-Thứ tư, \textbf{chưa có giám sát tập trung}. Hiện tại nhật ký được ghi ra stdout theo định dạng JSON một dòng, phù hợp để thu thập bằng \texttt{docker logs} hoặc đẩy vào một hệ thống tổng hợp log, nhưng dự án chưa cung cấp cấu hình sẵn cho một hệ thống giám sát tập trung. Cùng với đó, việc quản lý chứng thư TLS chưa được tự động hoá.
-
-Thứ năm, \textbf{cấu hình Nginx ở tầng biên chưa được đồng bộ với tầng dữ liệu}. Như đã phân tích ở Mục 7.2.4, tầng biên dùng tên service \texttt{backend-\allowbreak{}rag} và cổng 8000 \chapterSevenDash{} bộ thông số thuộc về giai đoạn backend dùng LanceDB \chapterSevenDash{} trong khi tầng dữ liệu hiện tại đã chuyển sang Qdrant với tên service \texttt{app} và cổng 3000. Nếu chạy hai tầng Compose cùng lúc, mọi yêu cầu API qua Nginx sẽ trả 502 do không phân giải được tên service. Đây là hạn chế cần khắc phục trước khi triển khai production thực tế, và cách khắc phục tự nhiên nhất là đồng bộ tên service cùng cổng giữa hai tầng, kèm cập nhật khối \texttt{upstream} trong cả \texttt{nginx.\allowbreak{}dev.\allowbreak{}conf} lẫn \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf}.
-
-Thứ sáu, \textbf{chưa chốt tham số TLS và chưa có tự động luân chuyển chứng thư}. Khối máy chủ ở cổng 443 không khai báo \texttt{ssl\_\allowbreak{}protocols} hay \texttt{ssl\_\allowbreak{}ciphers}, nên Nginx dùng cấu hình mặc định của image \texttt{nginx:\allowbreak{}alpine}. Bộ mặc định này vẫn chấp nhận được, nhưng để có hành vi xác định và không lệ thuộc vào phiên bản image, nên chốt rõ \texttt{ssl\_\allowbreak{}protocols TLSv1.\allowbreak{}2 TLSv1.\allowbreak{}3}. Bên cạnh đó, việc gia hạn chứng thư vẫn là thao tác thủ công: tệp trong thư mục \texttt{ssl/\allowbreak{}} được thay thế rồi container Nginx nạp lại, và không có cơ chế tự động nào theo dõi thời hạn.
-
-Thứ bảy, \textbf{khối \texttt{upstream} mới chỉ có một bản sao}. Tham số \texttt{max\_\allowbreak{}fails} và \texttt{fail\_\allowbreak{}timeout} đã được cấu hình trong \texttt{nginx.\allowbreak{}prod.\allowbreak{}conf}, nhưng chỉ có một dòng \texttt{server}. Do đó, cơ chế \texttt{proxy\_\allowbreak{}next\_\allowbreak{}upstream} \chapterSevenDash{} vốn được khai báo đầy đủ danh sách mã lỗi \chapterSevenDash{} hiện chưa có tác dụng thực tế. Muốn có khả năng chịu lỗi thật sự, cần bổ sung các bản sao backend, và khi đó cân nhắc thêm chia tải theo thuật toán băm để phân bổ đều tải.
-
-Thứ tám, \textbf{việc quản lý secret còn thủ công}. Hai khóa ký JWT và khóa truy cập Qdrant được cấp qua biến môi trường của Compose hoặc tệp \texttt{.\allowbreak{}env} cục bộ. Cơ chế chặn giá trị placeholder trong production đã ngăn được lỗi phổ biến nhất, nhưng việc luân chuyển khóa, thu hồi và lưu trữ trong hệ thống quản lý secret vẫn là thao tác thủ công. Cùng cơ chế đó, khóa riêng TLS trong thư mục \texttt{ssl/\allowbreak{}} cũng được quản lý theo cách tương tự \chapterSevenDash{} tệp nằm ngoài kho mã nguồn, nhưng không có hệ thống quản lý secret nào quản lý vòng đời của nó.
-
-
-\section*{Tóm tắt Chương 7}
-\addcontentsline{toc}{section}{Tóm tắt Chương 7}
-
-Chương này đã trình bày chu trình vận hành đầy đủ của RAG\_TS, từ chuẩn bị môi trường đến giám sát sau khi triển khai. Năm kết luận chính có thể rút ra:
-
-\textbf{Thứ nhất, kiểm tra cấu hình tại thời điểm khởi động là cơ chế vận hành quan trọng nhất.} Lược đồ Zod với các quy tắc siết chặt ở production, cộng với cú pháp \texttt{\$\{VAR:\allowbreak{}?message\}} của Compose, tạo thành hai lớp phòng thủ độc lập trước những cấu hình sai. Điều này đặc biệt có giá trị với hệ thống tự triển khai, nơi phần lớn lỗi vận hành là lỗi cấu hình chứ không phải lỗi logic.
-
-\textbf{Thứ hai, đóng gói hai giai đoạn với bind mount chỉ đọc là biện pháp bảo đảm tính đúng đắn, không chỉ là biện pháp an toàn.} Cờ \texttt{:\allowbreak{}ro} trên \texttt{/\allowbreak{}models} và \texttt{/\allowbreak{}data} cùng với quy ước chỉ đọc đối với chỉ mục vector bảo đảm rằng tính toàn vẹn giữa chỉ mục, cây tri thức và kết quả khai phá được giữ xuyên suốt vòng đời triển khai.
-
-\textbf{Thứ ba, mã lỗi của API giúp khoanh vùng sự cố.} Sự phân biệt giữa \texttt{503 llm unavailable} (chưa sẵn sàng), \texttt{429 llm queue is full} (quá tải), \texttt{504 llm timeout} (vượt thời gian) và \texttt{503 qdrant unavailable} (mất kết nối tới Qdrant) cho phép người vận hành xác định nguyên nhân từ một dòng nhật ký, thay vì phải dò theo từng thành phần.
-
-\textbf{Thứ tư, mọi thay đổi triển khai đều phải kèm kiểm chứng hiệu năng theo Quy tắc L1.} Bộ kiểm thử ba tầng với mô hình mở để tránh coordinated omission đã công nhận mức tải 400 người dùng đồng thời với độ trễ P95 là 265,54 ms và tỉ lệ lỗi 0,00\% trong suốt 180 giây \chapterSevenDash{} con số đạt được nhờ tối ưu kiến trúc chứ không phải nhờ bổ sung tài nguyên.
-
-\textbf{Thứ năm, Nginx có cấu hình và vòng đời triển khai riêng.} Hai tệp \texttt{nginx.dev.conf}, \texttt{nginx.prod.conf} và hai tệp Compose ở thư mục gốc quy định cách phục vụ tệp tĩnh, xử lý client-side routing, chuyển tiếp HTTP header và thực hiện TLS termination. Cấu hình này ảnh hưởng trực tiếp đến hành vi của backend: \texttt{proxy\_buffering off} giúp chuyển từng sự kiện SSE tới trình duyệt, còn \texttt{X-Forwarded-For} cung cấp địa chỉ client để áp dụng rate limit.
-\par\endgroup
+Kiến trúc đóng gói và vận hành trình bày trong chương này đã hoàn thiện một môi trường triển khai tự lưu trữ khép kín cho toàn bộ hệ thống hỏi đáp tài liệu khoa học và suy luận cục bộ. Các điểm nghẽn thực nghiệm còn tồn tại trong quá trình vận hành (như đồng bộ định danh giữa tầng Compose biên và tầng dữ liệu, giải phóng sớm slot suy luận, chốt cứng tham số \texttt{TLS} và tự động hoá hạ tầng giám sát) cùng định hướng mở rộng kiến trúc tương lai được tổng kết chi tiết tại Mục~\ref{sec:han-che} và Mục~\ref{sec:huong-phat-trien} của Chương~\ref{chap:ket-luan}.

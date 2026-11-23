@@ -36,6 +36,8 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Argon2id & Argon2id Password Hashing Function & Thuật toán băm mật khẩu kháng phần cứng chuyên dụng theo chuẩn RFC 9106 \\
     Backpressure & Backpressure & Cơ chế điều tiết lưu lượng, tạm dừng nguồn phát khi hàng đợi kế tiếp chạm ngưỡng tải \\
     Batch processing & Batch Processing & Xử lý hoặc truy xuất nhiều bản ghi trong một lượt gọi nhằm giảm khứ hồi mạng \\
+    Bind mount & Bind Mount & Kỹ thuật gắn trực tiếp một thư mục hoặc tệp trên máy chủ vào bên trong container Docker mà không cần sao chép dữ liệu \\
+    Cache stampede & Cache Stampede & Hiện tượng nhiều yêu cầu đồng thời gặp hụt bộ nhớ đệm cùng lúc gây tải đột biến xuống cơ sở dữ liệu nền \\
     Call stack & Call Stack & Ngăn xếp lời gọi hàm theo dõi thứ tự thực thi của chương trình \\
     Chunking & Text Chunking & Chiến lược chia nhỏ văn bản bài báo thành các đoạn phục vụ lập chỉ mục và truy hồi \\
     Claims & JWT Claims & Các trường thông tin khai báo được đóng gói trong phần tải của token JWT \\
@@ -44,8 +46,10 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Compaction & Data Compaction & Quá trình gộp định kỳ các tệp phân mảnh nhỏ thành tệp lớn nhằm tối ưu lưu trữ và đọc theo lô \\
     Content negotiation & HTTP Content Negotiation & Cơ chế đàm phán định dạng dữ liệu trao đổi (JSON/XML) qua tiêu đề HTTP \\
     Context Provider & React Context Provider & Thành phần React cung cấp ngữ cảnh và dữ liệu dùng chung cho cây thành phần con \\
+    Coordinated omission & Coordinated Omission & Hiện tượng sai lệch số liệu đo tải khi máy chủ chậm làm giảm tốc độ phát sinh yêu cầu của người dùng ảo \\
     Corpus & Document Corpus & Kho dữ liệu văn bản gốc dùng cho tra cứu và trích xuất nội dung \\
     CPU & Central Processing Unit & Bộ xử lý trung tâm \\
+    CSP & Content Security Policy & Cơ chế bảo mật HTTP ngăn chặn tấn công Cross-Site Scripting (XSS) và tiêm dữ liệu độc hại \\
     CSR & Compressed Sparse Row & Cấu trúc mảng chỉ mục nén liên tục giúp tối ưu bộ nhớ khi truy xuất lưới 3D \\
     CSS & Cascading Style Sheets & Ngôn ngữ định kiểu giao diện cho tài liệu web \\
     CUDA & Compute Unified Device Architecture & Nền tảng tính toán song song trên GPU của NVIDIA \\
@@ -77,6 +81,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     HNSW & Hierarchical Navigable Small World & Cấu trúc chỉ mục đồ thị phân tầng phục vụ tìm kiếm vector gần đúng tốc độ cao \\
     Hooks & React Hooks & Các hàm móc nối vòng đời và trạng thái của React trong thành phần hàm \\
     Hot path & Hot Path & Luồng xử lý chính có tần suất gọi cao và nhạy cảm với độ trễ phản hồi \\
+    HSTS & HTTP Strict Transport Security & Cơ chế bảo mật yêu cầu trình duyệt luôn thiết lập kết nối an toàn qua HTTPS \\
     HTML5 & HyperText Markup Language 5 & Phiên bản thứ năm của ngôn ngữ đánh dấu siêu văn bản, được arXiv/ar5iv dùng biểu diễn toàn văn bài báo \\
     HTTP / HTTPS & Hypertext Transfer Protocol (Secure) & Giao thức truyền tải siêu văn bản (và phiên bản bảo mật qua TLS) \\
     Idempotency & Idempotency & Tính chất bảo đảm gọi lặp lại cùng một yêu cầu không sinh thêm tác dụng phụ ngoài ý muốn \\
@@ -88,6 +93,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     JSON & JavaScript Object Notation & Định dạng trao đổi dữ liệu văn bản nhẹ, có cấu trúc khoá-giá trị \\
     JSON Schema & JSON Schema & Ngôn ngữ đặc tả lược đồ và ràng buộc hợp lệ cho tài liệu JSON (dùng kiểm tra nghiêm ngặt ở CSDL) \\
     JWT & JSON Web Token & Chuẩn token tự chứa chữ ký số dùng cho xác thực và truyền tải claims theo RFC 7519 \\
+    KV cache & Key-Value Cache & Bộ nhớ đệm lưu các ma trận khoá và giá trị của ngữ cảnh trước đó nhằm tăng tốc sinh token tuần tự trong LLM \\
     L2 normalization & L2 Normalization & Chuẩn hoá vector về độ dài Euclid bằng 1 để độ tương đồng cosin quy về tích vô hướng \\
     Last-write-wins & Last-Write-Wins & Quy tắc gộp bản ghi trùng khoá bằng cách giữ lại bản ghi được cập nhật sau cùng \\
     Lease lock & Lease Lock & Khoá tạm thời có thời hạn tự giải phóng nhằm tránh treo vĩnh viễn khi tiến trình gặp sự cố \\
@@ -101,11 +107,13 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Memoization & Memoization & Kỹ thuật ghi nhớ kết quả tính toán hoặc kết xuất để tránh chạy lại khi đầu vào không đổi \\
     Metadata & Metadata & Siêu dữ liệu mô tả thông tin bổ sung về tài liệu, đoạn văn bản hoặc tài nguyên \\
     Metal / Vulkan & Apple Metal / Khronos Vulkan & Giao diện tăng tốc đồ hoạ và tính toán GPU trên macOS (Metal) và đa nền tảng (Vulkan) \\
+    Multi-stage build & Multi-Stage Build & Kỹ thuật tối ưu kích thước Docker image bằng cách tách biệt giai đoạn biên dịch và môi trường chạy thực tế \\
     NFKC & Normalization Form Compatibility Composition & Dạng chuẩn hoá Unicode tương thích giúp đồng nhất chuỗi ký tự trước khi tính mã băm khử trùng lặp \\
     OAI-PMH & Open Archives Initiative Protocol for Metadata Harvesting & Giao thức chuẩn mở phục vụ thu thập siêu dữ liệu định kỳ từ các kho lưu trữ học thuật như arXiv \\
     ODM & Object Document Mapper & Thư viện ánh xạ đối tượng mã nguồn với tài liệu trong cơ sở dữ liệu NoSQL (như Mongoose) \\
     On-premise & On-premise Deployment & Mô hình triển khai hệ thống và lưu trữ dữ liệu hoàn toàn trên hạ tầng nội bộ tự chủ \\
     ONNX & Open Neural Network Exchange & Định dạng chuẩn mở để biểu diễn và thực thi mô hình học máy đa nền tảng \\
+    OOM & Out of Memory & Tình trạng tiến trình tiêu thụ vượt giới hạn bộ nhớ khả dụng khiến hệ điều hành buộc dừng (\texttt{exit code 137}) \\
     PageRank & PageRank Algorithm & Thuật toán xếp hạng nút dựa trên cấu trúc liên kết, áp dụng đo uy tín tác giả trong đồ thị trích dẫn \\
     Parquet & Apache Parquet & Định dạng lưu trữ dữ liệu dạng cột có nén, tối ưu cho đọc theo lô và phân tích \\
     Payload & Payload & Phần dữ liệu chính hoặc siêu dữ liệu đính kèm trong điểm vector và thông điệp truyền tải \\
@@ -120,6 +128,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     RAG & Retrieval-Augmented Generation & Kiến trúc kết hợp truy hồi tri thức từ kho tài liệu với mô hình ngôn ngữ lớn để sinh câu trả lời \\
     Rate limiting & Rate Limiting & Cơ chế giới hạn tần suất yêu cầu trong một đơn vị thời gian nhằm chống lạm dụng tài nguyên \\
     Reconciliation & React Reconciliation & Quá trình React so sánh cây thành phần ảo để cập nhật phần giao diện thực sự thay đổi \\
+    Redaction & Data Redaction & Cơ chế lọc bỏ hoặc che giấu tự động các trường dữ liệu nhạy cảm (như mật khẩu, token) trước khi ghi nhật ký \\
     Reducer & Pure Reducer Function & Hàm thuần tuý nhận trạng thái hiện tại và sự kiện để trả về trạng thái mới nhất quán \\
     Response envelope & Response Envelope & Cấu trúc vỏ bọc thống nhất dữ liệu trả về, siêu dữ liệu phân trang và liên kết HATEOAS \\
     REST & Representational State Transfer & Kiến trúc thiết kế giao diện web dựa trên tài nguyên và các phương thức HTTP chuẩn \\
@@ -135,13 +144,17 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Sliding TTL & Sliding Time-To-Live & Thời hạn hết hiệu lực trượt, được gia hạn lại mỗi khi mục dữ liệu được truy cập \\
     Slot & Execution Slot & Khe thực thi đồng thời được cấp phát cho tác vụ suy luận mô hình ngôn ngữ \\
     Source of truth & Source of Truth & Nguồn dữ liệu chuẩn mực được ưu tiên làm cơ sở đối chiếu khi có nhiều tầng lưu trữ \\
+    SPA & Single-Page Application & Ứng dụng web tải một trang HTML gốc và cập nhật nội dung động trên trình duyệt bằng JavaScript \\
     Sparse unique index & Sparse Unique Index & Chỉ mục duy nhất chỉ đánh trên các bản ghi có giá trị tồn tại, bỏ qua các bản ghi thiếu trường \\
     SSE & Server-Sent Events & Chuẩn truyền dòng sự kiện một chiều từ máy chủ về trình duyệt qua kết nối HTTP \\
     Stack trace & Stack Trace & Dấu vết ngăn xếp lời gọi giúp xác định vị trí phát sinh ngoại lệ trong mã nguồn \\
     Stacking order & Z-index Stacking Order & Thứ tự xếp chồng các lớp giao diện theo trục độ sâu trên màn hình \\
     Task prefix & Task Prefix & Tiền tố chỉ dẫn tác vụ gắn trước văn bản đầu vào cho mô hình nhúng (như \texttt{search\_query}) \\
     Thread pool & Thread Pool & Nhóm luồng thực thi được cấp phát sẵn để xử lý tác vụ song song hoặc hàm băm tốn CPU \\
+    TLS & Transport Layer Security & Giao thức mật mã bảo mật truyền thông trên mạng và xác thực danh tính máy chủ qua chứng thư số \\
     Token family & Token Family & Họ chuỗi token làm mới liên kết với một phiên đăng nhập để phát hiện tái sử dụng \\
+    Trust proxy & Trust Proxy & Cấu hình cho phép máy chủ ứng dụng tin cậy các tiêu đề chuyển tiếp (như \texttt{X-Forwarded-For}) từ reverse proxy \\
+    TTFT & Time to First Token & Khoảng thời gian từ lúc client gửi câu hỏi đến khi mô hình ngôn ngữ sinh ra token phản hồi đầu tiên \\
     TTL & Time-To-Live & Thời gian tồn tại tối đa trước khi bản ghi hoặc mục nhớ đệm tự động hết hạn \\
     UI / UX & User Interface / User Experience & Giao diện người dùng và trải nghiệm người dùng \\
     Upsert & Update or Insert & Thao tác cập nhật bản ghi nếu khoá đã tồn tại hoặc chèn mới nếu chưa có, bảo đảm chạy lại an toàn \\

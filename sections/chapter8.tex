@@ -8,7 +8,58 @@
 \section{Kết quả đạt được}
 \label{sec:ket-qua-dat-duoc}
 
-% Nội dung phần 8.1
+\subsection{Kết quả chứng nhận hiệu năng và khả năng chịu tải}
+\label{subsec:ket-qua-hieu-nang}
+
+Để kiểm chứng khả năng đáp ứng các ngưỡng hiệu năng đã đặc tả tại Mục~\ref{subsec:hieu-nang} (Chương~\ref{chap:phan-tich-yeu-cau}), hệ thống được đánh giá bằng bộ kiểm thử tải ba tầng bằng k6 trong thư mục \texttt{benchmark/\allowbreak{}} theo Quy tắc~L1: một mức tải chỉ được công nhận khi hệ thống duy trì ổn định liên tục trong 180 giây với phân vị độ trễ \texttt{p95 < 500 ms}, \texttt{p99 < 1.000 ms} và tỉ lệ lỗi dưới 1\%. Bảng~\ref{tab:kich-ban-kiem-thu-tai} tổng hợp ba tầng kịch bản kiểm thử tải của hệ thống.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ba tầng kịch bản kiểm thử tải bằng k6.}
+    \label{tab:kich-ban-kiem-thu-tai}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.25\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tầng kiểm thử} & \textbf{Kịch bản} & \textbf{Mục tiêu đánh giá} \\
+        \midrule
+        A -- Xác định ngưỡng quá tải & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}open\_\allowbreak{}breakpoint.\allowbreak{}ts} & Áp dụng mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate}), quét từ 50 đến 500 RPS trên 6 endpoint đọc/ghi để tìm mức tải bắt đầu vượt ngưỡng cho phép. \\
+        B -- Kiểm chứng duy trì tải & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}certified\_\allowbreak{}holdout.\allowbreak{}ts} và \texttt{collect\_\allowbreak{}telemetry.\allowbreak{}js} & Duy trì mức tải mục tiêu liên tục trong 3 phút, thu thập chỉ số CPU và RAM mỗi 2 giây. \\
+        C -- Đo chi phí mật mã & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}auth\_\allowbreak{}crypto.\allowbreak{}ts} & Tạo tải đồng thời lên \texttt{POST /auth/\allowbreak{}login} (Argon2id 64 MB) và \texttt{POST /auth/\allowbreak{}refresh} để dò nghẽn event loop. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Các kịch bản chính sử dụng mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate}) thay cho mô hình tải đóng nhằm loại bỏ sai lệch do hiện tượng \texttt{coordinated omission}: trong mô hình tải đóng, khi máy chủ phản hồi chậm, các người dùng ảo tự động giảm tốc độ gửi yêu cầu kế tiếp, làm đẹp giả tạo số liệu độ trễ thực tế. Bảng~\ref{tab:ket-qua-chung-nhan-tai} đối chiếu kết quả đo duy trì tải liên tục 3 phút giữa trạng thái trước và sau khi tối ưu kiến trúc truy xuất.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Kết quả chứng nhận hiệu năng hệ thống trước và sau tối ưu.}
+    \label{tab:ket-qua-chung-nhan-tai}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X>{\raggedleft\arraybackslash}p{0.19\textwidth}>{\raggedleft\arraybackslash}p{0.19\textwidth}>{\raggedleft\arraybackslash}p{0.23\textwidth}@{}}
+        \toprule
+        \textbf{Chỉ số} & \textbf{Trước tối ưu} & \textbf{Sau tối ưu} & \textbf{Mức cải thiện} \\
+        \midrule
+        Số người dùng đồng thời & 100 CUs (65 RPS) & 400 CUs (250 RPS) & Tăng 4,0 lần \\
+        Tổng yêu cầu trong 3 phút & 12.869 & 48.874 & Tăng 3,8 lần \\
+        Độ trễ trung vị (\texttt{p50}) & 160,29 ms & 29,79 ms & Nhanh hơn 5,38 lần \\
+        Độ trễ phân vị 95 (\texttt{p95}) & 259,68 ms & 265,54 ms & Đạt ngưỡng < 500 ms \\
+        Độ trễ phân vị 99 (\texttt{p99}) & 353,35 ms & 475,11 ms & Đạt ngưỡng < 1.000 ms \\
+        Tỉ lệ lỗi HTTP & 0,00\% & 0,00\% & Đạt ngưỡng < 1\% \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Điểm đáng chú ý từ Bảng~\ref{tab:ket-qua-chung-nhan-tai} là độ trễ \texttt{p95} gần như giữ nguyên (259,68 ms so với 265,54 ms) dù mức tải đồng thời tăng gấp bốn lần lên 250 RPS. Kết quả này bắt nguồn trực tiếp từ các tối ưu ở tầng kiến trúc và truy vấn gồm bộ nhớ đệm \texttt{LRUCache} gắn bộ đếm thế hệ theo tài khoản, cơ chế \texttt{Singleflight} gộp các truy vấn trùng lặp, thực thi song song các truy vấn độc lập và dùng \texttt{.lean()} để bỏ qua chi phí đối tượng của Mongoose, thay vì mở rộng tài nguyên phần cứng. Quá trình thực nghiệm đồng thời ghi nhận bốn kết luận kỹ thuật quan trọng:
+
+\begin{itemize}[label=--]
+    \item \textbf{Cân chỉnh \texttt{UV\_\allowbreak{}THREADPOOL\_\allowbreak{}SIZE = 4}}: Tham số này phải được gán ngay dòng đầu tiên của \texttt{src/\allowbreak{}main.\allowbreak{}ts} trước khi nạp \texttt{dotenv} (vì thư viện native chỉ đọc một lần khi nạp) để khớp với \texttt{parallelism: 4} của Argon2id; thử nghiệm tăng lên 12 đã gây tranh chấp băng thông DRAM và làm độ trễ tăng thêm 26,7\%.
+    \item \textbf{Ngăn \texttt{cache stampede} khi bộ nhớ đệm trống}: Khi hơn 100 người dùng ảo đồng thời gọi \texttt{GET /chat-\allowbreak{}sessions/\allowbreak{}:id} lúc cache chưa có dữ liệu, các lượt \texttt{cache miss} xảy ra cùng thời điểm sẽ phát sinh nhiều cặp truy vấn MongoDB trùng lặp qua \texttt{tunnel}; cơ chế \texttt{Singleflight} gộp các lời gọi này thành một truy vấn duy nhất.
+    \item \textbf{Khảo sát bão hoà hàng đợi suy luận}: Kịch bản \texttt{k6\_\allowbreak{}queue\_\allowbreak{}experiment.\allowbreak{}ts} kiểm chứng riêng hành vi xếp hàng và xác nhận hệ thống từ chối có kiểm soát bằng mã \texttt{429} khi hàng đợi đạt ngưỡng tối đa.
+    \item \textbf{Tính đại diện của dữ liệu kiểm thử tích hợp}: Cơ sở dữ liệu kiểm thử được nạp sẵn 1.500 phiên và 15.000 tin nhắn kèm trích dẫn, đoạn truy hồi và thời gian xử lý, tạo kích thước phản hồi trung bình khoảng 4,6 KB thay vì đo trên bảng rỗng.
+\end{itemize}
+
+% Các nội dung kết quả tổng hợp khác của Mục 8.1
 
 \section{Đánh giá mức độ hoàn thành các mục tiêu}
 \label{sec:danh-gia-muc-tieu}
@@ -18,9 +69,33 @@
 \section{Những hạn chế còn tồn tại}
 \label{sec:han-che}
 
-% Nội dung phần 8.3
+Mặc dù hệ thống RAG\_TS đã hoàn thiện các mục tiêu thiết kế cốt lõi và vận hành ổn định trong môi trường tự lưu trữ (on-premise), quá trình thử nghiệm và vận hành thực tế đã ghi nhận một số hạn chế kỹ thuật:
+
+\begin{enumerate}
+    \item \textbf{Cơ chế giải phóng hàng đợi suy luận khi ngắt kết nối}: Slot suy luận của mô hình ngôn ngữ lớn chỉ được giải phóng khi tiến trình bắt đầu sinh ra token đầu tiên (khoảng 15 giây với \texttt{top\_\allowbreak{}k} bằng 5 trên nền GPU Metal). Trong khoảng thời gian này, nếu người dùng chủ động ngắt kết nối hoặc hủy yêu cầu, tài nguyên tính toán vẫn bị chiếm dụng để xử lý ngữ cảnh dài nhằm thiết lập bộ nhớ đệm KV (\texttt{KV cache}) cho mô hình, gây lãng phí năng lực tính toán.
+    \item \textbf{Chênh lệch hiệu năng giữa môi trường phát triển và môi trường thực nghiệm}: Trình điều khiển Docker trên macOS không hỗ trợ GPU Metal trực tiếp, buộc mô hình 7B phải thực thi hoàn toàn trên CPU và tiêu tốn xấp xỉ 6~GB RAM cho container. Khi máy ảo Docker chỉ được cấp phát 8~GB bộ nhớ kèm các container phụ trợ, tiến trình có nguy cơ bị hệ điều hành dừng đột ngột với mã thoát \texttt{exit code 137} (OOM Killer).
+    \item \textbf{Mức độ phụ thuộc vào dữ liệu từ pipeline tiền xử lý bên ngoài}: Hệ thống đòi hỏi các tệp dữ liệu cấu trúc như \texttt{tree.\allowbreak{}json}, \texttt{graph\_\allowbreak{}coauthorship.\allowbreak{}json} và các trường payload chuyên biệt (\texttt{twig\_\allowbreak{}id}, \texttt{chunk\_\allowbreak{}index}) từ pipeline khai phá dữ liệu. Khi các tệp này vắng mặt, các sự kiện định tuyến (\texttt{route}) trả về mảng rỗng và chức năng so sánh đối chiếu không thể lọc theo nhánh tri thức.
+    \item \textbf{Cấu hình đồng bộ giữa tầng biên Nginx và tầng dịch vụ nội bộ}: Cấu hình Nginx ở tầng biên trong phiên bản kế thừa vẫn sử dụng tên dịch vụ \texttt{backend-\allowbreak{}rag} và cổng 8000, trong khi tầng dịch vụ backend chuẩn hiện tại lắng nghe trên cổng 3000 với tên dịch vụ \texttt{app}. Sự không đồng nhất này đòi hỏi người vận hành phải hiệu chỉnh thủ công các khối \texttt{upstream} khi phối hợp các tệp Docker Compose.
+    \item \textbf{Độ sẵn sàng của tầng cân bằng tải Nginx}: Khối \texttt{upstream} trong cấu hình hiện tại chỉ khai báo một thực thể máy chủ duy nhất. Mặc dù các tham số chịu lỗi (\texttt{max\_\allowbreak{}fails}, \texttt{fail\_\allowbreak{}timeout}) và chỉ thị chuyển tiếp (\texttt{proxy\_\allowbreak{}next\_\allowbreak{}upstream}) đã được thiết lập đầy đủ, cơ chế dự phòng sự cố chưa phát huy tác dụng thực tế do thiếu các bản sao dự phòng.
+    \item \textbf{Thiếu vắng hạ tầng giám sát tập trung và tự động hóa chứng thư}: Nhật ký hoạt động mới chỉ được xuất ra luồng chuẩn (\texttt{stdout}) dưới dạng JSON một dòng, chưa được tích hợp sẵn ngăn xếp thu thập và phân tích trực quan hóa tập trung. Đồng thời, các tham số bảo mật TLS chưa được chốt cứng phiên bản giao thức và quy trình gia hạn chứng thư TLS vẫn mang tính thủ công.
+    \item \textbf{Quy trình quản lý bí mật (secret management) thủ công}: Các khóa ký JWT, khóa truy cập Qdrant và chứng thư TLS được lưu trữ qua biến môi trường hoặc tệp cấu hình cục bộ. Dù đã có cơ chế kiểm tra giá trị giữ chỗ (\textit{placeholder}) khi khởi động, việc luân chuyển khóa định kỳ và thu hồi chứng thư chưa được kết nối với các giải pháp quản lý bí mật chuyên dụng.
+\end{enumerate}
 
 \section{Hướng phát triển trong tương lai}
 \label{sec:huong-phat-trien}
 
-% Nội dung phần 8.4
+Dựa trên các hạn chế kỹ thuật đã được phân tích, các hướng phát triển và hoàn thiện hệ thống trong tương lai bao gồm:
+
+\begin{enumerate}
+    \item \textbf{Tối ưu hóa tầng suy luận AI và hỗ trợ hủy tác vụ tức thì}:
+    Nâng cấp kiến trúc runtime suy luận với khả năng can thiệp ngắt giữa chừng quá trình tính toán ngữ cảnh (\textit{prompt preemption}) ngay khi nhận tín hiệu hủy kết nối từ phía client. Cân nhắc tích hợp các giải pháp phục vụ mô hình chuyên dụng như vLLM hoặc TGI nhằm tận dụng cơ chế chia trang bộ nhớ đệm (\textit{PagedAttention}), cho phép xử lý đồng thời nhiều luồng sinh văn bản với độ trễ thấp hơn.
+    
+    \item \textbf{Tăng cường độ sẵn sàng và tự động hóa tầng biên}:
+    Mở rộng khối \texttt{upstream} của Nginx lên nhiều bản sao backend, kết hợp thuật toán cân bằng tải băm theo địa chỉ IP (\texttt{ip\_hash}) hoặc ít kết nối nhất (\texttt{least\_conn}) để đảm bảo tính ổn định phiên. Tích hợp công cụ Certbot để tự động hóa hoàn toàn quy trình cấp phát, xác thực và luân chuyển chứng thư TLS Let's Encrypt.
+    
+    \item \textbf{Xây dựng hệ thống quan trắc và giám sát tập trung (Observability)}:
+    Triển khai ngăn xếp giám sát chuẩn công nghiệp sử dụng Prometheus và Grafana để theo dõi các chỉ số thời gian thực (CPU, RAM, độ trễ P95/P99, dung lượng hàng đợi suy luận), kết hợp OpenTelemetry hoặc Grafana Loki để thu thập nhật ký có cấu trúc và truy vết phân tán (\textit{distributed tracing}) xuyên suốt từ Nginx, Backend đến Qdrant.
+    
+    \item \textbf{Chuyên nghiệp hóa quản lý bí mật và bảo mật dữ liệu}:
+    Tích hợp các giải pháp quản lý bí mật chuyên nghiệp (như HashiCorp Vault hoặc hệ thống Secret Manager) nhằm tự động hóa vòng đời của khóa ký JWT, thông tin xác thực cơ sở dữ liệu và chứng thư máy chủ, loại bỏ hoàn toàn việc lưu trữ secret dưới dạng văn bản thô trên tệp cấu hình máy chủ.
+\end{enumerate}
