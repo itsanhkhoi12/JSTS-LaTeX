@@ -9,28 +9,316 @@
 \label{sec:boi-canh-ly-do}
 
 % Nội dung phần 1.1
+Trong hai thập kỷ qua, khối lượng tài liệu khoa học toàn cầu tăng nhanh, vượt quá khả năng đọc và xử lý thủ công của con người. Sự phát triển của các kho lưu trữ số và dữ liệu học thuật có cấu trúc tạo điều kiện cho việc khai thác tài liệu tự động, nhưng cũng đặt ra thách thức trong việc tìm kiếm, đánh giá và tổng hợp tri thức.
+
+Các công cụ tìm kiếm truyền thống còn ba hạn chế chính: phụ thuộc vào từ khóa nên khó nhận diện ý nghĩa ngữ nghĩa; yêu cầu người dùng tự đánh giá mức độ liên quan và độ tin cậy của tài liệu; chưa hỗ trợ hiệu quả việc đặt câu hỏi bằng ngôn ngữ tự nhiên và nhận câu trả lời tổng hợp kèm dẫn nguồn kiểm chứng được.
+
+Sự phát triển của mô hình ngôn ngữ lớn và cơ chế Attention mở ra hướng tiếp cận mới thông qua Retrieval-Augmented Generation (RAG). Kiến trúc này kết hợp truy hồi các đoạn văn bản liên quan từ kho tài liệu với khả năng tổng hợp câu trả lời của mô hình ngôn ngữ. Tuy nhiên, việc ứng dụng RAG cho tài liệu khoa học vẫn gặp nhiều thách thức do nội dung chuyên môn cao, cấu trúc đa dạng, độ dài lớn và yêu cầu nghiêm ngặt về tính chính xác, khả năng truy vết nguồn.
+
+Từ những vấn đề trên, đề tài hướng đến xây dựng hệ thống RAG hỗ trợ tìm kiếm ngữ nghĩa và tra cứu tương tác đối với bài báo khoa học, sử dụng TypeScript cho cả phía máy chủ và phía người dùng. Việc thống nhất ngôn ngữ lập trình nhằm giảm chi phí phối hợp giữa các thành phần, đồng thời tạo điều kiện chia sẻ kiểu dữ liệu, cơ chế xác thực đầu vào và mô hình trải nghiệm người dùng.
 
 \section{Giới thiệu bài toán và định hướng giải pháp}
 \label{sec:gioi-thieu-bai-toan}
 
 % Nội dung phần 1.2
 
+Bài toán đặt ra là xây dựng hệ thống cho phép người dùng truy vấn kho tài liệu khoa học bằng ngôn ngữ tự nhiên. Hệ thống thực hiện truy hồi các đoạn văn bản liên quan, sử dụng mô hình ngôn ngữ lớn để tổng hợp câu trả lời và cung cấp dẫn nguồn tương ứng, đảm bảo khả năng tương tác nhanh và kiểm chứng với tài liệu gốc.
+
+Giải pháp được tổ chức thành bốn lớp chức năng:
+
+\begin{itemize}
+
+  \item[--] Lớp dữ liệu và lập chỉ mục: Thu thập, làm sạch, loại bỏ trùng lặp và chuẩn hóa tài liệu khoa học từ các nguồn công khai như arXiv. Tài liệu được chia thành các đoạn văn bản, gắn siêu dữ liệu (metadata) và chuyển thành vector nhúng để lưu trữ, phục vụ tìm kiếm ngữ nghĩa.
+
+  \item[--] Lớp truy hồi: Chuyển câu hỏi thành vector, tìm kiếm các đoạn văn bản tương đồng trong cơ sở dữ liệu vector và thực hiện xếp hạng lại dựa trên các tín hiệu bổ sung, bao gồm mức độ uy tín của tác giả thông qua đồ thị trích dẫn. Kết quả là tập ngữ cảnh phù hợp phục vụ quá trình sinh câu trả lời.
+
+  \item[--] Lớp sinh câu trả lời: Cung cấp các đoạn văn bản truy hồi cho mô hình ngôn ngữ lớn thông qua mẫu câu lệnh có kiểm soát. Câu trả lời được sinh trực tiếp theo thời gian thực, kèm định danh nguồn và được hệ thống kiểm tra tính hợp lệ của các nguồn tài liệu tham khảo.
+
+  \item[--] Lớp giao diện và trải nghiệm người dùng (UI/UX): Xây dựng giao diện web gồm không gian trực quan hóa tài liệu ba chiều thông qua hình ảnh cây tri thức bằng WebGL và khung trò chuyện hỗ trợ tra cứu, quản lý lịch sử hội thoại. Dữ liệu hội thoại được lưu cục bộ trên trình duyệt theo cơ chế ưu tiên ngoại tuyến và đồng bộ với máy chủ khi kết nối được khôi phục.
+
+\end{itemize}
+
+Trọng tâm của giải pháp là kết hợp ba thành phần: truy hồi ngữ nghĩa bằng vector, xếp hạng lại dựa trên đồ thị trích dẫn và sinh câu trả lời có kiểm soát theo ngữ cảnh. Sự kết hợp này hướng đến nâng cao mức độ liên quan, độ tin cậy và khả năng kiểm chứng của kết quả tra cứu khoa học.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{assets/screenshots/project-preview.png}
+    \caption{Giao diện ứng dụng hỗ trợ truy vấn tài liệu khoa học}
+    \label{fig:project-preview}
+\end{figure}
+
+
+
 \section{Mục tiêu xây dựng hệ thống}
 \label{sec:muc-tieu}
 
 % Nội dung phần 1.3
+Mục tiêu tổng quát của đề tài là xây dựng một hệ thống tra cứu tài liệu
+khoa học hoàn chỉnh, có khả năng trả lời câu hỏi bằng ngôn ngữ tự nhiên
+dựa trên kho tài liệu khoa học đã lập chỉ mục, đồng thời cung cấp giao
+diện khám phá trực quan và bảo đảm tính truy vết của mọi câu trả lời.
+
+Từ mục tiêu tổng quát, các mục tiêu cụ thể được xác định như sau.
+
+Mục tiêu thứ nhất là xây dựng quy trình thu thập và chuẩn hóa dữ liệu
+khoa học từ các nguồn công khai, bảo đảm dữ liệu có cấu trúc đồng nhất,
+loại bỏ trùng lặp và sẵn sàng cho bước lập chỉ mục. Kết quả của mục tiêu
+này là một kho tài liệu chuẩn hóa với siêu dữ liệu đầy đủ phục vụ trích
+dẫn và tra cứu nguồn.
+
+Mục tiêu thứ hai là xây dựng cơ chế lập chỉ mục ngữ nghĩa hiệu quả, bao
+gồm chiến lược phân đoạn văn bản phù hợp với đặc thù tài liệu khoa học,
+quy trình tạo vector biểu diễn văn bản và lựa chọn cấu trúc lưu trữ vector
+tối ưu cho truy hồi gần đúng. Yêu cầu đặt ra cho mục tiêu này là
+truy hồi phải đạt độ chính xác ngữ nghĩa chấp nhận được đối với câu hỏi
+dạng mô tả, không chỉ với truy vấn từ khóa.
+
+Mục tiêu thứ ba là xây dựng tầng truy hồi nhiều tầng kết hợp giữa tìm
+kiếm vector và xếp hạng lại dựa trên tín hiệu đồ thị trích dẫn, nhằm cải
+thiện chất lượng tập ứng viên đưa vào ngữ cảnh sinh.
+
+Mục tiêu thứ tư là xây dựng tầng sinh câu trả lời dựa trên mô hình ngôn
+ngữ lớn chạy cục bộ, có hỗ trợ phát trực tiếp từng kết quả và cơ
+chế dẫn nguồn có kiểm chứng được, đồng thời bảo đảm dữ liệu người dùng
+không rời khỏi hạ tầng cục bộ.
+
+Mục tiêu thứ năm là xây dựng giao diện người dùng với không gian khám
+phá ba chiều và khung trò chuyện hỗ trợ tìm hiểu, đáp ứng yêu cầu hiển
+thị công thức toán học, trích dẫn và siêu dữ liệu tài liệu theo định
+dạng phù hợp với bối cảnh học thuật.
+
+Mục tiêu thứ sáu là xây dựng cơ chế lưu trữ hội thoại ưu tiên ngoại
+tuyến trên trình duyệt và cơ chế đồng bộ hai chiều với máy chủ, bảo đảm
+tính khả dụng của lịch sử trò chuyện trong mọi trạng thái kết nối.
+
+Mục tiêu thứ bảy là xây dựng hệ thống xác thực và phân quyền vững chắc,
+gồm cơ chế băm mật khẩu theo Argon2id, cấp và xoay vòng token
+truy cập và làm mới theo họ token theo đặc tả JSON Web Token và
+hướng dẫn quản lý vòng đời danh tính, cùng với cơ chế ghi nhận
+ký sự kiện quản trị không thể sửa đổi.
+
+Mục tiêu thứ tám là xây dựng bộ thử nghiệm và quy trình đánh giá bao phủ
+kiểm thử đơn vị, kiểm thử tích hợp, kiểm thử đầu cuối, đánh giá chất
+lượng truy hồi, đánh giá chất lượng sinh nội dung và đánh giá hiệu năng
+dưới tải.
 
 \section{Phạm vi và giới hạn của đề tài}
 \label{sec:pham-vi-gioi-han}
 
-% Nội dung phần 1.4
+Phạm vi thực hiện của đề tài được xác định theo ba trục: phạm vi nghiệp
+vụ, phạm vi kiến trúc và phạm vi dữ liệu.
+
+Về nghiệp vụ, hệ thống cung cấp các năng lực đăng ký, đăng nhập, quản lý
+phiên làm việc; tìm kiếm và khám phá tài liệu khoa học theo cả ngữ nghĩa
+lẫn trực quan; tạo và quản lý nhiều phiên trò chuyện với câu trả lời có
+dẫn nguồn; đồng bộ lịch sử trò chuyện giữa máy chủ và trình duyệt. Hệ
+thống cũng cung cấp một bảng quản trị dành cho vai trò quản trị viên,
+cho phép theo dõi người dùng, thu hồi phiên đăng nhập và ghi nhận nhật
+ký thao tác quản trị.
+
+Về kiến trúc, hệ thống được tổ chức theo mô hình phân tán hai tầng ứng
+dụng với một tầng dữ liệu tách biệt. Tầng ứng dụng gồm dịch vụ máy chủ
+xử lý nghiệp vụ và truy hồi, cùng ứng dụng web chạy trên trình duyệt.
+Tầng dữ liệu gồm cơ sở dữ liệu tài liệu đơn vị cho thông tin người dùng
+và phiên trò chuyện, cơ sở dữ liệu vector cho truy hồi ngữ nghĩa và kho
+trọng số mô hình ngôn ngữ chạy cục bộ. Hệ thống không phụ thuộc vào dịch
+vụ bên thứ ba trong lúc vận hành, mọi thành phần đều có thể được triển
+khai trên một máy chủ đơn hoặc một cụm nhỏ.
+
+Về dữ liệu, phạm vi bao gồm tài liệu từ các nguồn khoa học công khai,
+trọng tâm là kho lưu trữ bài báo tiền in arXiv, bao gồm các nhóm
+khoa học về trí tuệ nhân tạo, học máy và các lĩnh vực liên quan. Dữ liệu
+được thu thập theo chế độ tăng dần theo thời gian và được phiên bản hóa.
+
+Các giới hạn cần được nêu rõ của đề tài bao gồm. Thứ nhất, phạm vi nguồn
+dữ liệu bị giới hạn ở bài báo tiền in và tài liệu có cấu trúc tương tự,
+không bao gồm tài liệu độc quyền, tạp chí trả phí và các nguồn không
+công khai. Thứ hai, phạm vi ngôn ngữ được giới hạn ở tiếng Anh do đặc
+thù của kho lưu trữ nguồn và giới hạn của các mô hình nhúng được chọn,
+mặc dù giao diện và thông điệp trải nghiệm người dùng được xây dựng sẵn
+cho việc bổ sung đa ngôn ngữ. Thứ ba, hệ thống không thực hiện tự động
+trích xuất trích dẫn chuẩn quy tắc trích dẫn từ nội dung bài báo, do đó
+cơ chế dẫn nguồn của hệ thống là dẫn nguồn theo định danh tài liệu chứ
+không thay thế cho định dạng trích dẫn học thuật hoàn chỉnh. Thứ tư, đề
+tài tập trung vào chất lượng và tính đúng đắn của kết quả hơn là tối ưu
+tối đa tốc độ sinh; ràng buộc tài nguyên phần cứng cụ thể ảnh hưởng trực
+tiếp đến chi phí vận hành. Thứ năm, đề tài không mở rộng phạm vi sang
+kiểm định chất lượng hay phản biện khoa học, và không thay thế vai trò
+phản biện của con người trong quy trình nghiên cứu. Thứ sáu, chưa bao
+gồm tính năng cộng tác nhóm, chia sẻ phiên trò chuyện và gợi ý tài liệu
+theo hồ sơ người dùng.
+
 
 \section{Đối tượng sử dụng và các tác nhân liên quan}
 \label{sec:doi-tuong-tac-nhan}
 
 % Nội dung phần 1.5
 
+Hệ thống được thiết kế cho bốn nhóm đối tượng sử dụng chính, mỗi nhóm có
+nhu cầu và thông tin đầu vào khác nhau.
+
+Nhóm thứ nhất là nhà nghiên cứu và nghiên cứu sinh, là nhóm sử dụng
+chính. Đây là nhóm cần rút ngắn thời gian định hướng tới các công trình
+liên quan, cần hiểu nhanh nội dung của một bài báo mà chưa có thời gian
+đọc toàn văn, và cần truy vết nguồn để kiểm chứng thông tin trước khi
+trích dẫn. Với nhóm này, chất lượng dẫn nguồn và khả năng đối chiếu là
+yêu cầu ưu tiên hơn tốc độ phản hồi.
+
+Nhóm thứ hai là sinh viên các ngành khoa học, kỹ thuật và công nghệ.
+Nhóm này cần giải thích khái niệm trừu tượng bằng ngôn ngữ đơn giản, tìm
+hiểu nền tảng của một lĩnh vực mới và xác định các tài liệu nền tảng.
+Đối với nhóm này, tính dễ hiểu của câu trả lời và sự hỗ trợ hiển thị
+công thức toán học có giá trị cao.
+
+Nhóm thứ ba là kỹ sư và chuyên gia phân tích tài liệu, cần lọc nhanh
+khối lượng lớn tài liệu theo chủ đề, so sánh các cách tiếp cận và xác
+định xu hướng nghiên cứu. Đối với nhóm này, chất lượng xếp hạng kết quả
+và khả năng xem cấu trúc không gian tài liệu mang ý nghĩa quan trọng.
+
+Nhóm thứ tư là các tác nhân tự động và tích hợp vào quy trình sập xuất,
+cần truy cập tài liệu và tóm tắt nội dung theo lập trình thông qua giao
+diện lập trình ứng dụng.
+
+Các tác nhân hệ thống được xác định gồm bốn nhóm. Người dùng không đăng
+nhập được giới hạn ở các chức năng khám phá công khai, không lưu trữ dữ
+liệu cá nhân và không đồng bộ lịch sử. Người dùng đã đăng nhập với vai
+trò người dùng sử dụng đầy đủ các chức năng tra cứu và quản lý phiên cá
+nhân. Quản trị viên sử dụng thêm bảng quản trị và các thao tác quản trị
+tài khoản. Bên cạnh đó, các thành phần máy như bộ thu thập dữ liệu, dịch
+vụ nhúng văn bản và tiến trình sinh nội dung đóng vai trò tác nhân nội
+bộ, thực hiện truy cập vào kho dữ liệu và tài nguyên phần cứng theo chế
+độ chỉ đọc hoặc theo hàng đợi giới hạn.
+
+Ranh giới tin cậy giữa các tác nhân được thiết lập như sau: mọi yêu cầu
+từ phía người dùng đều đi qua lớp xác thực và lớp phân quyền trước khi
+tiếp cận tài nguyên; mọi thao tác quản trị đều được ghi nhận vào nhật ký
+chỉ ghi; các thành phần nội bộ chỉ được cấp quyền tối thiểu cần thiết
+đối với kho dữ liệu mà chúng phục vụ.
+
+
 \section{Tổng quan công nghệ và công cụ sử dụng}
 \label{sec:tong-quan-cong-nghe}
 
-% Nội dung phần 1.6
+Bảng~\ref{tab:tong-quan-cong-nghe} trình bày tổng quan các công nghệ và công cụ được sử dụng trong
+hệ thống, kèm theo vai trò và lý do lựa chọn.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.18\linewidth}
+  >{\raggedright\arraybackslash}p{0.18\linewidth}
+  >{\raggedright\arraybackslash}p{0.10\linewidth}
+  >{\raggedright\arraybackslash}p{0.25\linewidth}
+  >{\raggedright\arraybackslash}p{0.25\linewidth}@{}}
+\caption{Tổng quan công nghệ và công cụ sử dụng}\label{tab:tong-quan-cong-nghe}\\
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Nhóm}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Công nghệ hoặc công cụ}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Phiên bản}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Vai trò trong hệ thống}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Lý do lựa chọn chính}
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\caption[]{(tiếp theo)}\\
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Nhóm}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Công nghệ hoặc công cụ}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Phiên bản}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Vai trò trong hệ thống}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Lý do lựa chọn chính}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Ngôn ngữ lập trình & TypeScript & 5.7 & Toàn bộ tầng máy chủ và tầng
+người dùng & Đồng nhất ngôn ngữ trong toàn hệ thống, giảm chi phí phối
+hợp, kiểu tĩnh giúp kiểm soát chất lượng mã nguồn quy mô lớn \\
+Nền tảng máy chủ & NestJS & 11 & Định khung nghiệp vụ, tiêm phụ thuộc,
+kiểm định dữ liệu đầu vào & Tổ chức mã nguồn theo mô đun với ranh giới
+rõ ràng, chuẩn hóa việc xử lý yêu cầu và phản hồi lỗi \\
+Tài liệu giao diện lập trình & OpenAPI và Swagger UI & 3.0 & Sinh tự
+động tài liệu và mô tả hợp đồng giao diện & Tạo nguồn tham chiếu máy đọc
+cho kiểm thử hợp đồng, giảm sai lệch giữa mã nguồn và tài liệu \\
+Cơ sở dữ liệu tài liệu quan hệ & MongoDB & 7.0 & Lưu trữ người dùng,
+phiên trò chuyện, tin nhắn và nhật ký quản trị & Mô hình tài liệu linh
+hoạt phù hợp dữ liệu văn bản không đồng nhất, hỗ trợ lọc theo phạm vi và
+sắp xếp theo trục thời gian \\
+Lớp truy xuất và mô hình dữ liệu & Mongoose & 8.x & Ánh xạ lớp và tài
+liệu, định nghĩa lược đồ và chỉ mục & Kiểm soát kiểu dữ liệu ở tầng ứng
+dụng, giảm lỗi hình thức khi truy cập cơ sở dữ liệu \\
+Cơ sở dữ liệu vector & Qdrant & 1.x & Lưu trữ vector đoạn văn bản và phục
+vụ truy hồi gần đúng theo khoảng cách cosine & Hỗ trợ chỉ mục đồ thị
+hướng phân cấp, độ trễ thấp, khoảng cách cosine khớp trực tiếp với cách
+huấn luyện mô hình nhúng \\
+Mô hình nhúng văn bản & Nomic Embed & 1.5 & Biến đổi câu hỏi và đoạn văn
+bản thành vector cố định chiều & Hỗ trợ tiền tiền phân biệt câu hỏi và
+tài liệu, chuẩn hóa vector nhất quán với độ đo cosine \\
+Thư viện suy luận nhúng & Transformers.js & 3.x & Chạy mô hình nhúng
+trong tiến trình Node.js & Thực thi mô hình dạng ONNX phía máy chủ,
+không cần dịch vụ suy luận từ xa \\
+Mô hình sinh nội dung & Qwen 2.5 Instruct, định dạng GGUF lượng tử hóa
+Q4 & 7 tỷ tham số & Sinh câu trả lời trong ngữ cảnh truy hồi & Cân bằng
+giữa chất lượng sinh và yêu cầu bộ nhớ, tương thích với mô hình ngôn ngữ
+có tiền tiền hướng dẫn \\
+Thư viện chạy mô hình cục bộ & node-llama-cpp & 3.x & Nạp trọng số, giải
+phóng lớp suy luận lên GPU, phát trực tiếp từng mảnh kết quả & Hỗ trợ
+CUDA và Metal, cơ chế hàng đợi giới hạn, cho phép chạy mô hình hoàn toàn
+trong hạ tầng cục bộ \\
+Thư viện giao diện người dùng & React & 19 & Dựng giao diện trình duyệt
+tài liệu, khung trò chuyện và bảng quản trị & Mô hình thành phần phù hợp
+giao diện nhiều trạng thái, hệ sinh thái thư viện phong phú \\
+Công cụ đóng gói và phát triển & Vite & 6 & Đóng gói ứng dụng và phục vụ
+môi trường phát triển & Khởi động nhanh, tăng tốc cập nhật nóng, cấu
+hình đơn giản \\
+Thư viện đồ họa ba chiều & three.js & r160 & Dựng cảnh không gian tài
+liệu trong môi trường WebGL & Nền tảng WebGL phổ biến, hiệu năng cao, hỗ
+trợ đầy đủ các thao tác hình học và ánh sáng \\
+Lớp liên kết đồ họa với giao diện & React Three Fiber & 8.x & Khai báo
+cảnh ba chiều bằng mô hình thành phần React & Đồng nhất ngôn ngữ khai
+báo giữa phần hai chiều và phần ba chiều, quản lý vòng đời tài nguyên đồ
+họa \\
+Quản lý trạng thái phía người dùng & Zustand & 4.x & Lưu trạng thái trò
+chuyện, vòng đời phiên và dữ liệu đồ họa & Cập nhật cục bộ không gây
+hiệu ứng phụ, tránh tái kết xuất toàn bộ cây thành phần khi dữ liệu đang
+phát trực tiếp \\
+Lưu trữ cục bộ trình duyệt & Dexie.js trên nền tảng IndexedDB & 4.x &
+Lưu trữ hội thoại và siêu dữ liệu cục bộ theo cơ chế ưu tiên ngoại tuyến
+& Giao diện lập trình dạng hứa cho cơ sở dữ liệu cục bộ, khai báo lược
+đồ và chỉ mục thuận tiện \\
+Khung giao diện CSS & Tailwind CSS & 4.x & Dựng hệ thống giao diện và
+các thành phần trực quan & Hệ thống tiện ích nhất quán, hỗ trợ thiết kế
+theo hướng dẫn hình ảnh và giảm mã CSS thủ công \\
+Hiển thị công thức toán học & KaTeX & 0.16.x & Định dạng phương trình
+trong nội dung trả lời và trích dẫn & Kết xuất nhanh, đồng bộ, không phụ
+thuộc phông chữ động \\
+Xác thực và phân quyền & JSON Web Token, Argon2id & RFC 7519, RFC 9106 &
+Quản lý đăng nhập, cấp token truy cập, xoay vòng token làm mới & Xoay
+vòng token theo họ phát hiện việc tái sử dụng, Argon2id tăng đáng kể chi
+phí dò mật khẩu \\
+Định dạng lỗi giao diện & Problem Details for HTTP APIs & RFC 7807 &
+Chuẩn hóa cấu trúc thông báo lỗi trả về cho người dùng & Thông báo lỗi
+nhất quán và có thể máy đọc, thuận tiện cho cả giao diện lập trình và
+người dùng cuối \\
+Kiểm thử đơn vị phía máy chủ & Jest & 29.x & Kiểm thử đơn vị và tích hợp
+các mô đun máy chủ & Hệ sinh thái mock sẵn có, chạy song song nhanh,
+tích hợp sẵn với quy trình kiểm thử của NestJS \\
+Kiểm thử đơn vị phía người dùng & Vitest & 2.x & Kiểm thử hàm, hook và
+thành phần phía người dùng & Tương thích với hệ sinh thái Vite, dùng
+chung đường dẫn cấu hình với công cụ đóng gói \\
+Kiểm thử đầu cuối & Playwright & 1.x & Kiểm thử luồng người dùng trên
+trình duyệt thật & Kiểm thử ổn định với nhiều trình duyệt, hỗ trợ chạy
+song song và theo dõi hiệu năng \\
+Kiểm thử tải & k6 & 1.x & Mô phỏng tải nhiều cấp độ lên các điểm vào của
+hệ thống & Mô hình kịch bản tải dạng mã, báo cáo độ trễ theo phân vị và
+tỷ lệ lỗi \\
+\end{longtable}
