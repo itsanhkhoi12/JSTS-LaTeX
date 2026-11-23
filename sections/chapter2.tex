@@ -5,15 +5,119 @@
 \chapter{Phân tích yêu cầu và Đặc tả hệ thống}
 \label{chap:phan-tich-yeu-cau}
 
+% Style dùng chung cho các sơ đồ TikZ trong Chương 2
+\tikzset{
+    ragbox/.style={
+        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!5,
+        thick, minimum height=0.85cm, align=center, font=\small, inner sep=5pt
+    },
+    ragdb/.style={
+        cylinder, shape border rotate=90, aspect=0.25, draw=primaryBlue, fill=primaryBlue!8,
+        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
+    },
+    ragdecision/.style={
+        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
+        thick, align=center, font=\small, inner sep=2pt
+    },
+    raggroup/.style={
+        rectangle, rounded corners=4pt, draw=primaryBlue!50, dashed, fill=primaryBlue!2,
+        inner sep=8pt
+    },
+    ragarrow/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!80!black
+    },
+    ragdashed/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
+    }
+}
+
 \section{Phân tích bài toán và nhu cầu người dùng}
 \label{sec:phan-tich-bai-toan}
 
-% Nội dung phần 2.1
+Kho tài liệu khoa học số phình to theo thời gian, trong khi năng lực đọc thủ công của con người gần như không thay đổi. Bộ kho phục vụ đề tài gồm 70.590 bài báo, 913.205 đoạn văn bản và 136.823 đối tượng nguồn. Người nghiên cứu buộc phải tra cứu bằng từ khóa và không thể đối chiếu nguồn trích dẫn.
+
+Nhu cầu người dùng quy về bốn điểm: tìm kiếm theo ý nghĩa thay vì theo từ khóa; nhận câu trả lời kèm dẫn nguồn kiểm chứng được; điều hướng theo không gian tri thức ba chiều; và làm việc được khi mạng không ổn định mà không mất lịch sử.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.55cm and 0.45cm]
+        % Nhu cầu người dùng
+        \node[ragbox, text width=3.1cm] (N1) {Tìm theo ý nghĩa};
+        \node[ragbox, text width=3.1cm, right=of N1] (N2) {Câu trả lời có dẫn nguồn};
+        \node[ragbox, text width=3.1cm, right=of N2] (N3) {Điều hướng 3D tri thức};
+        \node[ragbox, text width=3.1cm, right=of N3] (N4) {Lịch sử bền vững offline};
+
+        % Bài toán kỹ thuật
+        \node[ragbox, text width=3.1cm, below=1.6cm of N1] (B1) {Truy hồi vector 768 chiều};
+        \node[ragbox, text width=3.1cm, right=of B1] (B2) {Xếp hạng lại bằng tín hiệu đồ thị};
+        \node[ragbox, text width=3.1cm, right=of B2] (B3) {Sinh văn bản kèm trích dẫn};
+        \node[ragbox, text width=3.1cm, right=of B3] (B4) {Đồng bộ hai tầng lưu trữ};
+
+        \begin{scope}[on background layer]
+            \node[raggroup, fit=(N1)(N4), label={[font=\small\bfseries, text=primaryBlue]above:Nhu cầu người dùng}] (GN) {};
+            \node[raggroup, fit=(B1)(B4), label={[font=\small\bfseries, text=primaryBlue]below:Bài toán kỹ thuật}] (GB) {};
+        \end{scope}
+
+        \draw[ragarrow] (N1) -- (B1);
+        \draw[ragarrow] (N2) -- (B3);
+        \draw[ragarrow] (N3) -- (B2);
+        \draw[ragarrow] (N4) -- (B4);
+    \end{tikzpicture}%
+    }
+    \caption{Ánh xạ từ nhu cầu người dùng sang bài toán kỹ thuật.}
+    \label{fig:anh-xa-nhu-cau}
+\end{figure}
 
 \section{Phân tích tác nhân và Use Case}
 \label{sec:phan-tich-tac-nhan}
 
-% Nội dung phần 2.2
+Hệ thống phục vụ ba vai trò tác nhân. Khách không đăng nhập được phép đặt câu hỏi với hạn mức thấp hơn và không có dữ liệu nào được lưu trên máy chủ. Người dùng đã đăng nhập dùng xác thực Argon2id kèm token JWT, có hạn mức cao hơn và có lịch sử hội thoại hai tầng. Quản trị viên thực hiện phân quyền và ghi vào nhật ký kiểm toán chỉ được bổ sung, không sửa hay xoá. Ngoài phạm vi hệ thống còn nằm pipeline thu thập dữ liệu, công cụ kiểm thử tải và mô hình ngôn ngữ bên ngoài.
+
+Ba hoạt động nằm ngoài phạm vi hệ thống. Ứng dụng không ghi vào chỉ mục vector hay kho văn bản. Quản trị viên không sửa hoặc xoá hội thoại và nhật ký kiểm toán. Người dùng không đăng nhập lại được khi máy chủ không hoạt động, vì lịch sử nằm ở tầng cục bộ của trình duyệt.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.5cm and 2.6cm]
+        \node[ragbox, text width=3.4cm] (U) {Người dùng};
+        \node[ragbox, text width=3.4cm, above=of U] (G) {Khách};
+        \node[ragbox, text width=3.4cm, below=of U] (A) {Quản trị viên};
+        \node[ragbox, text width=3.4cm, below=of A] (L) {Công cụ kiểm thử tải};
+        \node[ragbox, text width=3.4cm, below=of L] (P) {Pipeline ingest};
+
+        \node[ragbox, text width=3.0cm, fill=primaryBlue!12, right=3.2cm of U] (S) {\textbf{Hệ thống RAG}};
+        \node[ragdb, text width=2.4cm, right=2.4cm of S] (K) {Kho khoa học};
+
+        \draw[ragarrow] (G.east) -- node[above, sloped, font=\scriptsize] {REST / SSE} (S.north west);
+        \draw[ragarrow] (U.east) -- node[above, font=\scriptsize] {Web / REST / SSE} (S.west);
+        \draw[ragarrow] (A.east) -- node[above, sloped, font=\scriptsize] {REST \texttt{/api/v1/admin}} (S.south west);
+        \draw[ragarrow] (L.east) -- node[below, sloped, font=\scriptsize] {k6 / HTTP} (S.south);
+        \draw[ragarrow] (P.east) -| node[below, pos=0.35, font=\scriptsize] {Ghi vào kho corpus} (K.south);
+        \draw[ragarrow] (S.east) -- node[above, font=\scriptsize] {Đọc} (K.west);
+    \end{tikzpicture}%
+    }
+    \caption{Các tác nhân và đường đi giao tiếp.}
+    \label{fig:tac-nhan-giao-tiep}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tổng hợp các trường hợp sử dụng chính của hệ thống.}
+    \label{tab:use-case}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{4.5cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Mã} & \textbf{Tên trường hợp sử dụng} & \textbf{Tác nhân} & \textbf{Endpoint chính} & \textbf{Kết quả mong đợi} \\
+        \midrule
+        UC-1 & Đăng nhập và làm mới phiên đăng nhập & Người dùng & \texttt{POST /auth/tokens}, \texttt{/auth/token-rotations} & Token truy cập và token làm mới có thời hạn, xoay vòng theo họ \\
+        UC-2 & Hỏi đáp bằng trí tuệ & Người dùng & \texttt{POST /rag/chat/stream} & Câu trả lời theo dòng sự kiện kèm dẫn nguồn và điểm căn cứ \\
+        UC-3 & Đọc hàng loạt chi tiết bài báo & Người dùng & \texttt{GET /papers?ids=} & Tối đa 20 bài báo trong một lần gọi \\
+        UC-4 & Quản lý lịch sử hội thoại & Người dùng & \texttt{GET /chat-sessions?cursor=} & Mười phiên mỗi trang theo phân trang con trỏ \\
+        UC-5 & Theo dõi nhật ký kiểm toán & Quản trị viên & \texttt{GET /admin/audit-logs} & Danh sách thao tác quản trị bất biến \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \section{Đặc tả yêu cầu chức năng}
 \label{sec:dac-ta-chuc-nang}
@@ -21,27 +125,209 @@
 \subsection{Quản lý người dùng và xác thực}
 \label{subsec:quan-ly-nguoi-dung}
 
-% Nội dung 2.3.1
+Hệ thống cung cấp đăng ký, đăng nhập, làm mới token, thu hồi token và quản lý hồ sơ. Mật khẩu được băm bằng Argon2id với chi phí bộ nhớ 64 MB, ba vòng lặp và mức song song bốn. Token truy cập là JWT ngắn hạn mang khai báo \texttt{ver} bằng giá trị \texttt{token\_version}, nên khoá tài khoản làm token đang sống mất hiệu lực ngay. Token làm mới có thời hạn bảy ngày và được xoay vòng trong một lượt truy vấn, phát hiện dùng lại thì thu hồi cả họ token.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các endpoint quản lý người dùng và xác thực.}
+    \label{tab:api-auth}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{6.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Phương thức} & \textbf{Đường dẫn} & \textbf{Mô tả} \\
+        \midrule
+        POST & \texttt{/api/v1/users} & Đăng ký tài khoản mới \\
+        GET & \texttt{/api/v1/users/me} & Trả về hồ sơ tài khoản hiện tại \\
+        PATCH & \texttt{/api/v1/users/me} & Cập nhật một phần hồ sơ \\
+        PUT & \texttt{/api/v1/users/me/password} & Thay đổi mật khẩu \\
+        POST & \texttt{/api/v1/auth/tokens} & Đăng nhập, cấp token truy cập và token làm mới \\
+        POST & \texttt{/api/v1/auth/token-rotations} & Xoay vòng token làm mới \\
+        POST & \texttt{/api/v1/auth/token-revocations} & Thu hồi token theo ý muốn \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Tìm kiếm và khám phá research paper}
 \label{subsec:tim-kiem-paper}
 
-% Nội dung 2.3.2
+Tìm kiếm ngữ nghĩa là yêu cầu trung tâm. Câu hỏi được chuyển thành vector 768 chiều bằng mô hình nhúng Nomic Embed v1.5 có tiền tố \texttt{search\_query}, rồi truy vấn chỉ mục vector theo khoảng cách cosin. Tập kết quả được xếp hạng lại bằng tổ hợp điểm tương đồng ngữ nghĩa và điểm uy tín tác giả lấy từ PageRank, theo tỉ lệ 0,85 và 0,15. Song song, 40 luật kết hợp mở rộng câu hỏi trước khi truy hồi. Việc đọc chi tiết bài báo chỉ thực hiện theo lô, với tối đa hai mươi bài báo mỗi lần gọi, thay vì có đường liệt kê không lọc.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các endpoint tìm kiếm và truy xuất bài báo khoa học.}
+    \label{tab:api-papers}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{6.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Phương thức} & \textbf{Đường dẫn} & \textbf{Mô tả} \\
+        \midrule
+        GET & \texttt{/api/v1/papers?ids=} & Đọc hàng loạt chi tiết bài báo, tối đa 20 bài báo \\
+        GET & \texttt{/api/v1/papers/\{paper\_id\}} & Chi tiết một bài báo và các đoạn văn bản \\
+        POST & \texttt{/api/v1/rag/chat} & Truy vấn ngữ nghĩa, trả kết quả đầy đủ \\
+        POST & \texttt{/api/v1/rag/chat/stream} & Truy vấn ngữ nghĩa, trả kết quả theo dòng sự kiện \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Quản lý và khai thác thông tin research paper}
 \label{subsec:khai-thac-paper}
 
-% Nội dung 2.3.3
+Kho văn bản lưu trên MongoDB với tên \texttt{rag\_ts\_corpus} và được ứng dụng chỉ đọc. Khai thác tri thức dựa trên đồ thị đồng tác giả cho ra bảng uy tín PageRank của 120 tác giả, và tập 40 luật kết hợp dùng mở rộng truy vấn. Cả hai tập được nạp một lần lúc khởi động, nên không phát sinh chi phí truy vấn trong đường nóng.
 
 \subsection{Tương tác và hỗ trợ tìm hiểu research paper bằng AI}
 \label{subsec:tuong-tac-ai}
 
-% Nội dung 2.3.4
+Yêu cầu này được hiện thực bằng đường ống truy hồi tăng cường gồm năm bước: nhúng câu hỏi, định tuyến cây, truy hồi chỉ mục vector, chấm điểm và xếp hạng lại, rồi sinh văn bản. Bước sinh văn bản chiếm nhiều thời gian nhất, nên giao diện nhận kết quả theo dòng sự kiện.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[font=\scriptsize]
+        \def\dx{2.55}
+        \def\ybot{-11.6}
+        % Các thực thể tham gia
+        \foreach \i/\name/\lbl in {
+            0/U/{Người dùng},
+            1/FE/{Giao diện},
+            2/BE/{Máy chủ},
+            3/EM/{Nhúng},
+            4/TR/{Định tuyến cây},
+            5/VS/{Chỉ mục vector},
+            6/JU/{Bộ chấm điểm},
+            7/CO/{Kho văn bản},
+            8/LM/{Mô hình NN}
+        }{
+            \node[ragbox, minimum width=1.85cm, minimum height=0.8cm, font=\scriptsize\bfseries] (\name) at (\i*\dx, 0) {\lbl};
+            \draw[gray!60, dashed, thick] (\name.south) -- (\i*\dx, \ybot);
+        }
+
+        % Các thông điệp trình tự
+        \draw[ragarrow] (0*\dx, -1.0) -- node[above, font=\scriptsize] {Đặt câu hỏi} (1*\dx, -1.0);
+        \draw[ragarrow] (1*\dx, -1.7) -- node[above, font=\scriptsize] {POST /rag/chat/stream} (2*\dx, -1.7);
+
+        \draw[ragarrow] (2*\dx, -2.4) -- node[above, font=\scriptsize] {Nhúng câu hỏi} (3*\dx, -2.4);
+        \draw[ragdashed] (3*\dx, -3.05) -- node[above, font=\scriptsize] {Vector 768 chiều} (2*\dx, -3.05);
+
+        \draw[ragarrow] (2*\dx, -3.75) -- node[above, font=\scriptsize] {Định tuyến cây} (4*\dx, -3.75);
+        \draw[ragdashed] (4*\dx, -4.4) -- node[above, font=\scriptsize] {Các bước đi của đồ thị} (2*\dx, -4.4);
+
+        \draw[ragarrow] (2*\dx, -5.1) -- node[above, font=\scriptsize] {Truy vấn ANN cosin} (5*\dx, -5.1);
+        \draw[ragdashed] (5*\dx, -5.75) -- node[above, font=\scriptsize] {Ứng viên cùng siêu dữ liệu} (2*\dx, -5.75);
+
+        \draw[ragarrow] (2*\dx, -6.45) -- node[above, font=\scriptsize] {Chấm điểm và xếp hạng lại} (6*\dx, -6.45);
+        \draw[ragdashed] (6*\dx, -7.1) -- node[above, font=\scriptsize] {Điểm liên quan và điểm căn cứ} (2*\dx, -7.1);
+
+        \draw[ragarrow] (2*\dx, -7.8) -- node[above, font=\scriptsize] {Nạp văn bản đoạn theo lô} (7*\dx, -7.8);
+        \draw[ragdashed] (7*\dx, -8.45) -- node[above, font=\scriptsize] {Nội dung đoạn} (2*\dx, -8.45);
+
+        \draw[ragarrow] (2*\dx, -9.15) -- node[above, font=\scriptsize] {Sinh câu trả lời có trích dẫn} (8*\dx, -9.15);
+        \draw[ragdashed] (8*\dx, -9.8) -- node[above, font=\scriptsize] {Token và nguồn} (2*\dx, -9.8);
+
+        \draw[ragdashed] (2*\dx, -10.5) -- node[above, font=\scriptsize] {Sự kiện dòng} (1*\dx, -10.5);
+        \draw[ragdashed] (1*\dx, -11.2) -- node[above, font=\scriptsize] {Câu trả lời và chip dẫn nguồn} (0*\dx, -11.2);
+    \end{tikzpicture}%
+    }
+    \caption{Trình tự xử lý một câu hỏi.}
+    \label{fig:trinh-tu-xu-ly}
+\end{figure}
+
+Ba thành phần trung tâm có tham số vận hành như sau.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tham số vận hành của các thành phần trung tâm.}
+    \label{tab:tham-so-thanh-phan}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Mô hình hoặc thuật toán} & \textbf{Tham số} \\
+        \midrule
+        Nhúng & \texttt{nomic-embed-text-v1.5} & 768 chiều, chuẩn L2, bộ nhớ đệm 500 mục trong 10 phút \\
+        Khai phá & PageRank và FP-Growth & Hỗ trợ tối thiểu 0,02, tin cậy tối thiểu 0,5 \\
+        Chấm điểm & Laya với hạt giống 0 & Tối đa 8 yêu cầu chờ, thời hạn 30 giây \\
+        Sinh văn bản & \texttt{qwen2.5-7b} bản định lượng \texttt{Q4\_K\_M}, 4,68 GB & Ngữ cảnh 8192, nhiệt độ 0,2, 1024 token, một luồng và hàng đợi tám, 60 giây \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Công thức xếp hạng và quy tắc chọn tập ứng viên được cho như sau.
+
+\begin{itemize}
+    \item[--] Điểm xếp hạng:
+    \[
+        S = 0{,}85 \times \text{sim}(q, d) + 0{,}15 \times \text{PR}(a)
+    \]
+    trong đó $\text{sim}(q, d)$ là điểm tương đồng ngữ nghĩa giữa câu hỏi và đoạn văn bản, còn $\text{PR}(a)$ là điểm PageRank của tác giả.
+    \item[--] Hợp nhất thứ hạng (Reciprocal Rank Fusion):
+    \[
+        \text{RRF}(d) = \sum_{r} \frac{1}{60 + \text{rank}_r(d)}
+    \]
+    trong đó $\text{rank}_r(d)$ là thứ hạng của ứng viên $d$ trong danh sách xếp hạng $r$.
+    \item[--] Số lượng tập ứng viên:
+    \[
+        N_{\text{ứng viên}} = \min\bigl(20,\; \max(10,\; 2 \times \texttt{top\_k})\bigr)
+    \]
+\end{itemize}
+
+Hệ thống bảo vệ người dùng trước câu trả lời không có căn cứ bằng hai cổng chặn độc lập.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Hai cổng chặn kiểm soát căn cứ của câu trả lời.}
+    \label{tab:cong-chan}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Cổng} & \textbf{Điều kiện} & \textbf{Xử lý} \\
+        \midrule
+        Cổng căn cứ & Điểm liên quan tốt nhất dưới 0,6 & Viết lại câu hỏi một lần trong tối đa 25 từ, nếu vẫn thấp thì từ chối trả lời \\
+        Cổng bám sát & Điểm bám sát của ba đoạn đầu dưới 0,3 & Trả về câu trả lời không có nội dung và sự kiện thay thế câu trả lời \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Quản lý lịch sử và dữ liệu người dùng}
 \label{subsec:quan-ly-lich-su}
 
-% Nội dung 2.3.5
+Lịch sử hội thoại được lưu ở hai tầng. Tầng cục bộ trên trình duyệt dùng IndexedDB thông qua Dexie với định danh UUIDv7, là nguồn sự thật phía người dùng và cho phép xem lại lịch sử khi máy chủ không truy cập được. Tầng máy chủ giữ bản gốc để đồng bộ giữa các thiết bị, và dùng bộ đếm thế hệ theo tài khoản để vô hiệu hoá bộ nhớ đệm khi có thay đổi.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các endpoint quản lý phiên và lịch sử hội thoại.}
+    \label{tab:api-chat-sessions}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{7.4cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Phương thức} & \textbf{Đường dẫn} & \textbf{Mô tả} \\
+        \midrule
+        GET & \texttt{/api/v1/chat-sessions} & Liệt kê phiên của tài khoản hiện tại, phân trang con trỏ \\
+        GET & \texttt{/api/v1/chat-sessions/\{id\}} & Chi tiết một phiên \\
+        GET & \texttt{/api/v1/chat-sessions/\{id\}/messages} & Lịch sử tin nhắn của phiên, phân trang con trỏ \\
+        PATCH & \texttt{/api/v1/chat-sessions/\{id\}} & Đổi tên phiên \\
+        DELETE & \texttt{/api/v1/chat-sessions/\{id\}} & Xoá mềm một phiên \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=2.2cm]
+        \node[ragbox, text width=2.4cm] (FE) {Giao diện};
+        \node[ragdb, right=of FE] (IDB) {IndexedDB\\cục bộ};
+        \node[ragbox, text width=2.6cm, right=2.6cm of IDB] (API) {Máy chủ REST};
+        \node[ragdb, right=of API] (MONGO) {MongoDB};
+
+        \draw[ragarrow] (FE) -- node[above, font=\scriptsize] {Ghi trước} (IDB);
+        \draw[ragarrow] ([yshift=3pt]IDB.east) -- node[above, font=\scriptsize] {Đồng bộ nền} ([yshift=3pt]API.west);
+        \draw[ragarrow] ([yshift=-3pt]API.west) -- node[below, font=\scriptsize, align=center] {Cập nhật\\trạng thái đồng bộ} ([yshift=-3pt]IDB.east);
+        \draw[ragarrow] ([yshift=3pt]API.east) -- ([yshift=3pt]MONGO.west);
+        \draw[ragarrow] ([yshift=-3pt]MONGO.west) -- node[below, font=\scriptsize] {Đọc lại} ([yshift=-3pt]API.east);
+    \end{tikzpicture}%
+    }
+    \caption{Cơ chế lưu trữ hai tầng cho lịch sử hội thoại.}
+    \label{fig:luu-tru-hai-tang}
+\end{figure}
 
 \section{Đặc tả yêu cầu phi chức năng}
 \label{sec:dac-ta-phi-chuc-nang}
@@ -49,39 +335,379 @@
 \subsection{Hiệu năng và khả năng đáp ứng}
 \label{subsec:hieu-nang}
 
-% Nội dung 2.4: Hiệu năng và khả năng đáp ứng
+Mục tiêu hiệu năng được định lượng trước khi triển khai, theo ba nhóm chỉ số. Độ trễ phục vụ áp dụng cho các đường đọc không sinh văn bản: độ trễ phân vị 95 phải dưới 500 ms và độ trễ phân vị 99 dưới 1.000 ms. Tỉ lệ lỗi phải dưới một phần trăm tổng số yêu cầu. Điều kiện đạt cả ba nhóm phải được giữ liên tục trong ba phút, không chỉ tại một thời điểm.
+
+Mỗi chặng của luồng xử lý có thời hạn, mã lỗi và đường lùi riêng, được cho ở bảng dưới. Cột thời hạn giới hạn thời gian chờ của chặng đó, cột mã lỗi là mã trả về cho người dùng, cột đường lùi mô tả cách hệ thống tiếp tục hoạt động khi chặng thất bại.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thời hạn, mã lỗi và đường lùi của từng chặng xử lý.}
+    \label{tab:thoi-han-chang}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Chặng} & \textbf{Thời hạn} & \textbf{Mã lỗi} & \textbf{Đường lùi} \\
+        \midrule
+        Truy vấn chỉ mục vector & 15 giây & 503 & Không có \\
+        Nạp văn bản kho & 5 giây & 503 & Không có \\
+        Chấm điểm & 30 giây & Không trả lời & Dùng điểm tương đồng và PageRank \\
+        Khe mô hình ngôn ngữ & 60 giây & 504 & Giải phóng khe \\
+        Hàng đợi xử lý & Một khe và tám chỗ chờ & 429 & Từ chối ngay \\
+        Yêu cầu trùng lặp & 24 giờ & 409 & Phát lại kết quả đã lưu \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Nhóm xác thực được tách riêng khỏi nhóm đọc, vì băm Argon2id với chi phí bộ nhớ 64 MB chiếm tỷ lệ thời gian xử lý khác hẳn so với truy vấn chỉ mục.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các nhóm chỉ số hiệu năng mục tiêu và cơ sở dự tính.}
+    \label{tab:chi-so-hieu-nang}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Nhóm chỉ số} & \textbf{Đối tượng áp dụng} & \textbf{Ngưỡng dự tính} & \textbf{Cơ sở dự tính} \\
+        \midrule
+        Độ trễ phân vị 95 & Đường đọc không sinh văn bản & Dưới 500 ms & Thời gian nhúng và truy vấn ANN cộng với nạp nội dung đoạn theo lô \\
+        Độ trễ phân vị 99 & Đường đọc không sinh văn bản & Dưới 1.000 ms & Nhịp phục vụ của đường hầm cơ sở dữ liệu từ xa \\
+        Tỉ lệ lỗi & Toàn bộ nhóm yêu cầu & Dưới 1 phần trăm & Kết hợp giới hạn tấn công và cơ chế bỏ qua đoạn lỗi \\
+        Thời gian chờ sinh văn bản & Nhóm hỏi đáp bằng trí tuệ & Báo cáo theo từng pha trong luồng & Sinh theo dòng sự kiện nên độ trễ cảm nhận không phụ thuộc tổng thời gian sinh \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Khả năng đáp ứng được thiết kế theo hướng giảm tải theo tầng. Chỉ mục vector trả lời truy vấn gần như tức thời nên không tham gia vào tài nguyên hạn chế. Phần văn bản nặng được nạp theo lô để không kéo chi phí giải mã vào đường nóng. Mô hình ngôn ngữ chạy với một luồng sinh đồng thời và hàng đợi có độ sâu tối đa tám, nên khi vượt ngưỡng hệ thống giảm tần công theo hàng đợi thay vì từ chối.
 
 \subsection{Bảo mật và quyền riêng tư}
 \label{subsec:bao-mat}
 
-% Nội dung 2.4: Bảo mật và quyền riêng tư
+Yêu cầu bảo mật được chia bốn lớp. Lớp phân quyền chỉ có hai vai trò là quản trị và người dùng; mọi đường dẫn quản trị đều đòi hỏi đồng thời lớp bảo vệ JWT, lớp bảo vệ vai trò và kiểm tra lại ở tầng dịch vụ. Lớp bảo vệ dữ liệu bảo đảm ứng dụng chỉ đọc kho văn bản qua tài khoản không phải quản trị gốc. Lớp giới hạn tần công áp trên các đường nhạy cảm. Quyền riêng tư được bảo đảm bằng cơ chế lọc theo chủ sở hữu, và khi tài khoản không sở hữu đối tượng thì hệ thống trả về mã không tìm thấy thay vì mã cấm truy cập.
+
+Giới hạn tần công được đặt khác nhau theo mức độ nhạy cảm của từng nhóm đường dẫn, tính theo số yêu cầu trong một phút.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Giới hạn tần công theo từng nhóm đường dẫn.}
+    \label{tab:gioi-han-tan-cong}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Nhóm đường dẫn} & \textbf{Giới hạn mỗi phút} & \textbf{Lý do đặt giới hạn} \\
+        \midrule
+        Mặc định & 120 & Hạn mức nền cho mọi đường dẫn \\
+        Đăng ký & 5 & Chặn tạo hàng loạt tài khoản tự động \\
+        Đăng nhập & 10 & Chặn dò tìm mật khẩu \\
+        Làm mới token & 30 & Cho phép xoay vòng token thường xuyên \\
+        Hỏi đáp bằng trí tuệ & 20 & Bảo vệ tài nguyên suy luận, khách chỉ được 10 \\
+        Đổi mật khẩu & 5 & Chặn thao tác nhạy cảm lặp lại \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Tính ổn định và độ tin cậy}
 \label{subsec:do-tin-cay}
 
-% Nội dung 2.4: Tính ổn định và độ tin cậy
+Yêu cầu ổn định tập trung vào việc một sự cố ở thành phần phụ không được làm sập toàn hệ thống. Khi kho văn bản không truy cập được, ứng dụng vẫn khởi động và phục vụ các đường ống còn lại. Khi mô hình ngôn ngữ bận, yêu cầu nằm trong hàng đợi có giới hạn thay vì bị từ chối ngay.
+
+Cơ chế bù lỗi theo nguyên tắc lỗi cục bộ: token làm mới bị dùng lại làm thu hồi toàn bộ họ; tài khoản bị khoá tạm thời sau nhiều lần đăng nhập sai; yêu cầu trùng lặp được bảo vệ bằng khoá idempotency.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các tình huống sự cố và cơ chế xử lý bù lỗi.}
+    \label{tab:co-che-bu-loi}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Mã} & \textbf{Tình huống} & \textbf{Cơ chế xử lý} \\
+        \midrule
+        E-1 & Kho văn bản không truy cập được & Bỏ qua đoạn thiếu, trả mã dịch vụ không sẵn sàng \\
+        E-2 & Hàng đợi mô hình đầy & Chờ trong hàng đợi, thông báo người dùng \\
+        E-3 & Token làm mới bị dùng lại & Thu hồi toàn bộ họ token, buộc đăng nhập lại \\
+        E-4 & Đăng nhập sai lặp lại & Khoá tạm thời tài khoản với thời gian chờ tăng dần \\
+        E-5 & Truy cập đối tượng không thuộc sở hữu & Trả mã không tìm thấy, không tiết lộ dữ liệu \\
+        E-6 & Yêu cầu trùng lặp & Trả lại kết quả đã lưu, không sinh lại câu trả lời \\
+        E-7 & Đường hầm cơ sở dữ liệu gián đoạn & Thử lại có kiểm soát, ghi nhật ký và báo lỗi tạm thời \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Khả năng bảo trì và mở rộng}
 \label{subsec:kha-nang-bao-tri}
 
-% Nội dung 2.4: Khả năng bảo trì và mở rộng
+Yêu cầu bảo trì đòi hỏi ranh giới module rõ ràng để thay thế được từng thành phần. Kiến trúc phân lớp theo mô hình cổng và bộ chuyển đổi, trong đó bảy engine cốt lõi tách khỏi tầng HTTP: bộ đọc kho văn bản, bộ nhúng, bộ định tuyến cây, bộ truy vấn chỉ mục vector, bộ khai phá, bộ chấm điểm và bộ sinh văn bản.
+
+Khả năng mở rộng được đo bằng ba tiêu chí: quy mô dữ liệu tăng mà không phải đổi mô hình truy hồi; chi phí vận hành không phụ thuộc quy mô hệ thống; và khả năng quan sát qua chỉ số Prometheus ghi lại độ trễ, lỗi và hàng đợi.
 
 \section{Phân tích luồng nghiệp vụ và luồng xử lý}
 \label{sec:luong-nghiep-vu}
 
-% Nội dung phần 2.5
+Luồng nghiệp vụ chính bắt đầu từ thao tác đặt câu hỏi và kết thúc ở việc hiển thị câu trả lời có dẫn nguồn.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.92\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.65cm and 1.4cm]
+        \node[ragbox, text width=4.4cm] (S1) {Người dùng gửi câu hỏi};
+        \node[ragbox, text width=4.4cm, below=of S1] (S2) {Máy chủ nhúng câu hỏi};
+        \node[ragbox, text width=4.4cm, below=of S2] (S3) {Định tuyến cây trên đồ thị tri thức};
+        \node[ragbox, text width=4.4cm, below=of S3] (S4) {Truy vấn chỉ mục vector};
+        \node[ragbox, text width=4.4cm, below=of S4] (S5) {Chấm điểm và hợp nhất thứ hạng};
+        \node[ragdecision, below=0.8cm of S5] (S6) {Cổng căn cứ đạt?};
+
+        \node[ragbox, text width=3.4cm, right=1.8cm of S6] (S7) {Viết lại câu hỏi một lần};
+        \node[ragdecision, below=0.85cm of S7] (S8) {Vẫn chưa đạt?};
+        \node[ragbox, text width=3.2cm, right=1.4cm of S8] (S9) {Từ chối trả lời};
+
+        \node[ragbox, text width=4.2cm, below=2.3cm of S6] (S10) {Mô hình sinh câu trả lời};
+        \node[ragdecision, below=0.8cm of S10] (S11) {Cổng bám sát đạt?};
+        \node[ragbox, text width=3.6cm, right=1.8cm of S11] (S12) {Thay thế bằng câu trả lời không có nội dung};
+        \node[ragbox, text width=4.2cm, below=0.85cm of S11] (S13) {Phát sự kiện dòng về giao diện};
+        \node[ragbox, text width=5.2cm, below=0.85cm of S13] (S14) {Đồng bộ phiên và tin nhắn lên máy chủ};
+
+        \draw[ragarrow] (S1) -- (S2);
+        \draw[ragarrow] (S2) -- (S3);
+        \draw[ragarrow] (S3) -- (S4);
+        \draw[ragarrow] (S4) -- (S5);
+        \draw[ragarrow] (S5) -- (S6);
+
+        \draw[ragarrow] (S6.east) -- node[above, font=\scriptsize] {Không} (S7.west);
+        \draw[ragarrow] (S7) -- (S8);
+        \draw[ragarrow] (S8.west) -| node[above, pos=0.25, font=\scriptsize] {Không} ([xshift=-0.7cm]S5.west) -- (S5.west);
+        \draw[ragarrow] (S8.east) -- node[above, font=\scriptsize] {Có} (S9.west);
+
+        \draw[ragarrow] (S6.south) -- node[left, font=\scriptsize] {Có} (S10.north);
+        \draw[ragarrow] (S10) -- (S11);
+        \draw[ragarrow] (S11.east) -- node[above, font=\scriptsize] {Không} (S12.west);
+        \draw[ragarrow] (S11.south) -- node[left, font=\scriptsize] {Có} (S13.north);
+
+        \draw[ragarrow] (S13) -- (S14);
+        \draw[ragarrow] (S12.south) |- (S14.east);
+        \draw[ragarrow] (S9.south) |- ([yshift=-0.3cm]S14.east) -- (S14.east);
+    \end{tikzpicture}%
+    }
+    \caption{Luồng xử lý một câu hỏi.}
+    \label{fig:luong-xu-ly-cau-hoi}
+\end{figure}
+
+Luồng quản trị đơn giản và có kiểm soát. Mỗi thao tác nhạy cảm đều ghi một bản ghi nhật ký bất biến gồm tác nhân, đối tượng, hành động và thời điểm. Các thao tác có thể khoá chính tác nhân hoặc làm mất vai trò quản trị cuối cùng đều bị từ chối. Với thao tác thay đổi trạng thái tài khoản, hệ thống vô hiệu hoá token đang sống ngay lập tức.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.92\textwidth}{!}{%
+    \begin{tikzpicture}[font=\small]
+        \def\dx{3.8}
+        \def\ybot{-6.2}
+        \foreach \i/\name/\lbl in {
+            0/A/{Quản trị viên},
+            1/API/{Máy chủ},
+            2/AU/{Nhật ký kiểm toán},
+            3/U/{Tài khoản đích}
+        }{
+            \node[ragbox, minimum width=2.8cm, minimum height=0.8cm, font=\small\bfseries] (\name) at (\i*\dx, 0) {\lbl};
+            \draw[gray!60, dashed, thick] (\name.south) -- (\i*\dx, \ybot);
+        }
+
+        \draw[ragarrow] (0*\dx, -1.0) -- node[above, font=\scriptsize] {Khoá tài khoản} (1*\dx, -1.0);
+        \draw[ragarrow] (1*\dx, -1.6) -- ++(0.9,0) -- ++(0,-0.55) node[right, midway, font=\scriptsize] {Kiểm tra không phải chính mình} -- (1*\dx, -2.15);
+        \draw[ragarrow] (1*\dx, -2.55) -- ++(0.9,0) -- ++(0,-0.55) node[right, midway, font=\scriptsize] {Tăng \texttt{token\_version}} -- (1*\dx, -3.1);
+        \draw[ragarrow] (1*\dx, -3.75) -- node[above, font=\scriptsize] {Vô hiệu hoá token đang sống} (3*\dx, -3.75);
+        \draw[ragarrow] (1*\dx, -4.55) -- node[above, font=\scriptsize] {Ghi bản ghi bất biến} (2*\dx, -4.55);
+        \draw[ragdashed] (1*\dx, -5.35) -- node[above, font=\scriptsize] {Kết quả thao tác} (0*\dx, -5.35);
+    \end{tikzpicture}%
+    }
+    \caption{Luồng thao tác quản trị với tài khoản.}
+    \label{fig:luong-quan-tri}
+\end{figure}
 
 \section{Phân tích luồng dữ liệu}
 \label{sec:luong-du-lieu}
 
-% Nội dung phần 2.6
+Dữ liệu được phân bố trên ba nguồn lưu trữ với vai trò khác nhau. Chỉ mục vector lưu vector và siêu dữ liệu phục vụ truy hồi gần như tức thời. Kho văn bản lưu nội dung đoạn, siêu dữ liệu bài báo và kết quả khai phá, được đọc theo lô để không kéo chi phí giải mã vào đường nóng. Cơ sở dữ liệu ứng dụng lưu tài khoản, phiên hội thoại và nhật ký kiểm toán. Việc tách như vậy cho phép truy hồi chỉ chạm vào tập ứng viên nhỏ, nên độ trễ gần như độc lập với quy mô kho.
+
+Cấu trúc tập hợp của cơ sở dữ liệu ứng dụng được cho ở bảng dưới. Cột khóa cho biết kiểu định danh, cột chỉ mục cho biết chỉ mục phục vụ truy vấn phân trang và cột thời hạn cho biết cơ chế tự dọn dữ liệu.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Cấu trúc các tập hợp dữ liệu trong cơ sở dữ liệu ứng dụng.}
+    \label{tab:cau-truc-tap-hop}
+    \small
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Tập hợp} & \textbf{Khóa} & \textbf{Chỉ mục và thời hạn} \\
+        \midrule
+        \texttt{users} & ObjectId & Email duy nhất, username duy nhất khi có giá trị \\
+        \texttt{refresh\_tokens} & ObjectId & \texttt{token\_hash} duy nhất, tự xoá khi hết hạn \\
+        \texttt{chat\_sessions} & UUIDv7 & Theo tài khoản, thời điểm tin nhắn cuối và định danh, giảm dần \\
+        \texttt{chat\_messages} & UUIDv7 & Theo phiên, thời điểm tạo và định danh, giảm dần \\
+        \texttt{chat\_requests} & Khóa ghép tài khoản và mã yêu cầu & Tự xoá sau 24 giờ, khoá thuê 5 phút \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=1.3cm and 2.1cm]
+        \node[ragbox, minimum width=2.4cm, fill=primaryBlue!12] (USERS) {\textbf{USERS}};
+
+        \node[ragbox, minimum width=3.6cm, above right=0.5cm and 2.5cm of USERS] (RT) {\textbf{REFRESH\_TOKENS}};
+        \node[ragbox, minimum width=3.6cm, right=2.5cm of USERS] (CS) {\textbf{CHAT\_SESSIONS}};
+        \node[ragbox, minimum width=3.6cm, below=0.7cm of CS] (CR) {\textbf{CHAT\_REQUESTS}};
+        \node[ragbox, minimum width=3.6cm, below=0.7cm of CR] (AL) {\textbf{ADMIN\_AUDIT\_LOGS}};
+
+        \node[ragbox, minimum width=3.6cm, right=2.2cm of CS] (CM) {\textbf{CHAT\_MESSAGES}};
+
+        \node[ragbox, minimum width=2.4cm, fill=primaryBlue!12, below=4.8cm of USERS] (PAPERS) {\textbf{PAPERS}};
+        \node[ragbox, minimum width=3.6cm, right=2.5cm of PAPERS] (PC) {\textbf{PAPER\_CHUNKS}};
+        \node[ragbox, minimum width=3.6cm, below=0.7cm of PC] (AU) {\textbf{AUTHORS}};
+
+        \draw[ragarrow] (USERS.east) -- node[above, sloped, font=\scriptsize] {1..N sở hữu} (RT.west);
+        \draw[ragarrow] (USERS.east) -- node[above, font=\scriptsize] {1..N sở hữu} (CS.west);
+        \draw[ragarrow] (USERS.east) -- node[above, sloped, font=\scriptsize] {1..N gửi} (CR.west);
+        \draw[ragarrow] (USERS.south east) -- node[below, sloped, font=\scriptsize] {1..N thực hiện} (AL.west);
+        \draw[ragarrow] (CS.east) -- node[above, font=\scriptsize] {1..N chứa} (CM.west);
+
+        \draw[ragarrow] (PAPERS.east) -- node[above, font=\scriptsize] {1..N chia thành} (PC.west);
+        \draw[ragarrow] (PAPERS.south east) -- node[below, sloped, font=\scriptsize] {N..M đồng tác giả} (AU.west);
+    \end{tikzpicture}%
+    }
+    \caption{Quan hệ dữ liệu chính giữa các thực thể.}
+    \label{fig:quan-he-du-lieu}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.9cm and 2.2cm]
+        % Ghi dữ liệu
+        \node[ragbox, text width=2.6cm] (PIPE) {Pipeline ingest};
+        \node[ragdb, right=2.4cm of PIPE, yshift=0.7cm] (CORP) {Kho văn bản};
+        \node[ragdb, below=0.9cm of CORP] (VS) {Chỉ mục vector};
+
+        % Đọc dữ liệu
+        \node[ragbox, text width=2.4cm, right=2.5cm of VS, yshift=-0.5cm] (BE) {Máy chủ};
+        \node[ragdb, right=2.4cm of BE] (APP) {Cơ sở dữ liệu\\ứng dụng};
+        \node[ragbox, text width=2.4cm, below=1.2cm of BE] (FE) {Giao diện};
+        \node[ragdb, right=2.4cm of FE] (IDB) {Kho cục bộ};
+
+        \begin{scope}[on background layer]
+            \node[raggroup, fit=(PIPE)(CORP)(VS), label={[font=\small\bfseries, text=primaryBlue]above:Ghi dữ liệu}] {};
+            \node[raggroup, fit=(BE)(APP)(FE)(IDB), label={[font=\small\bfseries, text=primaryBlue]above:Đọc dữ liệu}] {};
+        \end{scope}
+
+        \draw[ragarrow] (PIPE.east) -- node[above, sloped, font=\scriptsize] {ghi hàng loạt} (CORP.west);
+        \draw[ragarrow] (PIPE.east) -- node[below, sloped, font=\scriptsize] {ghi vector} (VS.west);
+
+        \draw[ragarrow] (BE.west) -- node[above, sloped, font=\scriptsize] {ANN + siêu dữ liệu} (VS.east);
+        \draw[ragarrow] (BE.north west) -- node[above, sloped, font=\scriptsize] {nạp đoạn theo lô} (CORP.east);
+        \draw[ragarrow] (BE.east) -- node[above, font=\scriptsize] {ghi và đọc} (APP.west);
+        \draw[ragarrow] (FE.east) -- node[above, font=\scriptsize] {ghi trước} (IDB.west);
+        \draw[ragarrow] (FE.north) -- node[left, font=\scriptsize] {đồng bộ} (BE.south);
+    \end{tikzpicture}%
+    }
+    \caption{Hướng dòng dữ liệu giữa các thành phần lưu trữ.}
+    \label{fig:huong-dong-du-lieu}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Phân bố dữ liệu và cơ chế bảo vệ trên các nguồn lưu trữ.}
+    \label{tab:nguon-luu-tru}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Nguồn lưu trữ} & \textbf{Nội dung} & \textbf{Quy mô} & \textbf{Chế độ truy cập} & \textbf{Cơ chế bảo vệ} \\
+        \midrule
+        Chỉ mục vector & Vector 768 chiều và siêu dữ liệu đoạn & 913.205 điểm & Chỉ đọc & Tập hợp khoa học vàng \\
+        Kho văn bản & Đoạn văn bản, bài báo, tác giả, luật kết hợp & 70.590 bài báo, 120 tác giả, 40 luật & Chỉ đọc từ ứng dụng & Tài khoản riêng không phải quản trị gốc \\
+        Cơ sở dữ liệu ứng dụng & Tài khoản, phiên, tin nhắn, nhật ký & Tập dữ liệu làm việc nhỏ & Đọc và ghi & Xác thực, phân quyền, xoá mềm \\
+        Kho cục bộ trình duyệt & Bản sao phiên và tin nhắn & Theo sử dụng & Đọc và ghi & IndexedDB theo tài khoản người dùng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \section{Xác định tình huống lỗi và cơ chế xử lý}
 \label{sec:tinh-huong-loi}
 
-% Nội dung phần 2.7
+Cơ chế xử lý được chia thành ba nhóm: phát hiện, hạn chế mức ảnh hưởng và thông báo.
+
+Phát hiện tập trung ở ranh giới mô hình và ở lớp kiểm tra đầu vào. Kết nối kho văn bản được mở ở chế độ nền nên sự cố kết nối không chặn quá trình khởi động. Mỗi truy vấn kho văn bản có thời hạn năm giây, tránh treo luồng khi kho phản hồi chậm.
+
+Hạn chế mức ảnh hưởng được thực hiện bằng cơ chế bỏ qua có kiểm soát. Đoạn văn bản không nạp được bị loại khỏi ngữ cảnh thay vì làm hỏng cả câu trả lời, và nếu không còn đoạn nào dùng được thì hệ thống trả lời rằng không tìm thấy căn cứ, thay vì sinh nội dung không có nguồn. Khi bộ chấm điểm không trả lời trong thời hạn, hệ thống giữ nguyên thứ tự xếp hạng theo điểm tương đồng và PageRank.
+
+Thông báo được thiết kế theo nguyên tắc minh bạch và không làm lộ chi tiết hạ tầng. Thứ tự ưu tiên trong cây quyết định phản ánh thứ tự kiểm tra an toàn: xác thực trước, quyền sở hữu sau, trạng thái kho văn bản và hàng đợi mô hình sau cùng.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.88\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=0.65cm and 2.2cm]
+        \node[ragbox, text width=3.4cm] (E) {Yêu cầu đến};
+        \node[ragdecision, below=of E] (G1) {Xác thực hợp lệ?};
+        \node[ragbox, text width=3.8cm, right=of G1] (R1) {401 hoặc 429 kèm mã nghiệp vụ};
+
+        \node[ragdecision, below=0.75cm of G1] (G2) {Tài nguyên thuộc sở hữu?};
+        \node[ragbox, text width=3.8cm, right=of G2] (R2) {404 không tiết lộ dữ liệu};
+
+        \node[ragdecision, below=0.75cm of G2] (G3) {Kho văn bản sẵn sàng?};
+        \node[ragbox, text width=3.8cm, right=of G3] (R3) {503 với thông báo tạm thời};
+
+        \node[ragdecision, below=0.75cm of G3] (G4) {Hàng đợi mô hình còn chỗ?};
+        \node[ragbox, text width=3.8cm, right=of G4] (R4) {Chờ hoặc thông báo tải cao};
+
+        \node[ragbox, text width=3.4cm, fill=green!8, draw=green!50!black, below=0.75cm of G4] (OK) {Xử lý bình thường};
+
+        \draw[ragarrow] (E) -- (G1);
+        \draw[ragarrow] (G1.east) -- node[above, font=\scriptsize] {Không} (R1.west);
+        \draw[ragarrow] (G1.south) -- node[left, font=\scriptsize] {Có} (G2.north);
+
+        \draw[ragarrow] (G2.east) -- node[above, font=\scriptsize] {Không} (R2.west);
+        \draw[ragarrow] (G2.south) -- node[left, font=\scriptsize] {Có} (G3.north);
+
+        \draw[ragarrow] (G3.east) -- node[above, font=\scriptsize] {Không} (R3.west);
+        \draw[ragarrow] (G3.south) -- node[left, font=\scriptsize] {Có} (G4.north);
+
+        \draw[ragarrow] (G4.east) -- node[above, font=\scriptsize] {Đầy} (R4.west);
+        \draw[ragarrow] (G4.south) -- node[left, font=\scriptsize] {Còn chỗ} (OK.north);
+    \end{tikzpicture}%
+    }
+    \caption{Cây quyết định xử lý lỗi theo thứ tự ưu tiên.}
+    \label{fig:cay-quyet-dinh-loi}
+\end{figure}
 
 \section{Xác định quy mô dữ liệu và khả năng mở rộng hệ thống}
 \label{sec:quy-mo-du-lieu}
 
-% Nội dung phần 2.8
+Quy mô dữ liệu được xác định ở ba cấp độ, mỗi cấp độ đặt ra một ràng buộc khác nhau cho thiết kế. Ở cấp độ lưu trữ văn bản, kho chứa 70.590 bài báo cùng 913.205 đoạn văn bản, 120 tác giả, 40 luật kết hợp và 136.823 đối tượng nguồn. Ở cấp độ ứng dụng, cơ sở dữ liệu chỉ chứa tài khoản và phiên hội thoại.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Quy mô dữ liệu theo từng cấp độ và tác động thiết kế.}
+    \label{tab:quy-mo-du-lieu}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Cấp độ} & \textbf{Đơn vị dữ liệu chính} & \textbf{Quy mô} & \textbf{Tác động thiết kế} \\
+        \midrule
+        Kho khoa học & Bài báo và đoạn văn bản & 70.590 bài, 913.205 đoạn & Truy vấn theo chỉ mục, đọc nội dung theo lô, tuyệt đối chỉ đọc \\
+        Chỉ mục vector & Điểm vector & 913.205 điểm & Tìm kiếm gần như tức thời bằng khoảng cách cosin \\
+        Đồ thị tác giả & Tác giả có PageRank & 120 tác giả & Tín hiệu xếp hạng lại, nạp một lần lúc khởi động \\
+        Luật kết hợp & Quy tắc kết hợp & 40 quy tắc & Mở rộng câu hỏi, nạp một lần lúc khởi động \\
+        Cơ sở dữ liệu ứng dụng & Tài khoản, phiên, tin nhắn & Tập dữ liệu làm việc nhỏ & Bộ nhớ đệm ghi xuyên qua và bộ đếm thế hệ \\
+        Kho cục bộ & Phiên và tin nhắn đã đồng bộ & Theo sử dụng & Ưu tiên ngoại tuyến, đồng bộ khi có mạng \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Khả năng mở rộng được đánh giá theo ba hướng. Mở rộng lưu lượng là có kiểm soát, nhờ bộ nhớ đệm ghi xuyên qua, giới hạn tần công và hàng đợi có độ sâu giới hạn. Mở rộng theo chiều ngang phụ thuộc vào việc tách engine cốt lõi khỏi tầng HTTP, cho phép thay thế chỉ mục vector hay mô hình nhúng mà không sửa mã nghiệp vụ. Mở rộng về phía người dùng được đảm bảo bằng việc lưu trữ hai tầng, nên tải băng thông tăng không làm mất dữ liệu đã tạo.
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{assets/screenshots/after-dark-overview.png}{%
+        \includegraphics[width=0.92\textwidth]{assets/screenshots/after-dark-overview.png}%
+    }{%
+        \fbox{\parbox{0.85\textwidth}{\centering\vspace{1.2cm}\textit{Hình ảnh chưa tồn tại tại đường dẫn \texttt{../assets/screenshots/after-dark-overview.png}}\vspace{1.2cm}}}%
+    }
+    \caption{Giao diện tổng quan của hệ thống.}
+    \label{fig:giao-dien-tong-quan}
+\end{figure}
