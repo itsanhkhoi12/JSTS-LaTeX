@@ -1,101 +1,817 @@
-% ==============================================================================
-% CHƯƠNG 8: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
-% ==============================================================================
-
 \chapter{Kết luận và Hướng phát triển}
 \label{chap:ket-luan}
+
+% Bộ style TikZ đồng bộ toàn báo cáo
+\tikzset{
+    ragbox/.style={
+        rectangle,
+        rounded corners=3pt,
+        minimum width=2.8cm,
+        minimum height=0.85cm,
+        text centered,
+        align=center,
+        draw=primaryBlue,
+        line width=0.8pt,
+        fill=primaryBlue!8,
+        font=\small\sffamily
+    },
+    ragdb/.style={
+        cylinder,
+        shape border rotate=90,
+        aspect=0.22,
+        minimum width=2.4cm,
+        minimum height=1.0cm,
+        text centered,
+        align=center,
+        draw=primaryBlue!85!black,
+        line width=0.8pt,
+        fill=primaryBlue!18,
+        font=\small\sffamily
+    },
+    ragdecision/.style={
+        diamond,
+        aspect=2.1,
+        inner sep=2pt,
+        text centered,
+        align=center,
+        draw=primaryBlue!90!black,
+        line width=0.8pt,
+        fill=primaryBlue!14,
+        font=\small\sffamily
+    },
+    raggroup/.style={
+        rectangle,
+        rounded corners=5pt,
+        draw=primaryBlue!60,
+        dashed,
+        line width=0.9pt,
+        fill=primaryBlue!3,
+        inner sep=8pt
+    },
+    ragarrow/.style={
+        -{Stealth[length=2.4mm, width=1.8mm]},
+        line width=0.85pt,
+        draw=primaryBlue!85!black
+    },
+    ragdashed/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]},
+        line width=0.75pt,
+        dashed,
+        draw=primaryBlue!70!black
+    }
+}
 
 \section{Kết quả đạt được}
 \label{sec:ket-qua-dat-duoc}
 
-\subsection{Kết quả chứng nhận hiệu năng và khả năng chịu tải}
+\subsection{Chứng nhận hiệu năng và khả năng chịu tải}
 \label{subsec:ket-qua-hieu-nang}
 
-Để kiểm chứng khả năng đáp ứng các ngưỡng hiệu năng đã đặc tả tại Mục~\ref{subsec:hieu-nang} (Chương~\ref{chap:phan-tich-yeu-cau}), hệ thống được đánh giá bằng bộ kiểm thử tải ba tầng bằng k6 trong thư mục \texttt{benchmark/\allowbreak{}} theo Quy tắc~L1: một mức tải chỉ được công nhận khi hệ thống duy trì ổn định liên tục trong 180 giây với phân vị độ trễ \texttt{p95 < 500 ms}, \texttt{p99 < 1.000 ms} và tỉ lệ lỗi dưới 1\%. Bảng~\ref{tab:kich-ban-kiem-thu-tai} tổng hợp ba tầng kịch bản kiểm thử tải của hệ thống.
+Để kiểm chứng khả năng đáp ứng các ngưỡng hiệu năng đã đặc tả tại Mục~\ref{subsec:hieu-nang} (Chương~\ref{chap:phan-tich-yeu-cau}), hệ thống được đánh giá bằng bộ kiểm thử tải ba tầng bằng k6. Một mức tải chỉ được công nhận theo Quy tắc L1 khi hệ thống duy trì ổn định liên tục trong 180~giây với độ trễ phân vị 95 (\texttt{p95}) dưới 500~ms, độ trễ phân vị 99 (\texttt{p99}) dưới 1.000~ms và tỉ lệ lỗi dưới 1\%. Bảng~\ref{tab:kich-ban-kiem-thu-tai} trình bày ba tầng kịch bản kiểm thử tải đã sử dụng.
 
 \begin{table}[htbp]
-    \centering
-    \caption{Ba tầng kịch bản kiểm thử tải bằng k6.}
-    \label{tab:kich-ban-kiem-thu-tai}
-    \small
-    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.25\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}X@{}}
-        \toprule
-        \textbf{Tầng kiểm thử} & \textbf{Kịch bản} & \textbf{Mục tiêu đánh giá} \\
-        \midrule
-        A -- Xác định ngưỡng quá tải & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}open\_\allowbreak{}breakpoint.\allowbreak{}ts} & Áp dụng mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate}), quét từ 50 đến 500 RPS trên 6 endpoint đọc/ghi để tìm mức tải bắt đầu vượt ngưỡng cho phép. \\
-        B -- Kiểm chứng duy trì tải & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}certified\_\allowbreak{}holdout.\allowbreak{}ts} và \texttt{collect\_\allowbreak{}telemetry.\allowbreak{}js} & Duy trì mức tải mục tiêu liên tục trong 3 phút, thu thập chỉ số CPU và RAM mỗi 2 giây. \\
-        C -- Đo chi phí mật mã & \texttt{k6\_\allowbreak{}prod\_\allowbreak{}auth\_\allowbreak{}crypto.\allowbreak{}ts} & Tạo tải đồng thời lên \texttt{POST /auth/\allowbreak{}login} (Argon2id 64 MB) và \texttt{POST /auth/\allowbreak{}refresh} để dò nghẽn event loop. \\
-        \bottomrule
-    \end{tabularx}
+\centering
+\caption{Ba tầng kịch bản kiểm thử tải bằng k6}
+\label{tab:kich-ban-kiem-thu-tai}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{4.3cm}
+  >{\raggedright\arraybackslash}p{3.2cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Tầng} & \textbf{Mục tiêu đánh giá} & \textbf{Cách thực hiện} \\
+\midrule
+A (\texttt{k6\_prod\_open\_\allowbreak{}breakpoint.ts}) & Xác định ngưỡng quá tải & Áp dụng mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-rate}), quét dần tần suất đến từ 50 đến 500~RPS trên sáu \texttt{endpoint} đọc và ghi để tìm mức tải bắt đầu vượt ngưỡng cho phép \\
+\midrule
+B (\texttt{k6\_prod\_certified\_\allowbreak{}holdout.ts}) & Kiểm chứng duy trì tải & Duy trì mức tải mục tiêu liên tục trong ba phút, kết hợp \texttt{collect\_\allowbreak{}telemetry.js} thu thập chỉ số CPU và RAM mỗi hai giây \\
+\midrule
+C (\texttt{k6\_prod\_auth\_\allowbreak{}crypto.ts}) & Đo chi phí mật mã & Dồn tải băm mật khẩu Argon2id (64~MB) và xoay vòng token vào cùng thời điểm với các đường đọc để dò nghẽn \texttt{event loop} \\
+\bottomrule
+\end{tabularx}
 \end{table}
 
-Các kịch bản chính sử dụng mô hình tải mở (\texttt{ramping-\allowbreak{}arrival-\allowbreak{}rate}) thay cho mô hình tải đóng nhằm loại bỏ sai lệch do hiện tượng \texttt{coordinated omission}: trong mô hình tải đóng, khi máy chủ phản hồi chậm, các người dùng ảo tự động giảm tốc độ gửi yêu cầu kế tiếp, làm đẹp giả tạo số liệu độ trễ thực tế. Bảng~\ref{tab:ket-qua-chung-nhan-tai} đối chiếu kết quả đo duy trì tải liên tục 3 phút giữa trạng thái trước và sau khi tối ưu kiến trúc truy xuất.
+Mô hình tải mở (\texttt{ramping-arrival-rate}) được chọn thay cho mô hình tải đóng nhằm loại bỏ sai lệch do hiện tượng \texttt{coordinated omission}: trong mô hình tải đóng, khi máy chủ phản hồi chậm, các người dùng ảo tự động giảm tốc độ gửi yêu cầu kế tiếp, làm đẹp giả tạo số liệu độ trễ thực tế.
+
+Hình~\ref{fig:duong-cong-diem-gay} thể hiện đường cong phân vị độ trễ theo tần suất đến của tầng~A, cho thấy rõ vị trí đường cong đi từ vùng dưới ngưỡng sang vượt ngưỡng.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/diagrams/prod_open_breakpoint_curve.png}
+\caption{Đường cong phân vị độ trễ theo tần suất đến, cho thấy trần chịu tải của đường đọc nằm quanh mức 250 yêu cầu mỗi giây (RPS)}
+\label{fig:duong-cong-diem-gay}
+\end{figure}
+
+Bảng~\ref{tab:ket-qua-chung-nhan-tai} đối chiếu kết quả đo duy trì tải liên tục ba phút giữa trạng thái trước và sau khi tối ưu kiến trúc truy xuất.
 
 \begin{table}[htbp]
-    \centering
-    \caption{Kết quả chứng nhận hiệu năng hệ thống trước và sau tối ưu.}
-    \label{tab:ket-qua-chung-nhan-tai}
-    \small
-    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X>{\raggedleft\arraybackslash}p{0.19\textwidth}>{\raggedleft\arraybackslash}p{0.19\textwidth}>{\raggedleft\arraybackslash}p{0.23\textwidth}@{}}
-        \toprule
-        \textbf{Chỉ số} & \textbf{Trước tối ưu} & \textbf{Sau tối ưu} & \textbf{Mức cải thiện} \\
-        \midrule
-        Số người dùng đồng thời & 100 CUs (65 RPS) & 400 CUs (250 RPS) & Tăng 4,0 lần \\
-        Tổng yêu cầu trong 3 phút & 12.869 & 48.874 & Tăng 3,8 lần \\
-        Độ trễ trung vị (\texttt{p50}) & 160,29 ms & 29,79 ms & Nhanh hơn 5,38 lần \\
-        Độ trễ phân vị 95 (\texttt{p95}) & 259,68 ms & 265,54 ms & Đạt ngưỡng < 500 ms \\
-        Độ trễ phân vị 99 (\texttt{p99}) & 353,35 ms & 475,11 ms & Đạt ngưỡng < 1.000 ms \\
-        Tỉ lệ lỗi HTTP & 0,00\% & 0,00\% & Đạt ngưỡng < 1\% \\
-        \bottomrule
-    \end{tabularx}
+\centering
+\caption{Kết quả chứng nhận hiệu năng hệ thống trước và sau tối ưu}
+\label{tab:ket-qua-chung-nhan-tai}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{4.3cm}
+  >{\raggedleft\arraybackslash}p{3.1cm}
+  >{\raggedleft\arraybackslash}p{3.1cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Chỉ số} & \textbf{Trước tối ưu} & \textbf{Sau tối ưu} & \textbf{Mức cải thiện} \\
+\midrule
+Số người dùng đồng thời & 100~CUs (65~RPS) & 400~CUs (250~RPS) & Tăng 4,0~lần \\
+Tổng yêu cầu trong ba phút & 12.812 & 48.874 & Tăng 3,8~lần \\
+Độ trễ trung vị (\texttt{p50}) & 300,92~ms & 29,79~ms & Nhanh hơn 10,1~lần \\
+Độ trễ phân vị 90 (\texttt{p90}) & 1.030,56~ms & 201,18~ms & Nhanh hơn 5,1~lần \\
+Độ trễ phân vị 95 (\texttt{p95}) & 1.118,11~ms & 265,54~ms & Nhanh hơn 4,2~lần, đạt ngưỡng $< 500$~ms \\
+Tỉ lệ lỗi HTTP & 0,00\% & 0,00\% & Đạt ngưỡng $< 1\%$ \\
+Khẳng định chức năng (\texttt{checks}) & 21.771 / 21.771 & 83.137 / 83.137 & Giữ 100\% \\
+\bottomrule
+\end{tabularx}
 \end{table}
 
-Điểm đáng chú ý từ Bảng~\ref{tab:ket-qua-chung-nhan-tai} là độ trễ \texttt{p95} gần như giữ nguyên (259,68 ms so với 265,54 ms) dù mức tải đồng thời tăng gấp bốn lần lên 250 RPS. Kết quả này bắt nguồn trực tiếp từ các tối ưu ở tầng kiến trúc và truy vấn gồm bộ nhớ đệm \texttt{LRUCache} gắn bộ đếm thế hệ theo tài khoản, cơ chế \texttt{Singleflight} gộp các truy vấn trùng lặp, thực thi song song các truy vấn độc lập và dùng \texttt{.lean()} để bỏ qua chi phí đối tượng của Mongoose, thay vì mở rộng tài nguyên phần cứng. Quá trình thực nghiệm đồng thời ghi nhận bốn kết luận kỹ thuật quan trọng:
+Hình~\ref{fig:so-sanh-giu-tai-3phut} minh hoạ trực quan hai đường giữ tải ba phút tương ứng với hai trạng thái ở Bảng~\ref{tab:ket-qua-chung-nhan-tai}.
 
-\begin{itemize}[label=--]
-    \item \textbf{Cân chỉnh \texttt{UV\_\allowbreak{}THREADPOOL\_\allowbreak{}SIZE = 4}}: Tham số này phải được gán ngay dòng đầu tiên của \texttt{src/\allowbreak{}main.\allowbreak{}ts} trước khi nạp \texttt{dotenv} (vì thư viện native chỉ đọc một lần khi nạp) để khớp với \texttt{parallelism: 4} của Argon2id; thử nghiệm tăng lên 12 đã gây tranh chấp băng thông DRAM và làm độ trễ tăng thêm 26,7\%.
-    \item \textbf{Ngăn \texttt{cache stampede} khi bộ nhớ đệm trống}: Khi hơn 100 người dùng ảo đồng thời gọi \texttt{GET /chat-\allowbreak{}sessions/\allowbreak{}:id} lúc cache chưa có dữ liệu, các lượt \texttt{cache miss} xảy ra cùng thời điểm sẽ phát sinh nhiều cặp truy vấn MongoDB trùng lặp qua \texttt{tunnel}; cơ chế \texttt{Singleflight} gộp các lời gọi này thành một truy vấn duy nhất.
-    \item \textbf{Khảo sát bão hoà hàng đợi suy luận}: Kịch bản \texttt{k6\_\allowbreak{}queue\_\allowbreak{}experiment.\allowbreak{}ts} kiểm chứng riêng hành vi xếp hàng và xác nhận hệ thống từ chối có kiểm soát bằng mã \texttt{429} khi hàng đợi đạt ngưỡng tối đa.
-    \item \textbf{Tính đại diện của dữ liệu kiểm thử tích hợp}: Cơ sở dữ liệu kiểm thử được nạp sẵn 1.500 phiên và 15.000 tin nhắn kèm trích dẫn, đoạn truy hồi và thời gian xử lý, tạo kích thước phản hồi trung bình khoảng 4,6 KB thay vì đo trên bảng rỗng.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/diagrams/auth_holdout_3min_comparison.png}
+\caption{So sánh kết quả giữ tải liên tục ba phút giữa trạng thái trước và sau khi tối ưu kiến trúc truy xuất}
+\label{fig:so-sanh-giu-tai-3phut}
+\end{figure}
+
+Điểm đáng chú ý từ Bảng~\ref{tab:ket-qua-chung-nhan-tai} là độ trễ trung vị (\texttt{p50}) giảm từ 300,92~ms xuống 29,79~ms (nhanh hơn 10,1~lần) trong khi mức tải đồng thời tăng gấp bốn lần. Kết quả này bắt nguồn trực tiếp từ các tối ưu ở tầng kiến trúc và truy vấn gồm bộ nhớ đệm \texttt{LRUCache} (cơ chế \texttt{write-through cache} gắn bộ đếm thế hệ \texttt{generation counter} theo tài khoản), cơ chế \texttt{Singleflight} gộp các truy vấn trùng lặp, thực thi song song các truy vấn độc lập và dùng \texttt{.lean()} để bỏ qua chi phí khởi tạo đối tượng (\textit{document hydration}) của Mongoose, thay vì mở rộng tài nguyên phần cứng.
+
+Hai cột của Bảng~\ref{tab:ket-qua-chung-nhan-tai} phản ánh hai điểm vận hành khác nhau chứ không phải hai trạng thái tại cùng một mức tải, vì trạng thái trước tối ưu vốn đã vượt ngưỡng \texttt{p95} ngay tại mức tải thấp (65~RPS). Trọng tâm so sánh nằm ở đường đọc chi tiết phiên trò chuyện (\texttt{GET /\allowbreak{}chat-\allowbreak{}sessions/\allowbreak{}:id}), vốn chiếm 30\% lưu lượng và là nút thắt lớn nhất trước khi tối ưu: độ trễ trung vị của \texttt{endpoint} này giảm từ 408,09~ms xuống 23,85~ms (nhanh hơn 17,1~lần), đồng thời độ trễ \texttt{p95} giảm từ 1.210,00~ms xuống 248,15~ms.
+
+Bảng~\ref{tab:phan-ra-do-tre-endpoint} phân rã độ trễ theo từng đường xử lý trong đợt giữ tải ba phút tại mức chứng nhận (250~RPS), làm rõ mức độ cải thiện giữa nhóm đường đọc và nhóm đường ghi.
+
+\begin{table}[htbp]
+\centering
+\caption{Phân rã độ trễ theo từng đường xử lý tại mức chứng nhận (250~RPS)}
+\label{tab:phan-ra-do-tre-endpoint}
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}X
+  >{\raggedleft\arraybackslash}p{1.6cm}
+  >{\raggedleft\arraybackslash}p{1.5cm}
+  >{\raggedleft\arraybackslash}p{1.5cm}
+  >{\raggedleft\arraybackslash}p{1.5cm}
+  >{\raggedleft\arraybackslash}p{1.5cm}
+  >{\raggedright\arraybackslash}p{1.8cm}
+}
+\toprule
+\textbf{Đường xử lý} & \textbf{Tỉ trọng} & \texttt{p50} & \texttt{p90} & \texttt{p95} & \texttt{p99} & \textbf{Kết luận} \\
+\midrule
+Liệt kê phiên trò chuyện, trang đầu & 30\% & 18,50~ms & 83,75~ms & 129,83~ms & 291,11~ms & Đạt \\
+Chi tiết phiên trò chuyện, 10 tin nhắn & 30\% & 23,85~ms & 149,85~ms & 248,15~ms & 516,47~ms & Đạt \\
+Đọc hồ sơ người dùng & 15\% & 18,32~ms & 86,56~ms & 131,49~ms & 291,93~ms & Đạt \\
+Liệt kê phiên có phân trang hoặc tìm kiếm & 10\% & 19,80~ms & 98,76~ms & 155,84~ms & 325,83~ms & Đạt \\
+Đổi tên phiên trò chuyện & 10\% & 193,40~ms & 337,90~ms & 437,91~ms & 750,23~ms & Đạt \\
+Cập nhật hồ sơ người dùng & 5\% & 191,29~ms & 325,71~ms & 395,97~ms & 643,97~ms & Đạt \\
+\midrule
+\textbf{Tổng hợp toàn bộ} & \textbf{100\%} & \textbf{29,79~ms} & \textbf{201,18~ms} & \textbf{265,54~ms} & \textbf{475,11~ms} & \textbf{Chứng nhận} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Hình~\ref{fig:phan-ra-do-tre-endpoint} thể hiện trực quan vị trí của từng đường xử lý trong phân bố độ trễ tại mức chứng nhận.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/diagrams/prod_endpoint_breakdown.png}
+\caption{Phân rã độ trễ theo từng đường xử lý tại mức chứng nhận}
+\label{fig:phan-ra-do-tre-endpoint}
+\end{figure}
+
+Bảng~\ref{tab:phan-ra-do-tre-endpoint} cho thấy một đặc trưng thiết kế rõ rệt: hai đường ghi có độ trễ trung vị cao gấp khoảng mười lần so với các đường đọc, nhưng vẫn nằm an toàn dưới ngưỡng cho phép. Nguyên nhân là thao tác ghi không thể trả kết quả trực tiếp từ bộ nhớ đệm mà bắt buộc chờ một lượt khứ hồi qua \texttt{tunnel} tới cơ sở dữ liệu MongoDB từ xa, trong khi các đường đọc được phục vụ ngay từ bộ nhớ đệm trong tiến trình. Chi tiết này là cơ sở kỹ thuật cho hướng tối ưu tiếp theo tại Mục~\ref{subsec:nang-muc-chiu-tai}.
+
+Hình~\ref{fig:dong-thoi-gian-telemetry} trình bày dòng thời gian chỉ số máy chủ thu thập mỗi hai giây trong suốt đợt giữ tải, cung cấp bằng chứng về tính ổn định tài nguyên dài hạn thay vì chỉ xét độ trễ tức thời.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/diagrams/prod_server_telemetry_timeline.png}
+\caption{Dòng thời gian chỉ số CPU và bộ nhớ RAM của máy chủ trong suốt đợt giữ tải liên tục ba phút}
+\label{fig:dong-thoi-gian-telemetry}
+\end{figure}
+
+Hình~\ref{fig:co-lap-tai-mat-ma} thể hiện kết quả của tầng~C, trong đó tải băm mật khẩu Argon2id được dồn vào cùng thời điểm với các đường đọc nhằm đo mức độ chiếm dụng nhóm luồng thực thi (\texttt{thread pool}) của môi trường Node.js.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/diagrams/prod_auth_crypto_isolation.png}
+\caption{Cô lập tải băm mật khẩu và xoay vòng token so với đường đọc kiểm tra sức khỏe}
+\label{fig:co-lap-tai-mat-ma}
+\end{figure}
+
+Quá trình thực nghiệm đồng thời ghi nhận bốn kết luận kỹ thuật quan trọng:
+
+\begin{itemize}
+\item[--] \textbf{Cân chỉnh kích thước nhóm luồng thực thi (\texttt{UV\_THREADPOOL\_SIZE = 4}) khớp với tham số Argon2id}: Tham số này phải được gán ngay ở dòng đầu tiên của tệp khởi động \texttt{src/main.ts} trước khi nạp \texttt{dotenv}, vì thư viện native chỉ đọc giá trị này một lần duy nhất lúc khởi tạo để khớp với \texttt{parallelism: 4} của Argon2id. Thử nghiệm tăng số luồng từ 4 lên 12 đã gây tranh chấp băng thông bộ nhớ DRAM và làm độ trễ tăng thêm 26,7\%.
+\item[--] \textbf{Ngăn hiện tượng \texttt{cache stampede} khi bộ nhớ đệm trống}: Khi hơn 100 người dùng ảo đồng thời gọi \texttt{GET /chat-sessions/:id} lúc cache chưa có dữ liệu, các lượt \texttt{cache miss} xảy ra cùng thời điểm sẽ phát sinh nhiều cặp truy vấn MongoDB trùng lặp qua \texttt{tunnel}; cơ chế \texttt{Singleflight} gộp các lời gọi đồng thời này thành một truy vấn duy nhất.
+\item[--] \textbf{Khảo sát bão hoà hàng đợi suy luận}: Kịch bản \texttt{k6\_queue\_experiment.ts} kiểm chứng riêng hành vi xếp hàng và xác nhận hệ thống thực thi giảm tải có kiểm soát (\texttt{load shedding}) bằng mã \texttt{429} khi hàng đợi chạm ngưỡng tối đa.
+\item[--] \textbf{Tính đại diện của dữ liệu kiểm thử tích hợp}: Cơ sở dữ liệu kiểm thử được nạp sẵn 1.500~phiên và 15.000~tin nhắn kèm trích dẫn, đoạn truy hồi và thời gian xử lý, tạo kích thước phản hồi trung bình khoảng 4,6~KB thay vì đo trên bảng rỗng.
 \end{itemize}
 
-% Các nội dung kết quả tổng hợp khác của Mục 8.1
+Phương pháp quét nhị phân tìm trần thông lượng bền vững qua ba hiệp liên tiếp và cấu hình kịch bản chi tiết đã được thiết lập tại Chương~\ref{chap:kiem-thu-danh-gia}; Bảng~\ref{tab:tran-thong-luong-kich-ban} tổng hợp kết quả trần thông lượng bền vững đạt được theo từng kịch bản nghiệp vụ.
+
+\begin{table}[htbp]
+\centering
+\caption{Trần thông lượng bền vững theo kịch bản nghiệp vụ của bộ đo bổ sung}
+\label{tab:tran-thong-luong-kich-ban}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{3.1cm}
+  >{\raggedright\arraybackslash}p{2.5cm}
+  >{\raggedright\arraybackslash}p{2.3cm}
+  >{\raggedleft\arraybackslash}p{1.2cm}
+  >{\raggedleft\arraybackslash}p{1.2cm}
+  >{\raggedleft\arraybackslash}p{1.2cm}
+  >{\raggedleft\arraybackslash}p{1.2cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Kịch bản} & \textbf{Mô hình tải} & \textbf{Mức chứng nhận} & \texttt{p50} & \texttt{p95} & \texttt{p99} & \textbf{Tỉ lệ lỗi} & \textbf{Trạng thái} \\
+\midrule
+Thao tác phiên trò chuyện & Mở, theo tần suất đến & 400~RPS & 1~ms & 11~ms & 161~ms & 0,00\% & Đạt \\
+\midrule
+Hành trình người dùng & Đóng, theo người dùng ảo & 400~CUs (83,7~RPS) & 2~ms & 19~ms & 67~ms & 0,00\% & Đạt \\
+\midrule
+Đọc bài báo với cache lạnh & Mở, theo tần suất đến & 160~RPS & 43~ms & 52~ms & 179~ms & 0,00\% & Đạt \\
+\midrule
+Băm mật khẩu và xoay vòng token & Mở, theo tần suất đến & 32~RPS & 29~ms & 47~ms & 63~ms & 0,00\% & Đạt \\
+\midrule
+Hỏi đáp có sinh văn bản & Đóng, theo người dùng ảo & Không chứng nhận & 32,67~s & 45,46~s & 46,77~s & 0,00\% & Không đạt \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Trong Bảng~\ref{tab:tran-thong-luong-kich-ban}, bốn kịch bản đầu tiên thuộc nhóm đường đọc và ghi đều đạt toàn bộ ba ngưỡng hiệu năng. Riêng kịch bản hỏi đáp có sinh văn bản là ngoại lệ do giới hạn của tài nguyên suy luận cục bộ chứ không phải tầng truy xuất: ngay tại mức một người dùng đồng thời, mức chiếm dụng CPU của máy chủ đã đạt 100,1\% và thời gian sinh trung vị lên tới 32,67~giây; tại mức tám người dùng đồng thời, tỉ lệ lỗi tăng lên 20,00\% (ba lỗi máy chủ) khi mức chiếm dụng CPU chạm 152,5\%.
+
+Hình~\ref{fig:danh-doi-hang-doi-do-tre} thể hiện quan hệ đánh đổi giữa độ sâu hàng đợi suy luận và độ trễ quan sát được, cung cấp cơ sở định lượng cho cơ chế từ chối sớm (\texttt{load shedding}) đã thiết kế ở Mục~\ref{sec:local-ai-runtime}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/diagrams/queue_depth_comparison_tradeoff.png}
+\caption{Đánh đổi giữa độ sâu hàng đợi suy luận và độ trễ quan sát được}
+\label{fig:danh-doi-hang-doi-do-tre}
+\end{figure}
+
+Từ các kết quả trên, trần chịu tải đã chứng nhận của đường đọc được xác lập ở mức 250~RPS. Thử nghiệm nâng lên mức 300~RPS ghi nhận độ trễ \texttt{p95} tăng lên 909,87~ms, \texttt{p99} lên 2.002,20~ms cùng 2.838 khẳng định chức năng thất bại, vượt cả ba ngưỡng quy định tại Chương~\ref{chap:phan-tich-yeu-cau}.
+
+\subsection{Kết quả kiểm thử tự động trên ba tầng}
+\label{subsec:ket-qua-kiem-thu-tu-dong}
+
+Bảng~\ref{tab:khoi-luong-kiem-thu} tổng hợp khối lượng kiểm thử tự động của hệ thống, phân bổ theo tầng kiến trúc và phạm vi kiểm định.
+
+\begin{table}[htbp]
+\centering
+\caption{Khối lượng kiểm thử tự động theo tầng và phạm vi}
+\label{tab:khoi-luong-kiem-thu}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{4.0cm}
+  >{\raggedright\arraybackslash}p{3.4cm}
+  >{\raggedright\arraybackslash}X
+  >{\raggedright\arraybackslash}p{2.9cm}
+}
+\toprule
+\textbf{Tầng kiểm thử} & \textbf{Công cụ} & \textbf{Phạm vi} & \textbf{Khối lượng} \\
+\midrule
+Đơn vị và tích hợp phía máy chủ & Jest~29.x với cơ sở dữ liệu trong bộ nhớ & 25 tệp kiểm thử trong mã nguồn phía máy chủ & 267 khối kiểm thử \\
+\midrule
+Đầu cuối (E2E) phía máy chủ & Jest~29.x với cấu hình E2E riêng & Bộ kịch bản phủ luồng xác thực, phiên trò chuyện và hỏi đáp & 13 kịch bản \\
+\midrule
+Đơn vị và thành phần phía người dùng & Vitest~2.x với mô phỏng IndexedDB & 37 tệp kiểm thử trong mã nguồn phía người dùng & 309 khối kiểm thử \\
+\midrule
+Đầu cuối (E2E) phía người dùng & Playwright~1.x & Hành trình cây tri thức 3D, hồi quy hình ảnh và xác thực & 26 kịch bản \\
+\midrule
+\textbf{Tổng cộng} & & & \textbf{615 khối kiểm thử} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Bảng~\ref{tab:khoi-luong-kiem-thu} cho thấy độ phủ kiểm thử tự động trải đều trên cả hai phân hệ backend và frontend. Ở phía máy chủ, ngoài tệp kiểm thử cấu hình khởi động chung, 24 tệp kiểm thử đi sâu vào từng mô đun nghiệp vụ và truy xuất; trong đó ba phân hệ được kiểm thử dày đặc nhất gồm phân hệ quản trị (30~khối), phân hệ quản lý phiên trò chuyện (26~khối, đối chiếu theo danh mục 32~kịch bản có mã định danh cố định) và phân hệ kho khoa học (40~khối, chia thành hai tệp kiểm chứng tổng kiểm tra \texttt{checksum} và thứ tự đoạn). Quá trình vận hành bộ kiểm thử tự động rút ra bốn kết luận về độ tin cậy:
+
+\begin{itemize}
+\item[--] \textbf{Tốc độ thực thi độc lập hạ tầng ngoài}: Toàn bộ kiểm thử đơn vị chạy trên cơ sở dữ liệu trong bộ nhớ nên không phụ thuộc \texttt{tunnel} mạng hay GPU, giúp hoàn tất toàn bộ lượt chạy trong vài giây trên quy trình tích hợp liên tục.
+\item[--] \textbf{Tính tất định (\texttt{deterministic}) của hai cổng kiểm soát chất lượng}: Các cổng chấm điểm trước và sau sinh được kiểm thử bằng bộ giả lập thay cho mô hình thật, cho phép xác minh chính xác các ngưỡng cắt, thời hạn chờ và nhánh từ chối.
+\item[--] \textbf{Kiểm soát hồi quy giao diện bằng ảnh chụp đối chiếu}: 17~kịch bản hồi quy hình ảnh trên Playwright phát hiện sớm mọi sai lệch bố cục hoặc biến dạng khung cảnh 3D vô tình phát sinh.
+\item[--] \textbf{Khoảng trống độ phủ trên đường sinh văn bản thật}: Do bộ kiểm thử tự động dùng mô hình giả lập để đảm bảo tính tất định, hiện tượng bão hoà CPU ở kịch bản hỏi đáp thật (Bảng~\ref{tab:tran-thong-luong-kich-ban}) chỉ được phát hiện ở pha kiểm thử tải bằng k6 mà chưa có kịch bản tự động cảnh báo sớm.
+\end{itemize}
+
+\subsection{Đánh giá chất lượng truy xuất}
+\label{subsec:danh-gia-chat-luong-truy-xuat}
+
+Chất lượng truy xuất được đánh giá trên bộ chuẩn 150~câu hỏi khoa học (gồm 100~câu có đáp án nằm trong kho và 50~câu ngoài phạm vi) qua hai cấu hình độc lập: chỉ dùng thứ hạng tương đồng của chỉ mục vector Qdrant, và kết hợp lớp xếp hạng lại kèm bộ chấm điểm ngôn ngữ Laya. Bảng~\ref{tab:chat-luong-truy-xuat} đối chiếu các chỉ số chất lượng giữa hai cấu hình.
+
+\begin{table}[htbp]
+\centering
+\caption{Chỉ số chất lượng truy xuất trên bộ 150~câu hỏi chuẩn}
+\label{tab:chat-luong-truy-xuat}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{4.8cm}
+  >{\raggedleft\arraybackslash}p{2.3cm}
+  >{\raggedleft\arraybackslash}p{2.3cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Chỉ số đánh giá} & \textbf{Chỉ mục vector đơn thuần} & \textbf{Xếp hạng lại có chấm điểm} & \textbf{Diễn giải} \\
+\midrule
+Thứ hạng nghịch đảo trung bình (\texttt{MRR}) & 0,8623 & 0,8853 & Tăng 0,0230 \\
+\midrule
+Tài liệu đúng ở vị trí đầu (\texttt{Hit@1}) & 0,79 & 0,81 & Tăng 2~điểm phần trăm \\
+\midrule
+Tài liệu đúng trong 3 kết quả đầu (\texttt{Hit@3}) & 0,92 & 0,97 & Tăng 5~điểm phần trăm; phần lớn tài liệu đúng lọt vào top~3 \\
+\midrule
+Tài liệu đúng trong 5 kết quả đầu (\texttt{Hit@5}) & 0,96 & 0,97 & Phần dư chỉ còn 3 trên 100~câu hỏi trong phạm vi \\
+\midrule
+Tỉ lệ từ chối câu hỏi ngoài phạm vi ở ngưỡng 0,6 & 100,00\% & 100,00\% & Cổng trước sinh chặn trọn vẹn câu hỏi không có căn cứ \\
+\midrule
+Tỉ lệ từ chối câu hỏi ngoài phạm vi ở ngưỡng 0,3 & Không đo & 100,00\% & Cổng sau sinh tiếp tục chặn toàn bộ câu trả lời thiếu căn cứ \\
+\midrule
+Tỉ lệ chấp nhận sai (\textit{False Acceptance}) ở ngưỡng 0,5 & 0,00\% & 0,00\% & Không có câu hỏi ngoài phạm vi nào lọt qua hai cổng \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Số liệu từ Bảng~\ref{tab:chat-luong-truy-xuat} làm rõ hai kết luận định lượng:
+
+\begin{itemize}
+\item[--] \textbf{Vai trò bổ trợ của lớp xếp hạng lại}: Khi bật lớp xếp hạng lại và chấm điểm, \texttt{MRR} tăng từ 0,8623 lên 0,8853, \texttt{Hit@1} tăng từ 0,79 lên 0,81 và \texttt{Hit@3} tăng từ 0,92 lên 0,97. Mức cải thiện ổn định nhưng vừa phải này chứng minh cặp trọng số 0,85 (tương đồng ngữ nghĩa) và 0,15 (uy tín \texttt{PageRank}) tại Mục~\ref{sec:rag-pipeline} đóng vai trò tín hiệu tinh chỉnh thứ tự ứng viên thay vì lấn át độ tương đồng vector, đồng thời giải thích vì sao cổng chấm điểm Laya có thể thiết kế ở dạng tuỳ chọn mà không làm sụp đổ chất lượng truy hồi nền.
+\item[--] \textbf{Hiệu quả triệt để của hai cổng kiểm soát căn cứ}: Chỉ số \texttt{Hit@5} đạt 0,97 cho thấy 3\% trường hợp còn lại là do đoạn đúng bị xếp dưới top~5 chứ không phải vắng mặt khỏi kho dữ liệu. Quan trọng hơn, tỉ lệ từ chối câu hỏi ngoài phạm vi đạt 100,00\% ở cả hai ngưỡng 0,6 và 0,3 (tỉ lệ chấp nhận sai 0,00\%), khẳng định nguyên tắc thiết kế tại Mục~\ref{sec:rag-pipeline}: khi thiếu bằng chứng khoa học, hệ thống chủ động từ chối trả lời thay vì sinh nội dung suy diễn.
+\end{itemize}
+
+\subsection{Đánh giá chất lượng sinh và độ trễ cảm nhận}
+\label{subsec:danh-gia-chat-luong-sinh}
+
+Trên tập câu hỏi trong phạm vi, chất lượng văn bản do mô hình sinh ra được đo lường qua ba chỉ số chuẩn của khung đánh giá RAG tại Bảng~\ref{tab:chat-luong-sinh}.
+
+\begin{table}[htbp]
+\centering
+\caption{Chỉ số chất lượng sinh văn bản}
+\label{tab:chat-luong-sinh}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}X
+  >{\raggedleft\arraybackslash}p{3.5cm}
+}
+\toprule
+\textbf{Chỉ số đánh giá} & \textbf{Giá trị đo được} \\
+\midrule
+Độ trung thành với bằng chứng (\texttt{Faithfulness} / \texttt{Groundedness}) & 0,797 \\
+Độ liên quan của câu trả lời (\texttt{Answer Relevance}) & 0,629 \\
+Độ liên quan của ngữ cảnh truy hồi (\texttt{Context Relevance}) & 0,310 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Bảng~\ref{tab:chat-luong-sinh} cho thấy điểm căn cứ (\texttt{Faithfulness}) đạt mức cao (0,797) trong khi độ liên quan trung bình của toàn đoạn ngữ cảnh (\texttt{Context Relevance}) ở mức 0,310. Sự chênh lệch này xuất phát từ đặc trưng cấu trúc của văn bản học thuật: mỗi đoạn văn bản phân đoạn theo đề mục ở Mục~\ref{sec:chunking-retrieval} dài hơn nhiều lần so với câu hỏi, nên bên cạnh vài câu chứa trực tiếp đáp án, phần văn bản giải thích bối cảnh xung quanh làm giảm mật độ liên quan trung bình của cả đoạn.
+
+Để định vị chính xác nút thắt thời gian trong một lượt hỏi đáp hoàn chỉnh, Bảng~\ref{tab:phan-ra-thoi-gian-rag} phân rã thời gian thực thi theo từng chặng ở mức một người dùng đồng thời.
+
+\begin{table}[htbp]
+\centering
+\caption{Phân rã thời gian theo từng chặng của một lượt hỏi đáp}
+\label{tab:phan-ra-thoi-gian-rag}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}X
+  >{\raggedleft\arraybackslash}p{2.4cm}
+  >{\raggedleft\arraybackslash}p{2.4cm}
+  >{\raggedleft\arraybackslash}p{3.8cm}
+}
+\toprule
+\textbf{Chặng xử lý} & \texttt{p50} & \texttt{p95} & \textbf{Tỉ trọng trong tổng thời gian} \\
+\midrule
+Nhúng truy vấn (\texttt{Embedding}) & 294,5~ms & 646,0~ms & 0,9\% \\
+Truy vấn chỉ mục vector (\texttt{Qdrant}) & 1.494,0~ms & 2.500,3~ms & 4,6\% \\
+Xếp hạng lại và chấm điểm (\texttt{Reranking}) & 4.266,5~ms & 6.897,2~ms & 13,2\% \\
+Kiểm tra độ căn cứ (\texttt{Groundedness}) & 1.900,5~ms & 2.043,0~ms & 5,9\% \\
+Sinh văn bản (\texttt{LLM Generation}) & 24.379,5~ms & 34.433,5~ms & 75,4\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Bảng~\ref{tab:phan-ra-thoi-gian-rag} cung cấp bằng chứng định lượng khẳng định nhận định tại Mục~\ref{sec:rag-pipeline}: chặng sinh văn bản chiếm tới 75,4\% tổng thời gian, trong khi bốn chặng truy xuất và kiểm chứng phía trước chỉ chiếm tổng cộng 24,6\%. Từ đây rút ra hai hệ quả trực tiếp: thứ nhất, việc tối ưu thêm tầng truy xuất sẽ không cải thiện đáng kể tổng thời gian phản hồi nên mọi giải pháp giảm độ trễ phải tập trung vào tầng suy luận (Mục~\ref{subsec:han-che-suy-luan} và Mục~\ref{subsec:toi-uu-tang-suy-luan}); thứ hai, nhờ kiến trúc truyền phát luồng sự kiện \texttt{SSE}, thời gian chờ tới khi người dùng thấy tín hiệu phản hồi và token đầu tiên (\texttt{TTFT}) chỉ phụ thuộc vào 24,6\% thời gian của bốn chặng đầu thay vì phải đợi trọn vẹn 100\% chu kỳ sinh văn bản.
+
+\subsection{Kết quả nạp kho khoa học và kiểm tra toàn vẹn}
+\label{subsec:ket-qua-nap-kho-khoa-hoc}
+
+Vì kho khoa học giữ vai trò nguồn dữ liệu chuẩn (\texttt{source of truth}) cho toàn bộ nội dung văn bản, tính toàn vẹn của kho sau quy trình nạp năm pha lũy đẳng (\texttt{upsert} theo khoá tự nhiên tại Mục~\ref{sec:chuan-hoa-luu-tru}) được kiểm chứng định lượng tại Bảng~\ref{tab:toan-ven-kho-khoa-hoc}.
+
+\begin{table}[htbp]
+\centering
+\caption{Kết quả kiểm tra toàn vẹn kho khoa học}
+\label{tab:toan-ven-kho-khoa-hoc}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{4.8cm}
+  >{\raggedright\arraybackslash}p{3.4cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Hạng mục kiểm tra} & \textbf{Kết quả đo được} & \textbf{Ý nghĩa} \\
+\midrule
+Sai lệch mã định danh điểm giữa chỉ mục vector và kho khoa học & 0 & Hai kho tham chiếu khớp tuyệt đối cùng một bộ tài liệu \\
+\midrule
+Tỉ lệ đoạn văn bản suy ra được chỉ số thứ tự đọc (\texttt{order\_index}) & 100\% & Không có đoạn nào mất vị trí trong chuỗi đọc tuần tự \\
+\midrule
+Bản kê đối tượng nguồn tại tầng dữ liệu thô (\texttt{Bronze}) & 136.823 đối tượng & Truy vết đầy đủ về tệp gốc ban đầu trên kho đối tượng \\
+\midrule
+Tỉ lệ đối tượng nguồn liên kết được với bài báo cụ thể & 95,6\% & 4,4\% còn lại là các tệp siêu dữ liệu lô không gắn mã bài đơn lẻ \\
+\midrule
+Bảng uy tín tác giả khai phá bằng thuật toán \texttt{PageRank} & 120 tác giả & Cơ sở tính thành phần điểm uy tín (trọng số 0,15) khi xếp hạng lại \\
+\midrule
+Bộ luật kết hợp khai phá bằng thuật toán \texttt{FP-Growth} & 40 luật & Cơ sở gợi ý và mở rộng truy vấn theo đồng xuất hiện chủ đề \\
+\midrule
+Mô hình tổng kiểm tra (\texttt{checksum}) ba cấp & \texttt{SHA-256} lồng nhau theo đoạn, bài báo và tập dữ liệu & Phát hiện và khoanh vùng chính xác mọi biến đổi nội dung hoặc xáo trộn thứ tự \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Kết quả tại Bảng~\ref{tab:toan-ven-kho-khoa-hoc} xác nhận hai tính chất thiết kế cốt lõi ở Mục~\ref{sec:chuan-hoa-luu-tru} và Mục~\ref{sec:chunking-retrieval}: do hàm băm mức bài báo bao gồm cả chỉ số thứ tự đọc nên bất kỳ sự cố hoán đổi vị trí hai đoạn nào cũng lập tức làm lệch mã kiểm tra; đồng thời tỉ lệ suy xuất thứ tự đọc đạt 100\% chứng minh bộ phân tích ngữ pháp mã định danh đoạn hoạt động hoàn toàn khớp trên toàn bộ tập dữ liệu thực tế.
+
+\subsection{Kết quả kiểm thử giao diện và hiệu năng phía người dùng}
+\label{subsec:ket-qua-kiem-thu-giao-dien}
+
+Phân hệ giao diện được đánh giá qua 26~kịch bản đầu cuối trên trình duyệt thật bằng Playwright kết hợp bộ chỉ số Web Vitals đo bằng Lighthouse trên bản dựng production (Bảng~\ref{tab:hieu-nang-giao-dien}).
+
+\begin{table}[htbp]
+\centering
+\caption{Kết quả kiểm thử và hiệu năng giao diện phía người dùng}
+\label{tab:hieu-nang-giao-dien}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{5.2cm}
+  >{\raggedleft\arraybackslash}p{2.6cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Hạng mục đánh giá} & \textbf{Kết quả} & \textbf{Nguồn đo và phạm vi} \\
+\midrule
+Kịch bản đầu cuối (E2E) trên trình duyệt thật & 26 kịch bản & Playwright~1.x: 7~kịch bản hành trình cây tri thức, 17~kịch bản hồi quy hình ảnh, 2~kịch bản xác thực \\
+\midrule
+Điểm hiệu năng tổng thể trên bản production & 97 / 100 & Kiểm toán bằng Lighthouse \\
+\midrule
+Hiển thị nội dung đầu tiên (\texttt{FCP}) & 0,9~s & Lighthouse \\
+\midrule
+Hiển thị nội dung lớn nhất (\texttt{LCP}) & 1,0~s & Lighthouse (vượt xa ngưỡng chuẩn 2,5~s) \\
+\midrule
+Tổng thời gian chặn luồng chính (\texttt{TBT}) & 40~ms & Lighthouse \\
+\midrule
+Độ lệch bố cục tích lũy (\texttt{CLS}) & 0,002 & Lighthouse \\
+\midrule
+Khối kiểm thử đơn vị và thành phần giao diện & 309 khối / 37 tệp & Vitest~2.x kèm mô phỏng kho cục bộ \texttt{IndexedDB} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Hình~\ref{fig:canh-3d-dark-mode} minh hoạ khung cảnh không gian ba chiều ở chế độ tối sau khi tối ưu WebGL -- đối tượng tham chiếu của 17~kịch bản kiểm thử hồi quy hình ảnh.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{assets/screenshots/cmp-dark-overview.jpg}
+\caption{Cảnh không gian tri thức ba chiều ở chế độ tối sau khi tối ưu kết xuất WebGL}
+\label{fig:canh-3d-dark-mode}
+\end{figure}
+
+Các chỉ số Web Vitals đạt mức cao (97/100, \texttt{LCP} 1,0~giây, \texttt{TBT} 40~ms) bắt nguồn trực tiếp từ ba quyết định kỹ thuật tại Mục~\ref{sec:state-management} và Mục~\ref{sec:ui-ux}: nạp trì hoãn thư viện hiển thị toán học KaTeX, giới hạn tỉ lệ điểm ảnh thiết bị ở mức 1,15 kết hợp tắt khử răng cưa trong cảnh WebGL, và gom đệm các gói token \texttt{SSE} theo chu kỳ vi mô 30~ms trước khi phân tích cú pháp Markdown để giải phóng luồng chính của trình duyệt.
 
 \section{Đánh giá mức độ hoàn thành các mục tiêu}
 \label{sec:danh-gia-muc-tieu}
 
-% Nội dung phần 8.2
+\subsection{Đối chiếu các mục tiêu xây dựng hệ thống ở Chương 1}
+\label{subsec:doi-chieu-muc-tieu-ch1}
+
+Tách chi tiết các nhóm mục tiêu cụ thể đã xác lập tại Mục~\ref{sec:muc-tieu} (Chương~\ref{chap:tong-quan-de-tai}) thành tám hạng mục đánh giá độc lập (\texttt{M1}--\texttt{M8}), Bảng~\ref{tab:doi-chieu-muc-tieu-ch1} đối chiếu từng mục tiêu với thành phần kiến trúc đáp ứng và bằng chứng thực nghiệm tương ứng.
+
+\begin{table}[htbp]
+\centering
+\caption{Đối chiếu tám hạng mục mục tiêu của Chương~1 với bằng chứng thực nghiệm}
+\label{tab:doi-chieu-muc-tieu-ch1}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{0.8cm}
+  >{\raggedright\arraybackslash}p{3.0cm}
+  >{\raggedright\arraybackslash}p{3.4cm}
+  >{\raggedright\arraybackslash}X
+  >{\raggedright\arraybackslash}p{2.1cm}
+}
+\toprule
+\textbf{Mã} & \textbf{Mục tiêu} & \textbf{Thành phần đáp ứng} & \textbf{Bằng chứng thực nghiệm} & \textbf{Mức độ} \\
+\midrule
+M1 & Quy trình thu thập và chuẩn hoá dữ liệu khoa học & Phân hệ khai phá thượng nguồn, tầng dữ liệu thô (\texttt{Bronze}) và tầng dữ liệu sạch (\texttt{Silver}) & 136.823 đối tượng nguồn được lập bản kê; 100\% đoạn văn bản suy ra được thứ tự đọc; 0 sai lệch mã định danh (Mục~\ref{subsec:ket-qua-nap-kho-khoa-hoc}) & Đạt có điều kiện \\
+\midrule
+M2 & Cơ chế lập chỉ mục ngữ nghĩa & Mô hình nhúng \texttt{Nomic Embed 1.5}, cấu trúc chỉ mục đồ thị phân tầng \texttt{HNSW} trên Qdrant & \texttt{Hit@5} đạt 0,97 và \texttt{MRR} đạt 0,8853 trên bộ 150~câu hỏi chuẩn (Mục~\ref{subsec:danh-gia-chat-luong-truy-xuat}) & Đạt \\
+\midrule
+M3 & Truy hồi nhiều tầng kèm tín hiệu đồ thị trích dẫn & Xếp hạng lại kết hợp 0,85 tương đồng ngữ nghĩa + 0,15 uy tín \texttt{PageRank}, hợp nhất thứ hạng \texttt{RRF} & \texttt{Hit@1} tăng từ 0,79 lên 0,81 và \texttt{Hit@3} tăng từ 0,92 lên 0,97 (Mục~\ref{subsec:danh-gia-chat-luong-truy-xuat}); 120 tác giả có điểm uy tín (Mục~\ref{subsec:ket-qua-nap-kho-khoa-hoc}) & Đạt có điều kiện \\
+\midrule
+M4 & Sinh câu trả lời cục bộ, phát trực tiếp theo luồng, dẫn nguồn kiểm chứng được & Mô hình \texttt{Qwen 2.5 7B} lượng tử hoá \texttt{Q4\_K\_M} cục bộ, truyền phát luồng \texttt{SSE} & Độ căn cứ (\texttt{Faithfulness}) đạt 0,797; tỉ lệ chấp nhận sai 0,00\% ở ngưỡng 0,5 (Mục~\ref{subsec:danh-gia-chat-luong-truy-xuat}, \ref{subsec:danh-gia-chat-luong-sinh}) & Đạt có điều kiện \\
+\midrule
+M5 & Giao diện khám phá ba chiều và khung trò chuyện & Cảnh WebGL ba chiều (\texttt{three.js}/\texttt{R3F}), khung trò chuyện học thuật & Điểm hiệu năng Lighthouse 97/100, \texttt{LCP} 1,0~s; 26~kịch bản E2E; 17~kịch bản hồi quy hình ảnh (Mục~\ref{subsec:ket-qua-kiem-thu-giao-dien}) & Đạt \\
+\midrule
+M6 & Lưu trữ hội thoại ưu tiên ngoại tuyến và đồng bộ hai chiều & Kho cục bộ trình duyệt \texttt{IndexedDB} (\texttt{RagChatDB}) khoá chính \texttt{UUIDv7} & 309 khối kiểm thử phía người dùng bao phủ cơ chế đồng bộ và phục hồi ngoại tuyến (Mục~\ref{subsec:ket-qua-kiem-thu-tu-dong}) & Đạt \\
+\midrule
+M7 & Xác thực, phân quyền và kiểm toán vững chắc & Băm mật khẩu \texttt{Argon2id}, xoay vòng JWT theo \texttt{token family}, nhật ký kiểm toán \texttt{append-only} & 27 khối kiểm thử xác thực và 30 khối kiểm thử quản trị; 100\% xoay vòng token thành công dưới tải mật mã (Mục~\ref{subsec:ket-qua-hieu-nang}, \ref{subsec:ket-qua-kiem-thu-tu-dong}) & Đạt \\
+\midrule
+M8 & Bộ kiểm thử và quy trình đánh giá bao phủ toàn diện & Bốn công cụ kiểm thử tự động (\texttt{Jest}, \texttt{Vitest}, \texttt{Playwright}, \texttt{k6}) và bộ đánh giá RAG & 615 khối kiểm thử tự động; 150~câu hỏi đánh giá chất lượng; 5~kịch bản đo tải (Mục~\ref{subsec:ket-qua-hieu-nang}, \ref{subsec:ket-qua-kiem-thu-tu-dong}, \ref{subsec:danh-gia-chat-luong-truy-xuat}) & Đạt \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Hình~\ref{fig:anh-xa-muc-tieu-ket-qua} tổng hợp sơ đồ ánh xạ từ tám hạng mục mục tiêu sang bằng chứng thực nghiệm và mức độ hoàn thành tương ứng.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.35cm,
+    mnode/.style={ragbox, text width=4.4cm, minimum height=0.82cm, font=\footnotesize\sffamily},
+    enode/.style={ragbox, text width=4.6cm, minimum height=0.82cm, fill=primaryBlue!14, font=\footnotesize\sffamily},
+    rnode_ok/.style={ragbox, text width=3.1cm, minimum height=0.82cm, fill=primaryBlue!22, font=\footnotesize\sffamily\bfseries},
+    rnode_cond/.style={ragbox, text width=3.1cm, minimum height=0.82cm, fill=primaryBlue!6, dashed, font=\footnotesize\sffamily}
+]
+    % Column 1: M1..M8
+    \node[mnode] (m1) {M1 -- Chuẩn hoá dữ liệu};
+    \node[mnode, below=of m1] (m2) {M2 -- Lập chỉ mục ngữ nghĩa};
+    \node[mnode, below=of m2] (m3) {M3 -- Truy hồi nhiều tầng};
+    \node[mnode, below=of m3] (m4) {M4 -- Sinh câu trả lời};
+    \node[mnode, below=of m4] (m5) {M5 -- Giao diện 3D};
+    \node[mnode, below=of m5] (m6) {M6 -- Lưu trữ ngoại tuyến};
+    \node[mnode, below=of m6] (m7) {M7 -- Xác thực \& phân quyền};
+    \node[mnode, below=of m7] (m8) {M8 -- Bộ kiểm thử};
+
+    % Column 2: E1..E8
+    \node[enode, right=1.1cm of m1] (e1) {136.823 bản kê; 0 sai lệch};
+    \node[enode, right=1.1cm of m2] (e2) {\texttt{Hit@5}: 0,97; \texttt{MRR}: 0,8853};
+    \node[enode, right=1.1cm of m3] (e3) {\texttt{Hit@1}: 0,81; \texttt{Hit@3}: 0,97};
+    \node[enode, right=1.1cm of m4] (e4) {\texttt{Faithfulness}: 0,797; sai: 0,00\%};
+    \node[enode, right=1.1cm of m5] (e5) {Lighthouse: 97/100; 26 kịch bản E2E};
+    \node[enode, right=1.1cm of m6] (e6) {309 khối kiểm thử phía người dùng};
+    \node[enode, right=1.1cm of m7] (e7) {57 khối kiểm thử; 100\% xoay vòng};
+    \node[enode, right=1.1cm of m8] (e8) {615 khối kiểm thử; 150 câu đánh giá};
+
+    % Column 3: R1..R8
+    \node[rnode_cond, right=1.1cm of e1] (r1) {Đạt có điều kiện};
+    \node[rnode_ok, right=1.1cm of e2] (r2) {Đạt};
+    \node[rnode_cond, right=1.1cm of e3] (r3) {Đạt có điều kiện};
+    \node[rnode_cond, right=1.1cm of e4] (r4) {Đạt có điều kiện};
+    \node[rnode_ok, right=1.1cm of e5] (r5) {Đạt};
+    \node[rnode_ok, right=1.1cm of e6] (r6) {Đạt};
+    \node[rnode_ok, right=1.1cm of e7] (r7) {Đạt};
+    \node[rnode_ok, right=1.1cm of e8] (r8) {Đạt};
+
+    % Arrows
+    \foreach \i in {1,...,8} {
+        \draw[ragarrow] (m\i) -- (e\i);
+        \draw[ragarrow] (e\i) -- (r\i);
+    }
+\end{tikzpicture}%
+}
+\caption{Ánh xạ từ tám hạng mục mục tiêu của Chương~1 sang bằng chứng thực nghiệm và mức độ hoàn thành}
+\label{fig:anh-xa-muc-tieu-ket-qua}
+\end{figure}
+
+Bảng~\ref{tab:doi-chieu-muc-tieu-ch1} ghi nhận năm mục tiêu đạt trọn vẹn và ba mục tiêu ở trạng thái \textit{đạt có điều kiện} (\texttt{M1}, \texttt{M3}, \texttt{M4}). Trạng thái có điều kiện này phản ánh đúng ranh giới kiến trúc của từng thành phần: \texttt{M1} phụ thuộc vào tiến độ xuất tệp từ pipeline khai phá thượng nguồn nên tính toàn vẹn được chứng nhận trong phạm vi lô dữ liệu đã nạp; \texttt{M3} và \texttt{M4} phụ thuộc vào các mô hình suy luận cục bộ tuỳ chọn (bộ chấm điểm Laya và mô hình sinh \texttt{Qwen 2.5 7B}), do đó khi thiếu tệp trọng số thì hệ thống tự động suy giảm mềm về chế độ truy hồi cơ sở, đồng thời thông lượng của \texttt{M4} chịu giới hạn trực tiếp bởi năng lực phần cứng suy luận đã phân tích tại Mục~\ref{subsec:danh-gia-chat-luong-sinh}.
+
+\subsection{Đối chiếu các ngưỡng phi chức năng đặt ra ở Chương 2}
+\label{subsec:doi-chieu-phi-chuc-nang-ch2}
+
+Mục~\ref{subsec:hieu-nang} (Chương~\ref{chap:phan-tich-yeu-cau}) đã công bố các ngưỡng định lượng áp dụng cho đường đọc không sinh văn bản cùng các quy tắc thời hạn chặng và chống gửi lặp. Bảng~\ref{tab:doi-chieu-phi-chuc-nang-ch2} đối chiếu từng yêu cầu phi chức năng với kết quả đo thực nghiệm.
+
+\begin{table}[htbp]
+\centering
+\caption{Đối chiếu các ngưỡng phi chức năng của Chương~2 với kết quả thực nghiệm}
+\label{tab:doi-chieu-phi-chuc-nang-ch2}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{6.2cm}
+  >{\raggedright\arraybackslash}X
+  >{\raggedright\arraybackslash}p{1.8cm}
+}
+\toprule
+\textbf{Ngưỡng yêu cầu tại Mục~\ref{subsec:hieu-nang}} & \textbf{Giá trị đo được} & \textbf{Kết luận} \\
+\midrule
+Độ trễ phân vị 95 (\texttt{p95}) dưới 500~ms & 265,54~ms tại 250~RPS & Đạt \\
+\midrule
+Độ trễ phân vị 99 (\texttt{p99}) dưới 1.000~ms & 475,11~ms tại 250~RPS & Đạt \\
+\midrule
+Tỉ lệ lỗi dưới 1\% & 0,00\% (0~lỗi trên 48.874~yêu cầu) & Đạt \\
+\midrule
+Duy trì tải ổn định liên tục trong 3~phút & 180~giây liên tục, không rớt kết nối & Đạt \\
+\midrule
+Không rò rỉ bộ nhớ dưới tải kéo dài & Bộ nhớ RAM ổn định trong suốt đợt giữ tải (Hình~\ref{fig:dong-thoi-gian-telemetry}) & Đạt \\
+\midrule
+Chặng truy vấn chỉ mục vector: thời hạn 15~giây, mã \texttt{503} & Không phát sinh lượt quá hạn trong 48.874~yêu cầu & Đạt \\
+\midrule
+Chặng sinh văn bản: thời hạn 60~giây, mã \texttt{504} & Không phát sinh lượt quá hạn ở mức 1~người dùng đồng thời & Đạt \\
+\midrule
+Hàng đợi suy luận đầy: tối đa 8~chỗ chờ, mã \texttt{429} & Xác nhận từ chối sớm chính xác qua kịch bản \texttt{k6\_queue\_\allowbreak{}experiment.ts} & Đạt \\
+\midrule
+Chống gửi lặp (\texttt{Idempotency-Key}): hiệu lực 24~giờ, mã \texttt{409} & Xác nhận qua bộ kiểm thử đơn vị của phân hệ hỏi đáp & Đạt \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Khi đọc Bảng~\ref{tab:doi-chieu-phi-chuc-nang-ch2} cần lưu ý hai ranh giới áp dụng: thứ nhất, ngưỡng \texttt{p95} $< 500$~ms và \texttt{p99} $< 1.000$~ms tại Mục~\ref{subsec:hieu-nang} được quy định riêng cho các đường đọc không sinh văn bản (trong khi kịch bản sinh văn bản ở Bảng~\ref{tab:tran-thong-luong-kich-ban} chịu chi phí tính toán của mô hình ngôn ngữ 7~tỷ tham số); thứ hai, các ngưỡng này được chứng nhận tại điểm vận hành 250~RPS, còn khi đẩy tải lên 300~RPS hệ thống bắt đầu vượt ngưỡng như đã chỉ rõ ở Mục~\ref{subsec:ket-qua-hieu-nang}.
+
+\subsection{Ranh giới phạm vi và những mục tiêu giữ ngoài phạm vi}
+\label{subsec:ranh-gioi-pham-vi}
+
+Chi tiết hoá các nhóm giới hạn phạm vi đã tuyên bố tại Mục~\ref{sec:pham-vi-gioi-han} (Chương~\ref{chap:tong-quan-de-tai}) thành sáu ràng buộc kiểm tra, Bảng~\ref{tab:kiem-tra-gioi-han-pham-vi} xác nhận tình trạng tuân thủ ranh giới phạm vi sau khi hoàn tất triển khai.
+
+\begin{table}[htbp]
+\centering
+\caption{Kiểm tra sự tuân thủ các giới hạn phạm vi đã công bố tại Chương~1}
+\label{tab:kiem-tra-gioi-han-pham-vi}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{5.5cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Giới hạn phạm vi đã công bố} & \textbf{Tình trạng sau khi triển khai} \\
+\midrule
+Chỉ bao gồm bản tiền ấn (\texttt{preprint}) công khai và tài liệu học thuật mở & Giữ nguyên: kho khoa học chỉ chứa các họ định danh học thuật mở (trọng tâm là arXiv), không thu thập tài liệu thương mại độc quyền \\
+\midrule
+Phạm vi ngôn ngữ tài liệu giới hạn ở tiếng Anh & Giữ nguyên: tầng giao diện và tìm kiếm đã chuẩn hoá Unicode \texttt{NFKC} hỗ trợ tiếng Việt, nhưng mô hình nhúng và mô hình sinh tập trung phục vụ tài liệu tiếng Anh \\
+\midrule
+Dẫn nguồn theo mã định danh tài liệu để kiểm chứng, không thay thế bộ định dạng trích dẫn tạp chí & Giữ nguyên: cơ chế thẻ trích dẫn \texttt{[P1]}...\texttt{[Pn]} giúp đối chiếu chính xác đoạn gốc nhưng không tự động xuất danh mục tài liệu tham khảo theo chuẩn APA/IEEE \\
+\midrule
+Ưu tiên độ chính xác và tính có căn cứ hơn tốc độ sinh tối đa & Giữ nguyên: kết quả Mục~\ref{subsec:danh-gia-chat-luong-sinh} xác nhận chặng kiểm tra căn cứ và sinh văn bản chiếm 81,3\% tổng thời gian để đổi lấy tỉ lệ chấp nhận sai 0,00\% \\
+\midrule
+Không thay thế vai trò kiểm định hay phản biện khoa học của con người & Giữ nguyên: hệ thống cung cấp đoạn bằng chứng kèm điểm căn cứ để nhà nghiên cứu tự thẩm định \\
+\midrule
+Chưa hỗ trợ chia sẻ phiên, cộng tác nhóm hay gợi ý cá nhân hoá & Giữ nguyên: mọi truy vấn phiên hội thoại đều áp dụng ràng buộc sở hữu nghiêm ngặt theo từng tài khoản (\texttt{user\_id}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Việc giữ vững cả sáu ranh giới phạm vi đảm bảo toàn bộ số liệu thực nghiệm ở Mục~\ref{sec:ket-qua-dat-duoc} và kết quả nghiệm thu ở Mục~\ref{sec:danh-gia-muc-tieu} được đo đạc nhất quán trên đúng tập yêu cầu ban đầu, không bị nhiễu bởi các tính năng phát sinh ngoài thiết kế.
 
 \section{Những hạn chế còn tồn tại}
 \label{sec:han-che}
 
-Mặc dù hệ thống RAG\_TS đã hoàn thiện các mục tiêu thiết kế cốt lõi và vận hành ổn định trong môi trường tự lưu trữ (on-premise), quá trình thử nghiệm và vận hành thực tế đã ghi nhận một số hạn chế kỹ thuật:
+Mặc dù hệ thống \texttt{RAG\_TS} đã hoàn thiện các mục tiêu thiết kế cốt lõi và vận hành ổn định trong môi trường tự lưu trữ (\texttt{on-premise}), quá trình thực nghiệm đã bộc lộ mười hạn chế kỹ thuật chia thành bốn nhóm tầng chịu trách nhiệm. Mỗi hạn chế được gắn mã định danh (\texttt{HC-01}--\texttt{HC-10}) để đối chiếu trực tiếp với giải pháp khắc phục ở Mục~\ref{sec:huong-phat-trien}.
 
-\begin{enumerate}
-    \item \textbf{Cơ chế giải phóng hàng đợi suy luận khi ngắt kết nối}: Slot suy luận của mô hình ngôn ngữ lớn chỉ được giải phóng khi tiến trình bắt đầu sinh ra token đầu tiên (khoảng 15 giây với \texttt{top\_\allowbreak{}k} bằng 5 trên nền GPU Metal). Trong khoảng thời gian này, nếu người dùng chủ động ngắt kết nối hoặc hủy yêu cầu, tài nguyên tính toán vẫn bị chiếm dụng để xử lý ngữ cảnh dài nhằm thiết lập bộ nhớ đệm KV (\texttt{KV cache}) cho mô hình, gây lãng phí năng lực tính toán.
-    \item \textbf{Chênh lệch hiệu năng giữa môi trường phát triển và môi trường thực nghiệm}: Trình điều khiển Docker trên macOS không hỗ trợ GPU Metal trực tiếp, buộc mô hình 7B phải thực thi hoàn toàn trên CPU và tiêu tốn xấp xỉ 6~GB RAM cho container. Khi máy ảo Docker chỉ được cấp phát 8~GB bộ nhớ kèm các container phụ trợ, tiến trình có nguy cơ bị hệ điều hành dừng đột ngột với mã thoát \texttt{exit code 137} (OOM Killer).
-    \item \textbf{Mức độ phụ thuộc vào dữ liệu từ pipeline tiền xử lý bên ngoài}: Hệ thống đòi hỏi các tệp dữ liệu cấu trúc như \texttt{tree.\allowbreak{}json}, \texttt{graph\_\allowbreak{}coauthorship.\allowbreak{}json} và các trường payload chuyên biệt (\texttt{twig\_\allowbreak{}id}, \texttt{chunk\_\allowbreak{}index}) từ pipeline khai phá dữ liệu. Khi các tệp này vắng mặt, các sự kiện định tuyến (\texttt{route}) trả về mảng rỗng và chức năng so sánh đối chiếu không thể lọc theo nhánh tri thức.
-    \item \textbf{Cấu hình đồng bộ giữa tầng biên Nginx và tầng dịch vụ nội bộ}: Cấu hình Nginx ở tầng biên trong phiên bản kế thừa vẫn sử dụng tên dịch vụ \texttt{backend-\allowbreak{}rag} và cổng 8000, trong khi tầng dịch vụ backend chuẩn hiện tại lắng nghe trên cổng 3000 với tên dịch vụ \texttt{app}. Sự không đồng nhất này đòi hỏi người vận hành phải hiệu chỉnh thủ công các khối \texttt{upstream} khi phối hợp các tệp Docker Compose.
-    \item \textbf{Độ sẵn sàng của tầng cân bằng tải Nginx}: Khối \texttt{upstream} trong cấu hình hiện tại chỉ khai báo một thực thể máy chủ duy nhất. Mặc dù các tham số chịu lỗi (\texttt{max\_\allowbreak{}fails}, \texttt{fail\_\allowbreak{}timeout}) và chỉ thị chuyển tiếp (\texttt{proxy\_\allowbreak{}next\_\allowbreak{}upstream}) đã được thiết lập đầy đủ, cơ chế dự phòng sự cố chưa phát huy tác dụng thực tế do thiếu các bản sao dự phòng.
-    \item \textbf{Thiếu vắng hạ tầng giám sát tập trung và tự động hóa chứng thư}: Nhật ký hoạt động mới chỉ được xuất ra luồng chuẩn (\texttt{stdout}) dưới dạng JSON một dòng, chưa được tích hợp sẵn ngăn xếp thu thập và phân tích trực quan hóa tập trung. Đồng thời, các tham số bảo mật TLS chưa được chốt cứng phiên bản giao thức và quy trình gia hạn chứng thư TLS vẫn mang tính thủ công.
-    \item \textbf{Quy trình quản lý bí mật (secret management) thủ công}: Các khóa ký JWT, khóa truy cập Qdrant và chứng thư TLS được lưu trữ qua biến môi trường hoặc tệp cấu hình cục bộ. Dù đã có cơ chế kiểm tra giá trị giữ chỗ (\textit{placeholder}) khi khởi động, việc luân chuyển khóa định kỳ và thu hồi chứng thư chưa được kết nối với các giải pháp quản lý bí mật chuyên dụng.
-\end{enumerate}
+\subsection{Hạn chế vận hành tầng suy luận}
+\label{subsec:han-che-suy-luan}
+
+\begin{itemize}
+\item[--] \textbf{\texttt{HC-01} -- Giải phóng \texttt{slot} suy luận chậm khi ngắt kết nối}: \texttt{Slot} suy luận của mô hình ngôn ngữ lớn chỉ được thu hồi sau khi tiến trình bắt đầu sinh ra token đầu tiên (khoảng 15~giây với \texttt{top\_k = 5} trên nền GPU Metal). Trong khoảng thời gian này, nếu người dùng chủ động đóng kết nối hoặc hủy yêu cầu, tài nguyên tính toán vẫn bị chiếm dụng để nạp ngữ cảnh dài vào bộ nhớ đệm KV (\texttt{KV cache}), gây lãng phí năng lực xử lý. Số liệu tại Mục~\ref{subsec:danh-gia-chat-luong-sinh} cho thấy tổng thời gian sinh trung vị lên tới 32,67~giây, phần lớn tiêu tốn ở pha tiền xử lý ngữ cảnh này.
+\item[--] \textbf{\texttt{HC-02} -- Chênh lệch hiệu năng giữa môi trường phát triển và container thực nghiệm}: Trình điều khiển Docker trên macOS không hỗ trợ truyền trực tiếp GPU Metal vào bên trong container, buộc mô hình 7B phải chạy hoàn toàn trên CPU và tiêu tốn xấp xỉ 6~GB RAM. Khi máy ảo Docker chỉ được cấp 8~GB RAM cho toàn bộ stack, tiến trình dễ bị hệ điều hành chấm dứt đột ngột bởi cơ chế \texttt{OOM Killer} (\texttt{exit code 137}).
+\item[--] \textbf{\texttt{HC-03} -- Đường sinh văn bản chưa đạt ngưỡng chịu tải đồng thời}: Kết quả tại Bảng~\ref{tab:tran-thong-luong-kich-ban} chỉ rõ kịch bản hỏi đáp có sinh văn bản chưa đạt chứng nhận tải cao ngay cả ở mức một người dùng đồng thời, do tiến trình suy luận cục bộ đã chiếm dụng 100,1\% CPU máy chủ trước khi tầng truy xuất kịp phát huy ưu thế tốc độ.
+\end{itemize}
+
+\subsection{Hạn chế phụ thuộc dữ liệu thượng nguồn}
+\label{subsec:han-che-du-lieu}
+
+\begin{itemize}
+\item[--] \textbf{\texttt{HC-04} -- Phụ thuộc vào tệp dữ liệu cấu trúc từ pipeline khai phá bên ngoài}: Hệ thống đòi hỏi các tệp \texttt{tree.json}, \texttt{graph\_coauthorship.json} cùng các trường payload chuyên biệt (\texttt{twig\_id}, \texttt{chunk\_index}) do pipeline thượng nguồn xuất ra. Khi các tệp này vắng mặt, sự kiện định tuyến (\texttt{route}) trả về mảng rỗng và bước truy vấn vector không thể thu hẹp phạm vi theo nhánh tri thức.
+\item[--] \textbf{\texttt{HC-05} -- Ba tập hợp bổ trợ của kho khoa học chưa được nạp đầy đủ trên môi trường chạy thử}: Do phụ thuộc vào \texttt{HC-04}, các tập hợp danh mục, nút cây tri thức và bản ghi kiểm toán tập dữ liệu (\texttt{datasets}) chưa được điền đầy đủ trên một số môi trường thử nghiệm, khiến trường \texttt{twig\_id} trong bản ghi đoạn còn trống, định tuyến hai cấp tại Mục~\ref{sec:thiet-ke-retrieval} tự động bỏ qua bước lọc nhánh (\texttt{category\_index = -1}) và pha đối soát cuối cùng chưa đóng gói được mã băm cấp tập dữ liệu.
+\item[--] \textbf{\texttt{HC-06} -- Độ trễ đồng bộ thống kê quy mô giữa chỉ mục vector và kho khoa học qua các đợt nạp tăng dần}: Khi chỉ mục vector Qdrant được cập nhật bổ sung trước khi tiến trình đối soát năm pha của kho khoa học hoàn tất, tổng số điểm quét trực tiếp trên Qdrant có thể chênh lệch tạm thời so với bản chụp chuẩn đã công bố (70.590~bài báo và 913.205~đoạn văn bản).
+\end{itemize}
+
+\subsection{Hạn chế tầng biên và thiếu hạ tầng giám sát tập trung}
+\label{subsec:han-che-tang-bien}
+
+\begin{itemize}
+\item[--] \textbf{\texttt{HC-07} -- Cấu hình tên dịch vụ và cổng chưa đồng bộ giữa hai tầng Compose}: Cấu hình \texttt{reverse proxy} Nginx ở tầng biên trong bộ tệp kế thừa vẫn trỏ tới tên dịch vụ \texttt{backend-rag} ở cổng 8000, trong khi tầng dịch vụ dữ liệu hiện tại định danh backend là \texttt{app} ở cổng 3000, buộc người vận hành phải hiệu chỉnh thủ công khối \texttt{upstream} khi ghép hai tầng.
+\item[--] \textbf{\texttt{HC-08} -- Khối \texttt{upstream} của Nginx mới khai báo một thực thể đơn lẻ}: Dù các tham số chịu lỗi (\texttt{max\_fails}, \texttt{fail\_timeout}) và chỉ thị chuyển tiếp (\texttt{proxy\_next\_upstream}) đã được cấu hình sẵn, cơ chế dự phòng lỗi tại tầng biên chưa phát huy tác dụng thực tế do chưa triển khai nhiều bản sao backend song song.
+\item[--] \textbf{\texttt{HC-09} -- Thiếu ngăn xếp giám sát tập trung và tự động hoá chứng thư \texttt{TLS}}: Dù hệ thống đã xuất nhật ký JSON một dòng ra \texttt{stdout} và có script lấy mẫu CPU/RAM mỗi hai giây (Mục~\ref{subsec:ket-qua-hieu-nang}), dữ liệu này mới lưu cục bộ mà chưa kết nối vào hệ thống lưu trữ chuỗi thời gian và bảng điều khiển trực quan hoá tập trung; đồng thời tham số giao thức \texttt{TLS} chưa chốt cứng và khâu gia hạn chứng thư vẫn thực hiện thủ công.
+\end{itemize}
+
+\subsection{Hạn chế quản lý bí mật}
+\label{subsec:han-che-quan-ly-bi-mat}
+
+\begin{itemize}
+\item[--] \textbf{\texttt{HC-10} -- Quy trình quản lý bí mật (\texttt{secret management}) thủ công}: Các khoá ký JWT, khoá truy cập Qdrant và khoá riêng \texttt{TLS} vẫn được cấp qua biến môi trường hoặc tệp cục bộ trên máy chủ; dù đã có lớp chặn giá trị giữ chỗ (\texttt{placeholder}) khi khởi động ở chế độ production, quy trình luân chuyển khoá định kỳ chưa được tự động hoá qua hệ thống quản lý bí mật chuyên dụng.
+\end{itemize}
 
 \section{Hướng phát triển trong tương lai}
 \label{sec:huong-phat-trien}
 
-Dựa trên các hạn chế kỹ thuật đã được phân tích, các hướng phát triển và hoàn thiện hệ thống trong tương lai bao gồm:
+Để khắc phục triệt để mười hạn chế đã chỉ ra ở Mục~\ref{sec:han-che} và mở rộng năng lực phục vụ của hệ thống, sáu hướng phát triển kỹ thuật trong giai đoạn tiếp theo được thiết kế gắn trực tiếp với từng mã hạn chế và số liệu thực nghiệm.
 
-\begin{enumerate}
-    \item \textbf{Tối ưu hóa tầng suy luận AI và hỗ trợ hủy tác vụ tức thì}:
-    Nâng cấp kiến trúc runtime suy luận với khả năng can thiệp ngắt giữa chừng quá trình tính toán ngữ cảnh (\textit{prompt preemption}) ngay khi nhận tín hiệu hủy kết nối từ phía client. Cân nhắc tích hợp các giải pháp phục vụ mô hình chuyên dụng như vLLM hoặc TGI nhằm tận dụng cơ chế chia trang bộ nhớ đệm (\textit{PagedAttention}), cho phép xử lý đồng thời nhiều luồng sinh văn bản với độ trễ thấp hơn.
-    
-    \item \textbf{Tăng cường độ sẵn sàng và tự động hóa tầng biên}:
-    Mở rộng khối \texttt{upstream} của Nginx lên nhiều bản sao backend, kết hợp thuật toán cân bằng tải băm theo địa chỉ IP (\texttt{ip\_hash}) hoặc ít kết nối nhất (\texttt{least\_conn}) để đảm bảo tính ổn định phiên. Tích hợp công cụ Certbot để tự động hóa hoàn toàn quy trình cấp phát, xác thực và luân chuyển chứng thư TLS Let's Encrypt.
-    
-    \item \textbf{Xây dựng hệ thống quan trắc và giám sát tập trung (Observability)}:
-    Triển khai ngăn xếp giám sát chuẩn công nghiệp sử dụng Prometheus và Grafana để theo dõi các chỉ số thời gian thực (CPU, RAM, độ trễ P95/P99, dung lượng hàng đợi suy luận), kết hợp OpenTelemetry hoặc Grafana Loki để thu thập nhật ký có cấu trúc và truy vết phân tán (\textit{distributed tracing}) xuyên suốt từ Nginx, Backend đến Qdrant.
-    
-    \item \textbf{Chuyên nghiệp hóa quản lý bí mật và bảo mật dữ liệu}:
-    Tích hợp các giải pháp quản lý bí mật chuyên nghiệp (như HashiCorp Vault hoặc hệ thống Secret Manager) nhằm tự động hóa vòng đời của khóa ký JWT, thông tin xác thực cơ sở dữ liệu và chứng thư máy chủ, loại bỏ hoàn toàn việc lưu trữ secret dưới dạng văn bản thô trên tệp cấu hình máy chủ.
-\end{enumerate}
+\subsection{Tối ưu tầng suy luận và hỗ trợ hủy tác vụ tức thì}
+\label{subsec:toi-uu-tang-suy-luan}
+
+Hướng phát triển này giải quyết trực tiếp \texttt{HC-01} và \texttt{HC-03} bằng cách nâng cấp runtime suy luận theo hai trục: bổ sung cơ chế can thiệp ngắt giữa chừng quá trình nạp ngữ cảnh (\textit{prompt preemption}) ngay khi nhận tín hiệu huỷ \texttt{AbortSignal} từ phía client, và tích hợp các engine phục vụ mô hình chuyên dụng như vLLM hoặc TGI để tận dụng thuật toán chia trang bộ nhớ đệm (\textit{PagedAttention}), cho phép ghép lô liên tục (\textit{continuous batching}) nhiều luồng sinh văn bản với độ trễ thấp. Cơ sở định lượng từ Bảng~\ref{tab:tran-thong-luong-kich-ban} và Bảng~\ref{tab:phan-ra-thoi-gian-rag} khẳng định chặng sinh văn bản chiếm 75,4\% tổng thời gian và gây bão hoà 100,1\% CPU ngay ở mức một người dùng, nên giải phóng nút thắt suy luận là con đường duy nhất để nâng thông lượng hỏi đáp.
+
+\subsection{Mở rộng độ sẵn sàng và tự động hóa tầng biên}
+\label{subsec:mo-rong-tang-bien}
+
+Hướng này giải quyết \texttt{HC-07} và \texttt{HC-08} thông qua việc đồng bộ hoàn toàn định danh dịch vụ giữa hai tầng Compose, mở rộng khối \texttt{upstream} của Nginx lên nhiều bản sao backend kết hợp thuật toán cân bằng tải băm theo địa chỉ IP (\texttt{ip\_hash}) hoặc ít kết nối nhất (\texttt{least\_conn}), đồng thời tích hợp Certbot để tự động hoá cấp phát và gia hạn chứng thư \texttt{TLS} Let's Encrypt. Một ràng buộc kiến trúc quan trọng khi mở rộng đa bản sao là bộ nhớ đệm \texttt{LRUCache} (gắn \texttt{generation counter} theo tài khoản) và cơ chế \texttt{Singleflight} đang nằm trong bộ nhớ của từng tiến trình backend; do đó thuật toán cân bằng tải tại Nginx phải ưu tiên tính gắn kết phiên (\textit{session affinity} qua \texttt{ip\_hash}) hoặc chuyển tầng đếm thế hệ sang bộ nhớ đệm phân tán để ngăn hiện tượng đọc dữ liệu cũ khi người dùng đổi thực thể máy chủ giữa hai lượt ghi liên tiếp.
+
+\subsection{Xây dựng hệ thống quan trắc và giám sát tập trung}
+\label{subsec:giam-sat-tap-trung}
+
+Hướng này giải quyết \texttt{HC-09} bằng cách xây dựng hệ thống quan trắc (\texttt{Observability}) với ngăn xếp Prometheus và Grafana để thu thập, lưu trữ chuỗi thời gian và trực quan hoá các chỉ số thời gian thực (CPU, RAM, phân vị độ trễ \texttt{p95}/\texttt{p99}, độ sâu hàng đợi \texttt{LlmQueue}), kết hợp Grafana Loki và OpenTelemetry để tập trung hoá nhật ký JSON từ \texttt{stdout} cùng truy vết phân tán (\textit{distributed tracing}) xuyên suốt từ Nginx, NestJS tới Qdrant. Thuận lợi lớn của hướng này là tầng thu thập chỉ số lấy mẫu hai giây và cấu trúc log Pino gắn \texttt{UUIDv7} đã có sẵn; công việc mở rộng chỉ tập trung vào tầng lưu trữ và hiển thị.
+
+\subsection{Chuyên nghiệp hóa quản lý bí mật và bảo mật dữ liệu}
+\label{subsec:quan-ly-bi-mat}
+
+Hướng này giải quyết \texttt{HC-10} thông qua tích hợp giải pháp quản lý bí mật chuyên dụng như HashiCorp Vault hoặc dịch vụ Secret Manager nhằm cấp phát động, thu hồi và tự động luân chuyển định kỳ các khoá ký JWT, thông tin xác thực MongoDB/Qdrant và chứng thư \texttt{TLS}, loại bỏ hoàn toàn việc lưu trữ bí mật dạng văn bản thô trong tệp \texttt{.env} trên máy chủ.
+
+\subsection{Hoàn thiện dữ liệu cây tri thức và đối soát tập dữ liệu}
+\label{subsec:hoan-thien-du-lieu}
+
+Hướng này giải quyết \texttt{HC-04}, \texttt{HC-05} và \texttt{HC-06} thông qua ba tác vụ đồng bộ:
+
+\begin{itemize}
+\item[--] Kết nối tự động đầu ra của pipeline khai phá thượng nguồn để cung cấp đầy đủ các tệp cây tri thức (\texttt{tree.json}, trọng tâm hai cấp và danh mục) cho mọi môi trường triển khai.
+\item[--] Thực thi trọn vẹn pha đối soát thứ năm trên toàn bộ kho khoa học để điền đủ ba tập hợp bổ trợ và đóng gói mã băm \texttt{SHA-256} cấp tập dữ liệu.
+\item[--] Thiết lập cơ chế chốt phiên bản đồng bộ giữa chỉ mục Qdrant và kho khoa học sau mỗi đợt nạp tăng dần để triệt tiêu độ trễ thống kê nêu tại \texttt{HC-06}.
+\end{itemize}
+
+Khi trường \texttt{twig\_id} trong toàn bộ bản ghi đoạn được điền đầy đủ, cơ chế lọc theo nhánh cây tri thức tại Mục~\ref{sec:thiet-ke-retrieval} sẽ chuyển từ trạng thái dự phòng sang hoạt động toàn phần, giúp thu hẹp không gian tìm kiếm vector và cải thiện đồng thời cả độ trễ lẫn độ chính xác truy hồi.
+
+\subsection{Nâng mức chịu tải đã chứng nhận}
+\label{subsec:nang-muc-chiu-tai}
+
+Hướng phát triển này xuất phát trực tiếp từ kết quả phân tích điểm gãy tại Hình~\ref{fig:duong-cong-diem-gay} và Bảng~\ref{tab:phan-ra-do-tre-endpoint}: mức 250~RPS hiện tại là trần đã chứng nhận chứ chưa phải giới hạn vật lý cuối cùng của kiến trúc (tại 300~RPS, độ trễ \texttt{p95} vẫn giữ dưới 500~ms và chỉ có \texttt{p99} cùng tỉ lệ kiểm tra vượt ngưỡng). Biểu đồ phân rã độ trễ theo đường xử lý (Hình~\ref{fig:phan-ra-do-tre-endpoint}) chỉ rõ hai đường ghi tuy chỉ chiếm 15\% lưu lượng nhưng có độ trễ trung vị gấp mười lần đường đọc do chi phí khứ hồi qua \texttt{tunnel}; vì vậy, tối ưu đường ghi và giảm độ trễ kết nối tới MongoDB sẽ nâng trực tiếp trần chịu tải tổng thể mà không cần tăng cấu hình phần cứng. Song song đó, hệ thống sẽ bổ sung kịch bản kiểm thử ngưỡng hiệu năng tự động cho đường sinh văn bản để cảnh báo sớm như đã chỉ ra tại Mục~\ref{subsec:ket-qua-kiem-thu-tu-dong}.
+
+Hình~\ref{fig:anh-xa-han-che-huong-pt} minh hoạ quan hệ ánh xạ nhân quả giữa các hạn chế ở Mục~\ref{sec:han-che} và sáu hướng phát triển tương ứng ở Mục~\ref{sec:huong-phat-trien}.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.35cm and 2.2cm,
+    hcnode/.style={ragbox, minimum width=6.2cm, minimum height=0.82cm, font=\footnotesize\sffamily},
+    dnode/.style={ragbox, minimum width=5.8cm, minimum height=0.95cm, fill=primaryBlue!18, font=\footnotesize\sffamily\bfseries}
+]
+    % Left column: HC nodes
+    \node[hcnode] (hc01) {\texttt{HC-01} -- Giải phóng \texttt{slot} chậm};
+    \node[hcnode, below=of hc01] (hc03) {\texttt{HC-03} -- Đường sinh chưa đạt ngưỡng};
+    \node[hcnode, below=of hc03] (hc07) {\texttt{HC-07} -- Tầng biên lệch tên/cổng};
+    \node[hcnode, below=of hc07] (hc08) {\texttt{HC-08} -- \texttt{Upstream} đơn bản sao};
+    \node[hcnode, below=of hc08] (hc09) {\texttt{HC-09} -- Thiếu giám sát tập trung};
+    \node[hcnode, below=of hc09] (hc10) {\texttt{HC-10} -- Quản lý \texttt{secret} thủ công};
+    \node[hcnode, below=of hc10] (hc04) {\texttt{HC-04} -- Phụ thuộc tệp cây tri thức};
+    \node[hcnode, below=of hc04] (hc05) {\texttt{HC-05} -- Ba tập hợp bổ trợ trống};
+    \node[hcnode, below=of hc05] (hc06) {\texttt{HC-06} -- Độ trễ đồng bộ thống kê};
+    \node[hcnode, below=of hc06] (cap) {Trần chứng nhận 250~RPS};
+
+    % Right column: Development direction nodes aligned to midpoint of their source groups
+    \path (hc01.east) -- (hc03.east) coordinate[midway] (mid1);
+    \node[dnode, right=2.2cm of mid1] (d1) {8.4.1 -- Tối ưu tầng suy luận};
+
+    \path (hc07.east) -- (hc08.east) coordinate[midway] (mid2);
+    \node[dnode, right=2.2cm of mid2] (d2) {8.4.2 -- Mở rộng tầng biên};
+
+    \node[dnode, right=2.2cm of hc09] (d3) {8.4.3 -- \texttt{Observability}};
+    \node[dnode, right=2.2cm of hc10] (d4) {8.4.4 -- \texttt{Secret Manager}};
+
+    \node[dnode, right=2.2cm of hc05] (d5) {8.4.5 -- Hoàn thiện dữ liệu};
+    \node[dnode, right=2.2cm of cap] (d6) {8.4.6 -- Nâng mức chịu tải};
+
+    % Arrows
+    \draw[ragarrow] (hc01.east) -- (d1.west);
+    \draw[ragarrow] (hc03.east) -- (d1.west);
+    \draw[ragarrow] (hc07.east) -- (d2.west);
+    \draw[ragarrow] (hc08.east) -- (d2.west);
+    \draw[ragarrow] (hc09.east) -- (d3.west);
+    \draw[ragarrow] (hc10.east) -- (d4.west);
+    \draw[ragarrow] (hc04.east) -- (d5.west);
+    \draw[ragarrow] (hc05.east) -- (d5.west);
+    \draw[ragarrow] (hc06.east) -- (d5.west);
+    \draw[ragarrow] (cap.east) -- (d6.west);
+\end{tikzpicture}%
+}
+\caption{Quan hệ ánh xạ nhân quả giữa các hạn chế ở Mục~\ref{sec:han-che} và hướng phát triển tương ứng ở Mục~\ref{sec:huong-phat-trien}}
+\label{fig:anh-xa-han-che-huong-pt}
+\end{figure}
+
+Bảng~\ref{tab:anh-xa-han-che-nghiem-thu} tổng hợp ma trận ánh xạ giữa các hạn chế, hướng phát triển và tiêu chí nghiệm thu định lượng có thể kiểm chứng.
+
+\begin{table}[htbp]
+\centering
+\caption{Ma trận ánh xạ hạn chế, hướng phát triển và tiêu chí nghiệm thu}
+\label{tab:anh-xa-han-che-nghiem-thu}
+\small
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{3.3cm}
+  >{\raggedright\arraybackslash}p{4.3cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Mã hạn chế / Cơ sở} & \textbf{Hướng phát triển} & \textbf{Tiêu chí nghiệm thu định lượng} \\
+\midrule
+\texttt{HC-01}, \texttt{HC-03} & Mục~\ref{subsec:toi-uu-tang-suy-luan} -- Tối ưu tầng suy luận & Kịch bản hỏi đáp đạt ngưỡng hiệu năng tại ít nhất một mức người dùng đồng thời; thời gian thu hồi \texttt{slot} sau khi hủy kết nối giảm xuống dưới 2~giây \\
+\midrule
+\texttt{HC-07}, \texttt{HC-08} & Mục~\ref{subsec:mo-rong-tang-bien} -- Mở rộng tầng biên & Khối \texttt{upstream} khai báo tối thiểu 2 thực thể backend; khởi chạy toàn hệ thống hoàn tất mà không cần sửa thủ công tệp cấu hình Nginx \\
+\midrule
+\texttt{HC-09} & Mục~\ref{subsec:giam-sat-tap-trung} -- Giám sát tập trung & Bảng điều khiển Grafana hiển thị thời gian thực CPU, RAM, \texttt{p95}, \texttt{p99} và độ sâu \texttt{LlmQueue}; nhật ký \texttt{stdout} được thu thập tập trung kèm cảnh báo hạn chứng thư \texttt{TLS} \\
+\midrule
+\texttt{HC-10} & Mục~\ref{subsec:quan-ly-bi-mat} -- Quản lý bí mật & Loại bỏ hoàn toàn \texttt{secret} dạng văn bản thô trong tệp \texttt{.env} trên máy chủ; vận hành tự động quy trình luân chuyển khoá định kỳ \\
+\midrule
+\texttt{HC-04}, \texttt{HC-05}, \texttt{HC-06} & Mục~\ref{subsec:hoan-thien-du-lieu} -- Hoàn thiện dữ liệu & Sự kiện \texttt{route} trả về danh sách nhánh khác rỗng; \texttt{category\_index} khác \texttt{-1}; tập hợp \texttt{datasets} lưu đầy đủ mã băm \texttt{SHA-256} đồng bộ với chỉ mục Qdrant \\
+\midrule
+Trần chứng nhận 250~RPS & Mục~\ref{subsec:nang-muc-chiu-tai} -- Nâng mức chịu tải & Đạt đồng thời ba ngưỡng Quy tắc L1 (\texttt{p95} $< 500$~ms, \texttt{p99} $< 1.000$~ms, lỗi $< 1\%$ trong 180~giây) ở mức tải lớn hơn 250~RPS; có kịch bản kiểm thử tự động giám sát đường sinh văn bản \\
+\bottomrule
+\end{tabularx}
+\end{table}

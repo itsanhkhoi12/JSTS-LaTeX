@@ -41,6 +41,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Call stack & Call Stack & Ngăn xếp lời gọi hàm theo dõi thứ tự thực thi của chương trình \\
     Chunking & Text Chunking & Chiến lược chia nhỏ văn bản bài báo thành các đoạn phục vụ lập chỉ mục và truy hồi \\
     Claims & JWT Claims & Các trường thông tin khai báo được đóng gói trong phần tải của token JWT \\
+    CLS & Cumulative Layout Shift & Chỉ số Web Vitals đo độ lệch bố cục tích luỹ nhằm đánh giá tính ổn định thị giác của trang web \\
     Cold start & Cold Start & Độ trễ phát sinh khi khởi tạo mới hàm serverless hoặc tiến trình chưa sẵn sàng \\
     Collection & Document Collection & Tập hợp các tài liệu (document) trong cơ sở dữ liệu hướng tài liệu như MongoDB \\
     Compaction & Data Compaction & Quá trình gộp định kỳ các tệp phân mảnh nhỏ thành tệp lớn nhằm tối ưu lưu trữ và đọc theo lô \\
@@ -67,6 +68,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Enumeration & Account Enumeration & Hành vi dò tìm sự tồn tại của tài khoản người dùng dựa trên phản hồi hoặc độ trễ hệ thống \\
     ETag & Entity Tag & Thẻ kiểm tra phiên bản đối tượng do kho lưu trữ S3/MinIO trả về (thường là MD5 với tệp tải lên đơn phần) \\
     Fallback & Fallback Mechanism & Cơ chế dự phòng thay thế khi thành phần chính gặp lỗi hoặc vượt thời hạn chờ \\
+    FCP & First Contentful Paint & Chỉ số Web Vitals đo thời gian từ khi tải trang đến khi phần tử nội dung đầu tiên hiển thị trên màn hình \\
     FP-Growth & Frequent Pattern Growth & Thuật toán khai phá tập phổ biến và luật kết hợp không cần sinh ứng viên \\
     Generation counter & Generation Counter & Bộ đếm thế hệ gắn vào khoá bộ nhớ đệm để vô hiệu hoá hàng loạt dữ liệu cũ với chi phí $O(1)$ \\
     GGUF & GPT-Generated Unified Format & Định dạng tệp lưu trữ trọng số mô hình ngôn ngữ lượng tử hoá cho suy luận cục bộ \\
@@ -77,6 +79,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Graceful degradation & Graceful Degradation & Cơ chế suy giảm mềm giúp hệ thống tiếp tục phục vụ ở mức khả dụng khi thành phần phụ lỗi \\
     Groundedness & Answer Groundedness & Mức độ câu trả lời do mô hình sinh ra bám sát và được chứng minh bởi ngữ cảnh truy hồi \\
     HATEOAS & Hypermedia as the Engine of Application State & Nguyên tắc REST đính kèm siêu liên kết hành động khả dụng ngay trong phản hồi API \\
+    Hit@k & Hit Rate at K & Tỉ lệ truy vấn có chứa ít nhất một tài liệu đúng trong $k$ kết quả đầu tiên được truy hồi \\
     HMR & Hot Module Replacement & Cơ chế cập nhật nóng mô đun giao diện trong quá trình phát triển không cần tải lại trang \\
     HNSW & Hierarchical Navigable Small World & Cấu trúc chỉ mục đồ thị phân tầng phục vụ tìm kiếm vector gần đúng tốc độ cao \\
     Hooks & React Hooks & Các hàm móc nối vòng đời và trạng thái của React trong thành phần hàm \\
@@ -96,6 +99,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     KV cache & Key-Value Cache & Bộ nhớ đệm lưu các ma trận khoá và giá trị của ngữ cảnh trước đó nhằm tăng tốc sinh token tuần tự trong LLM \\
     L2 normalization & L2 Normalization & Chuẩn hoá vector về độ dài Euclid bằng 1 để độ tương đồng cosin quy về tích vô hướng \\
     Last-write-wins & Last-Write-Wins & Quy tắc gộp bản ghi trùng khoá bằng cách giữ lại bản ghi được cập nhật sau cùng \\
+    LCP & Largest Contentful Paint & Chỉ số Web Vitals đo thời gian hiển thị phần tử nội dung lớn nhất trong khung nhìn của trình duyệt \\
     Lease lock & Lease Lock & Khoá tạm thời có thời hạn tự giải phóng nhằm tránh treo vĩnh viễn khi tiến trình gặp sự cố \\
     LLM & Large Language Model & Mô hình ngôn ngữ lớn \\
     Load shedding & Load Shedding & Cơ chế giảm tải có kiểm soát bằng cách từ chối sớm yêu cầu vượt ngưỡng khi hàng đợi đầy \\
@@ -107,13 +111,16 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Memoization & Memoization & Kỹ thuật ghi nhớ kết quả tính toán hoặc kết xuất để tránh chạy lại khi đầu vào không đổi \\
     Metadata & Metadata & Siêu dữ liệu mô tả thông tin bổ sung về tài liệu, đoạn văn bản hoặc tài nguyên \\
     Metal / Vulkan & Apple Metal / Khronos Vulkan & Giao diện tăng tốc đồ hoạ và tính toán GPU trên macOS (Metal) và đa nền tảng (Vulkan) \\
+    MRR & Mean Reciprocal Rank & Độ đo chất lượng truy hồi tính bằng trung bình nghịch đảo thứ hạng của tài liệu đúng đầu tiên \\
     Multi-stage build & Multi-Stage Build & Kỹ thuật tối ưu kích thước Docker image bằng cách tách biệt giai đoạn biên dịch và môi trường chạy thực tế \\
     NFKC & Normalization Form Compatibility Composition & Dạng chuẩn hoá Unicode tương thích giúp đồng nhất chuỗi ký tự trước khi tính mã băm khử trùng lặp \\
     OAI-PMH & Open Archives Initiative Protocol for Metadata Harvesting & Giao thức chuẩn mở phục vụ thu thập siêu dữ liệu định kỳ từ các kho lưu trữ học thuật như arXiv \\
+    Observability & System Observability & Khả năng quan trắc trạng thái nội tại của hệ thống thông qua ba trụ cột chỉ số (metrics), nhật ký (logs) và vết phân tán (traces) \\
     ODM & Object Document Mapper & Thư viện ánh xạ đối tượng mã nguồn với tài liệu trong cơ sở dữ liệu NoSQL (như Mongoose) \\
     On-premise & On-premise Deployment & Mô hình triển khai hệ thống và lưu trữ dữ liệu hoàn toàn trên hạ tầng nội bộ tự chủ \\
     ONNX & Open Neural Network Exchange & Định dạng chuẩn mở để biểu diễn và thực thi mô hình học máy đa nền tảng \\
     OOM & Out of Memory & Tình trạng tiến trình tiêu thụ vượt giới hạn bộ nhớ khả dụng khiến hệ điều hành buộc dừng (\texttt{exit code 137}) \\
+    PagedAttention & Paged Attention Mechanism & Kỹ thuật phân trang bộ nhớ đệm KV không liên tục giúp giảm phân mảnh VRAM và tăng thông lượng phục vụ LLM \\
     PageRank & PageRank Algorithm & Thuật toán xếp hạng nút dựa trên cấu trúc liên kết, áp dụng đo uy tín tác giả trong đồ thị trích dẫn \\
     Parquet & Apache Parquet & Định dạng lưu trữ dữ liệu dạng cột có nén, tối ưu cho đọc theo lô và phân tích \\
     Payload & Payload & Phần dữ liệu chính hoặc siêu dữ liệu đính kèm trong điểm vector và thông điệp truyền tải \\
@@ -150,6 +157,7 @@ Bảng dưới đây tổng hợp các từ viết tắt và thuật ngữ chuy�
     Stack trace & Stack Trace & Dấu vết ngăn xếp lời gọi giúp xác định vị trí phát sinh ngoại lệ trong mã nguồn \\
     Stacking order & Z-index Stacking Order & Thứ tự xếp chồng các lớp giao diện theo trục độ sâu trên màn hình \\
     Task prefix & Task Prefix & Tiền tố chỉ dẫn tác vụ gắn trước văn bản đầu vào cho mô hình nhúng (như \texttt{search\_query}) \\
+    TBT & Total Blocking Time & Chỉ số Web Vitals đo tổng thời gian luồng chính của trình duyệt bị chặn vượt quá 50 ms khi tải trang \\
     Thread pool & Thread Pool & Nhóm luồng thực thi được cấp phát sẵn để xử lý tác vụ song song hoặc hàm băm tốn CPU \\
     TLS & Transport Layer Security & Giao thức mật mã bảo mật truyền thông trên mạng và xác thực danh tính máy chủ qua chứng thư số \\
     Token family & Token Family & Họ chuỗi token làm mới liên kết với một phiên đăng nhập để phát hiện tái sử dụng \\
