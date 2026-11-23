@@ -4,6 +4,7 @@
 % Sử dụng metadata từ metadata.tex (hoặc metadata.example.tex nếu chưa tạo)
 % ==============================================================================
 
+\ifdefined\reportTitle\else
 \IfFileExists{metadata.tex}{%
     \input{metadata.tex}%
 }{%
@@ -11,6 +12,7 @@
         \input{metadata.example.tex}%
     }{}%
 }
+\fi
 
 \begin{titlepage}
     % --- Khung viền TikZ ---
@@ -64,7 +66,7 @@
     \begin{center}
         {\Huge \textbf{\reportType}\par}
         \vspace{0.4cm}
-        {\LARGE \textbf{\reportTitle}\par}
+        {\LARGE \textbf{\MakeUppercase{\reportTitle}}\par}
         \ifx\reportSubtitle\empty\else
             \vspace{0.2cm}
             {\large \textit{\reportSubtitle}\par}

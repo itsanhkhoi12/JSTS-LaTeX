@@ -67,20 +67,45 @@
 % ------------------------------------------------------------------------------
 % 4. TIÊU ĐỀ, HEADER & FOOTER
 % ------------------------------------------------------------------------------
-\usepackage{fancyhdr}
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\small\nouppercase{\leftmark}}
-\fancyfoot[C]{\small\thepage}
-\renewcommand{\headrulewidth}{0.5pt}
-\renewcommand{\footrulewidth}{0pt}
+% Nạp cấu hình thông tin đề tài (metadata) phục vụ hiển thị tiêu đề ở footer/header
+\ifdefined\reportTitle\else
+    \IfFileExists{metadata.tex}{%
+        \input{metadata.tex}%
+    }{%
+        \IfFileExists{metadata.example.tex}{%
+            \input{metadata.example.tex}%
+        }{}%
+    }
+\fi
 
-% Định dạng trang đầu chương / trang đặc biệt dùng plain style
+\usepackage{fancyhdr}
+
+% Định nghĩa style fancy cho phần nội dung chính (Main Matter)
+\fancypagestyle{fancy}{%
+    \fancyhf{}%
+    \fancyhead[L]{\small\nouppercase{\ifdefined\reportTitle\reportTitle\fi}}%
+    \fancyfoot[C]{\small\thepage}%
+    \renewcommand{\headrulewidth}{0.5pt}%
+    \renewcommand{\footrulewidth}{0pt}%
+}
+
+% Định dạng trang đầu chương (plain style): chỉ có số trang ở footer, không có header
 \fancypagestyle{plain}{%
     \fancyhf{}%
     \fancyfoot[C]{\small\thepage}%
     \renewcommand{\headrulewidth}{0pt}%
+    \renewcommand{\footrulewidth}{0pt}%
 }
+
+% Định dạng cho Front Matter và Back Matter (không có header tiêu đề đề tài)
+\fancypagestyle{noheader}{%
+    \fancyhf{}%
+    \fancyfoot[C]{\small\thepage}%
+    \renewcommand{\headrulewidth}{0pt}%
+    \renewcommand{\footrulewidth}{0pt}%
+}
+
+\pagestyle{fancy}
 
 \usepackage{titlesec}
 % Tùy biến định dạng tiêu đề chương và mục
