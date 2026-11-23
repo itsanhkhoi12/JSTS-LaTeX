@@ -110,8 +110,8 @@ Ba hoạt động nằm ngoài phạm vi hệ thống. Ứng dụng không ghi v
         \toprule
         \textbf{Mã} & \textbf{Tên trường hợp sử dụng} & \textbf{Tác nhân} & \textbf{Endpoint chính} & \textbf{Kết quả mong đợi} \\
         \midrule
-        UC-1 & Đăng nhập và làm mới phiên đăng nhập & Người dùng & \texttt{POST /auth/tokens}, \texttt{/auth/token-rotations} & Token truy cập và token làm mới có thời hạn, xoay vòng theo họ \\
-        UC-2 & Hỏi đáp bằng trí tuệ & Người dùng & \texttt{POST /rag/chat/stream} & Câu trả lời theo dòng sự kiện kèm dẫn nguồn và điểm căn cứ \\
+        UC-1 & Đăng nhập và làm mới phiên đăng nhập & Người dùng & \texttt{POST /auth/tokens}, \texttt{/auth/token-rotations} & Token truy cập và token làm mới có thời hạn, xoay vòng theo họ token (token family) \\
+        UC-2 & Hỏi đáp bằng AI & Người dùng & \texttt{POST /rag/chat/stream} & Câu trả lời theo luồng sự kiện (SSE) kèm dẫn nguồn và điểm căn cứ \\
         UC-3 & Đọc hàng loạt chi tiết bài báo & Người dùng & \texttt{GET /papers?ids=} & Tối đa 20 bài báo trong một lần gọi \\
         UC-4 & Quản lý lịch sử hội thoại & Người dùng & \texttt{GET /chat-sessions?cursor=} & Mười phiên mỗi trang theo phân trang con trỏ \\
         UC-5 & Theo dõi nhật ký kiểm toán & Quản trị viên & \texttt{GET /admin/audit-logs} & Danh sách thao tác quản trị bất biến \\
@@ -164,7 +164,7 @@ Tìm kiếm ngữ nghĩa là yêu cầu trung tâm. Câu hỏi được chuyển
         GET & \texttt{/api/v1/papers?ids=} & Đọc hàng loạt chi tiết bài báo, tối đa 20 bài báo \\
         GET & \texttt{/api/v1/papers/\{paper\_id\}} & Chi tiết một bài báo và các đoạn văn bản \\
         POST & \texttt{/api/v1/rag/chat} & Truy vấn ngữ nghĩa, trả kết quả đầy đủ \\
-        POST & \texttt{/api/v1/rag/chat/stream} & Truy vấn ngữ nghĩa, trả kết quả theo dòng sự kiện \\
+        POST & \texttt{/api/v1/rag/chat/stream} & Truy vấn ngữ nghĩa, trả kết quả theo luồng sự kiện \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -172,12 +172,12 @@ Tìm kiếm ngữ nghĩa là yêu cầu trung tâm. Câu hỏi được chuyển
 \subsection{Quản lý và khai thác thông tin research paper}
 \label{subsec:khai-thac-paper}
 
-Kho văn bản lưu trên MongoDB với tên \texttt{rag\_ts\_corpus} và được ứng dụng chỉ đọc. Khai thác tri thức dựa trên đồ thị đồng tác giả cho ra bảng uy tín PageRank của 120 tác giả, và tập 40 luật kết hợp dùng mở rộng truy vấn. Cả hai tập được nạp một lần lúc khởi động, nên không phát sinh chi phí truy vấn trong đường nóng.
+Kho văn bản lưu trên MongoDB với tên \texttt{rag\_ts\_corpus} và được ứng dụng chỉ đọc. Khai thác tri thức dựa trên đồ thị đồng tác giả cho ra bảng uy tín PageRank của 120 tác giả, và tập 40 luật kết hợp dùng mở rộng truy vấn. Cả hai tập được nạp một lần lúc khởi động, nên không phát sinh chi phí truy vấn trong luồng xử lý chính (hot path).
 
 \subsection{Tương tác và hỗ trợ tìm hiểu research paper bằng AI}
 \label{subsec:tuong-tac-ai}
 
-Yêu cầu này được hiện thực bằng đường ống truy hồi tăng cường gồm năm bước: nhúng câu hỏi, định tuyến cây, truy hồi chỉ mục vector, chấm điểm và xếp hạng lại, rồi sinh văn bản. Bước sinh văn bản chiếm nhiều thời gian nhất, nên giao diện nhận kết quả theo dòng sự kiện.
+Yêu cầu này được hiện thực bằng quy trình Truy hồi-Tăng cường bao gồm năm bước: nhúng câu hỏi, định tuyến cây, truy hồi chỉ mục vector, chấm điểm và xếp hạng lại, rồi sinh văn bản. Bước sinh văn bản chiếm nhiều thời gian nhất, nên giao diện nhận kết quả theo luồng sự kiện.
 
 \begin{figure}[htbp]
     \centering
@@ -223,7 +223,7 @@ Yêu cầu này được hiện thực bằng đường ống truy hồi tăng c
         \draw[ragarrow] (2*\dx, -9.15) -- node[above, font=\scriptsize] {Sinh câu trả lời có trích dẫn} (8*\dx, -9.15);
         \draw[ragdashed] (8*\dx, -9.8) -- node[above, font=\scriptsize] {Token và nguồn} (2*\dx, -9.8);
 
-        \draw[ragdashed] (2*\dx, -10.5) -- node[above, font=\scriptsize] {Sự kiện dòng} (1*\dx, -10.5);
+        \draw[ragdashed] (2*\dx, -10.5) -- node[above, font=\scriptsize] {Sự kiện SSE} (1*\dx, -10.5);
         \draw[ragdashed] (1*\dx, -11.2) -- node[above, font=\scriptsize] {Câu trả lời và chip dẫn nguồn} (0*\dx, -11.2);
     \end{tikzpicture}%
     }
@@ -243,9 +243,9 @@ Ba thành phần trung tâm có tham số vận hành như sau.
         \textbf{Thành phần} & \textbf{Mô hình hoặc thuật toán} & \textbf{Tham số} \\
         \midrule
         Nhúng & \texttt{nomic-embed-text-v1.5} & 768 chiều, chuẩn L2, bộ nhớ đệm 500 mục trong 10 phút \\
-        Khai phá & PageRank và FP-Growth & Hỗ trợ tối thiểu 0,02, tin cậy tối thiểu 0,5 \\
-        Chấm điểm & Laya với hạt giống 0 & Tối đa 8 yêu cầu chờ, thời hạn 30 giây \\
-        Sinh văn bản & \texttt{qwen2.5-7b} bản định lượng \texttt{Q4\_K\_M}, 4,68 GB & Ngữ cảnh 8192, nhiệt độ 0,2, 1024 token, một luồng và hàng đợi tám, 60 giây \\
+        Khai phá & PageRank và FP-Growth & Độ hỗ trợ tối thiểu (\texttt{min\_support}) 0,02, độ tin cậy tối thiểu (\texttt{min\_confidence}) 0,5 \\
+        Chấm điểm & Laya với tham số \texttt{seed = 0} & Tối đa 8 yêu cầu chờ, thời hạn 30 giây \\
+        Sinh văn bản & \texttt{qwen2.5-7b} bản lượng tử hoá \texttt{Q4\_K\_M}, 4,68 GB & Ngữ cảnh 8192, nhiệt độ (temperature) 0,2, 1024 token, một luồng và hàng đợi tám, 60 giây \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -280,8 +280,8 @@ Hệ thống bảo vệ người dùng trước câu trả lời không có căn
         \toprule
         \textbf{Cổng} & \textbf{Điều kiện} & \textbf{Xử lý} \\
         \midrule
-        Cổng căn cứ & Điểm liên quan tốt nhất dưới 0,6 & Viết lại câu hỏi một lần trong tối đa 25 từ, nếu vẫn thấp thì từ chối trả lời \\
-        Cổng bám sát & Điểm bám sát của ba đoạn đầu dưới 0,3 & Trả về câu trả lời không có nội dung và sự kiện thay thế câu trả lời \\
+        Cổng căn cứ (Evidence) & Điểm liên quan tốt nhất dưới 0,6 & Viết lại câu hỏi một lần trong tối đa 25 từ, nếu vẫn thấp thì từ chối trả lời \\
+        Cổng bám sát (Grounded) & Điểm bám sát của ba đoạn đầu dưới 0,3 & Trả về câu trả lời không có nội dung và sự kiện thay thế câu trả lời \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -289,7 +289,7 @@ Hệ thống bảo vệ người dùng trước câu trả lời không có căn
 \subsection{Quản lý lịch sử và dữ liệu người dùng}
 \label{subsec:quan-ly-lich-su}
 
-Lịch sử hội thoại được lưu ở hai tầng. Tầng cục bộ trên trình duyệt dùng IndexedDB thông qua Dexie với định danh UUIDv7, là nguồn sự thật phía người dùng và cho phép xem lại lịch sử khi máy chủ không truy cập được. Tầng máy chủ giữ bản gốc để đồng bộ giữa các thiết bị, và dùng bộ đếm thế hệ theo tài khoản để vô hiệu hoá bộ nhớ đệm khi có thay đổi.
+Lịch sử hội thoại được lưu ở hai tầng. Tầng cục bộ trên trình duyệt dùng IndexedDB thông qua Dexie với định danh UUIDv7, là nguồn dữ liệu chuẩn (source of truth) phía người dùng và cho phép xem lại lịch sử khi máy chủ không truy cập được. Tầng máy chủ giữ bản gốc để đồng bộ giữa các thiết bị, và dùng bộ đếm thế hệ theo tài khoản để vô hiệu hoá bộ nhớ đệm khi có thay đổi.
 
 \begin{table}[htbp]
     \centering
@@ -337,22 +337,22 @@ Lịch sử hội thoại được lưu ở hai tầng. Tầng cục bộ trên 
 
 Mục tiêu hiệu năng được định lượng trước khi triển khai, theo ba nhóm chỉ số. Độ trễ phục vụ áp dụng cho các đường đọc không sinh văn bản: độ trễ phân vị 95 phải dưới 500 ms và độ trễ phân vị 99 dưới 1.000 ms. Tỉ lệ lỗi phải dưới một phần trăm tổng số yêu cầu. Điều kiện đạt cả ba nhóm phải được giữ liên tục trong ba phút, không chỉ tại một thời điểm.
 
-Mỗi chặng của luồng xử lý có thời hạn, mã lỗi và đường lùi riêng, được cho ở bảng dưới. Cột thời hạn giới hạn thời gian chờ của chặng đó, cột mã lỗi là mã trả về cho người dùng, cột đường lùi mô tả cách hệ thống tiếp tục hoạt động khi chặng thất bại.
+Mỗi chặng của luồng xử lý có thời hạn, mã lỗi và có cơ chế dự phòng (fallback) riêng, được cho ở bảng dưới. Cột thời hạn giới hạn thời gian chờ của chặng đó, cột mã lỗi là mã trả về cho người dùng, cột fallback mô tả cách hệ thống tiếp tục hoạt động khi chặng thất bại.
 
 \begin{table}[htbp]
     \centering
-    \caption{Thời hạn, mã lỗi và đường lùi của từng chặng xử lý.}
+    \caption{Thời hạn, mã lỗi và fallback của từng chặng xử lý.}
     \label{tab:thoi-han-chang}
     \small
     \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X@{}}
         \toprule
-        \textbf{Chặng} & \textbf{Thời hạn} & \textbf{Mã lỗi} & \textbf{Đường lùi} \\
+        \textbf{Chặng} & \textbf{Thời hạn} & \textbf{Mã lỗi} & \textbf{Fallback} \\
         \midrule
         Truy vấn chỉ mục vector & 15 giây & 503 & Không có \\
         Nạp văn bản kho & 5 giây & 503 & Không có \\
         Chấm điểm & 30 giây & Không trả lời & Dùng điểm tương đồng và PageRank \\
-        Khe mô hình ngôn ngữ & 60 giây & 504 & Giải phóng khe \\
-        Hàng đợi xử lý & Một khe và tám chỗ chờ & 429 & Từ chối ngay \\
+        Slot mô hình ngôn ngữ & 60 giây & 504 & Giải phóng slot \\
+        Hàng đợi xử lý & 1 slot và 8 vị trí chờ & 429 & Từ chối ngay \\
         Yêu cầu trùng lặp & 24 giờ & 409 & Phát lại kết quả đã lưu \\
         \bottomrule
     \end{tabularx}
@@ -370,25 +370,25 @@ Nhóm xác thực được tách riêng khỏi nhóm đọc, vì băm Argon2id v
         \textbf{Nhóm chỉ số} & \textbf{Đối tượng áp dụng} & \textbf{Ngưỡng dự tính} & \textbf{Cơ sở dự tính} \\
         \midrule
         Độ trễ phân vị 95 & Đường đọc không sinh văn bản & Dưới 500 ms & Thời gian nhúng và truy vấn ANN cộng với nạp nội dung đoạn theo lô \\
-        Độ trễ phân vị 99 & Đường đọc không sinh văn bản & Dưới 1.000 ms & Nhịp phục vụ của đường hầm cơ sở dữ liệu từ xa \\
-        Tỉ lệ lỗi & Toàn bộ nhóm yêu cầu & Dưới 1 phần trăm & Kết hợp giới hạn tấn công và cơ chế bỏ qua đoạn lỗi \\
-        Thời gian chờ sinh văn bản & Nhóm hỏi đáp bằng trí tuệ & Báo cáo theo từng pha trong luồng & Sinh theo dòng sự kiện nên độ trễ cảm nhận không phụ thuộc tổng thời gian sinh \\
+        Độ trễ phân vị 99 & Đường đọc không sinh văn bản & Dưới 1.000 ms & Nhịp phục vụ của kênh đường hầm (tunnel) cơ sở dữ liệu từ xa \\
+        Tỉ lệ lỗi & Toàn bộ nhóm yêu cầu & Dưới 1 phần trăm & Kết hợp giới hạn tần suất (rate limiting) và cơ chế bỏ qua đoạn lỗi \\
+        Thời gian chờ sinh văn bản & Nhóm hỏi đáp bằng AI & Báo cáo theo từng pha trong luồng & Sinh theo luồng sự kiện nên độ trễ cảm nhận không phụ thuộc tổng thời gian sinh \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Khả năng đáp ứng được thiết kế theo hướng giảm tải theo tầng. Chỉ mục vector trả lời truy vấn gần như tức thời nên không tham gia vào tài nguyên hạn chế. Phần văn bản nặng được nạp theo lô để không kéo chi phí giải mã vào đường nóng. Mô hình ngôn ngữ chạy với một luồng sinh đồng thời và hàng đợi có độ sâu tối đa tám, nên khi vượt ngưỡng hệ thống giảm tần công theo hàng đợi thay vì từ chối.
+Khả năng đáp ứng được thiết kế theo hướng giảm tải theo tầng. Chỉ mục vector trả lời truy vấn gần như tức thời nên không tham gia vào tài nguyên hạn chế. Phần văn bản nặng được nạp theo lô để không kéo chi phí giải mã vào hot path. Mô hình ngôn ngữ chạy với một luồng sinh đồng thời và hàng đợi có độ sâu tối đa tám, nên khi vượt ngưỡng hệ thống điều tiết lưu lượng theo hàng đợi thay vì từ chối.
 
 \subsection{Bảo mật và quyền riêng tư}
 \label{subsec:bao-mat}
 
-Yêu cầu bảo mật được chia bốn lớp. Lớp phân quyền chỉ có hai vai trò là quản trị và người dùng; mọi đường dẫn quản trị đều đòi hỏi đồng thời lớp bảo vệ JWT, lớp bảo vệ vai trò và kiểm tra lại ở tầng dịch vụ. Lớp bảo vệ dữ liệu bảo đảm ứng dụng chỉ đọc kho văn bản qua tài khoản không phải quản trị gốc. Lớp giới hạn tần công áp trên các đường nhạy cảm. Quyền riêng tư được bảo đảm bằng cơ chế lọc theo chủ sở hữu, và khi tài khoản không sở hữu đối tượng thì hệ thống trả về mã không tìm thấy thay vì mã cấm truy cập.
+Yêu cầu bảo mật được chia bốn lớp. Lớp phân quyền chỉ có hai vai trò là quản trị và người dùng; mọi đường dẫn quản trị đều đòi hỏi đồng thời lớp bảo vệ JWT, lớp bảo vệ vai trò và kiểm tra lại ở tầng dịch vụ. Lớp bảo vệ dữ liệu bảo đảm ứng dụng chỉ đọc kho văn bản qua tài khoản không phải quản trị gốc. Lớp giới hạn tần suất áp trên các đường nhạy cảm. Quyền riêng tư được bảo đảm bằng cơ chế lọc theo chủ sở hữu, và khi tài khoản không sở hữu đối tượng thì hệ thống trả về mã không tìm thấy thay vì mã cấm truy cập.
 
-Giới hạn tần công được đặt khác nhau theo mức độ nhạy cảm của từng nhóm đường dẫn, tính theo số yêu cầu trong một phút.
+Giới hạn tần suất được đặt khác nhau theo mức độ nhạy cảm của từng nhóm đường dẫn, tính theo số yêu cầu trong một phút.
 
 \begin{table}[htbp]
     \centering
-    \caption{Giới hạn tần công theo từng nhóm đường dẫn.}
+    \caption{Giới hạn tần suất theo từng nhóm đường dẫn.}
     \label{tab:gioi-han-tan-cong}
     \small
     \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}X@{}}
@@ -399,7 +399,7 @@ Giới hạn tần công được đặt khác nhau theo mức độ nhạy cả
         Đăng ký & 5 & Chặn tạo hàng loạt tài khoản tự động \\
         Đăng nhập & 10 & Chặn dò tìm mật khẩu \\
         Làm mới token & 30 & Cho phép xoay vòng token thường xuyên \\
-        Hỏi đáp bằng trí tuệ & 20 & Bảo vệ tài nguyên suy luận, khách chỉ được 10 \\
+        Hỏi đáp bằng AI & 20 & Bảo vệ tài nguyên suy luận, khách chỉ được 10 \\
         Đổi mật khẩu & 5 & Chặn thao tác nhạy cảm lặp lại \\
         \bottomrule
     \end{tabularx}
@@ -408,13 +408,13 @@ Giới hạn tần công được đặt khác nhau theo mức độ nhạy cả
 \subsection{Tính ổn định và độ tin cậy}
 \label{subsec:do-tin-cay}
 
-Yêu cầu ổn định tập trung vào việc một sự cố ở thành phần phụ không được làm sập toàn hệ thống. Khi kho văn bản không truy cập được, ứng dụng vẫn khởi động và phục vụ các đường ống còn lại. Khi mô hình ngôn ngữ bận, yêu cầu nằm trong hàng đợi có giới hạn thay vì bị từ chối ngay.
+Yêu cầu ổn định tập trung vào việc một sự cố ở thành phần phụ không được làm sập toàn hệ thống. Khi kho văn bản không truy cập được, ứng dụng vẫn khởi động và phục vụ các quy trình còn lại. Khi mô hình ngôn ngữ bận, yêu cầu nằm trong hàng đợi có giới hạn thay vì bị từ chối ngay.
 
-Cơ chế bù lỗi theo nguyên tắc lỗi cục bộ: token làm mới bị dùng lại làm thu hồi toàn bộ họ; tài khoản bị khoá tạm thời sau nhiều lần đăng nhập sai; yêu cầu trùng lặp được bảo vệ bằng khoá idempotency.
+Cơ chế chịu lỗi và xử lý sự cố theo nguyên tắc lỗi cục bộ: token làm mới bị dùng lại làm thu hồi toàn bộ họ; tài khoản bị khoá tạm thời sau nhiều lần đăng nhập sai; yêu cầu trùng lặp được bảo vệ bằng khoá idempotency.
 
 \begin{table}[htbp]
     \centering
-    \caption{Các tình huống sự cố và cơ chế xử lý bù lỗi.}
+    \caption{Các tình huống sự cố và cơ chế xử lý sự cố.}
     \label{tab:co-che-bu-loi}
     \small
     \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}X@{}}
@@ -427,7 +427,7 @@ Cơ chế bù lỗi theo nguyên tắc lỗi cục bộ: token làm mới bị d
         E-4 & Đăng nhập sai lặp lại & Khoá tạm thời tài khoản với thời gian chờ tăng dần \\
         E-5 & Truy cập đối tượng không thuộc sở hữu & Trả mã không tìm thấy, không tiết lộ dữ liệu \\
         E-6 & Yêu cầu trùng lặp & Trả lại kết quả đã lưu, không sinh lại câu trả lời \\
-        E-7 & Đường hầm cơ sở dữ liệu gián đoạn & Thử lại có kiểm soát, ghi nhật ký và báo lỗi tạm thời \\
+        E-7 & Kênh tunnel cơ sở dữ liệu gián đoạn & Thử lại có kiểm soát, ghi nhật ký và báo lỗi tạm thời \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -435,7 +435,7 @@ Cơ chế bù lỗi theo nguyên tắc lỗi cục bộ: token làm mới bị d
 \subsection{Khả năng bảo trì và mở rộng}
 \label{subsec:kha-nang-bao-tri}
 
-Yêu cầu bảo trì đòi hỏi ranh giới module rõ ràng để thay thế được từng thành phần. Kiến trúc phân lớp theo mô hình cổng và bộ chuyển đổi, trong đó bảy engine cốt lõi tách khỏi tầng HTTP: bộ đọc kho văn bản, bộ nhúng, bộ định tuyến cây, bộ truy vấn chỉ mục vector, bộ khai phá, bộ chấm điểm và bộ sinh văn bản.
+Yêu cầu bảo trì đòi hỏi ranh giới module rõ ràng để thay thế được từng thành phần. Kiến trúc phân lớp theo mô hình cổng và bộ chuyển đổi (Ports and Adapters), trong đó bảy engine cốt lõi tách khỏi tầng HTTP: bộ đọc kho văn bản, bộ nhúng, bộ định tuyến cây, bộ truy vấn chỉ mục vector, bộ khai phá, bộ chấm điểm và bộ sinh văn bản.
 
 Khả năng mở rộng được đo bằng ba tiêu chí: quy mô dữ liệu tăng mà không phải đổi mô hình truy hồi; chi phí vận hành không phụ thuộc quy mô hệ thống; và khả năng quan sát qua chỉ số Prometheus ghi lại độ trễ, lỗi và hàng đợi.
 
@@ -453,16 +453,16 @@ Luồng nghiệp vụ chính bắt đầu từ thao tác đặt câu hỏi và k
         \node[ragbox, text width=4.4cm, below=of S2] (S3) {Định tuyến cây trên đồ thị tri thức};
         \node[ragbox, text width=4.4cm, below=of S3] (S4) {Truy vấn chỉ mục vector};
         \node[ragbox, text width=4.4cm, below=of S4] (S5) {Chấm điểm và hợp nhất thứ hạng};
-        \node[ragdecision, below=0.8cm of S5] (S6) {Cổng căn cứ đạt?};
+        \node[ragdecision, below=0.8cm of S5] (S6) {Cổng căn cứ (Evidence) đạt?};
 
         \node[ragbox, text width=3.4cm, right=1.8cm of S6] (S7) {Viết lại câu hỏi một lần};
         \node[ragdecision, below=0.85cm of S7] (S8) {Vẫn chưa đạt?};
         \node[ragbox, text width=3.2cm, right=1.4cm of S8] (S9) {Từ chối trả lời};
 
         \node[ragbox, text width=4.2cm, below=2.3cm of S6] (S10) {Mô hình sinh câu trả lời};
-        \node[ragdecision, below=0.8cm of S10] (S11) {Cổng bám sát đạt?};
+        \node[ragdecision, below=0.8cm of S10] (S11) {Cổng bám sát (Grounded) đạt?};
         \node[ragbox, text width=3.6cm, right=1.8cm of S11] (S12) {Thay thế bằng câu trả lời không có nội dung};
-        \node[ragbox, text width=4.2cm, below=0.85cm of S11] (S13) {Phát sự kiện dòng về giao diện};
+        \node[ragbox, text width=4.2cm, below=0.85cm of S11] (S13) {Phát luồng sự kiện về giao diện};
         \node[ragbox, text width=5.2cm, below=0.85cm of S13] (S14) {Đồng bộ phiên và tin nhắn lên máy chủ};
 
         \draw[ragarrow] (S1) -- (S2);
@@ -523,7 +523,7 @@ Luồng quản trị đơn giản và có kiểm soát. Mỗi thao tác nhạy c
 \section{Phân tích luồng dữ liệu}
 \label{sec:luong-du-lieu}
 
-Dữ liệu được phân bố trên ba nguồn lưu trữ với vai trò khác nhau. Chỉ mục vector lưu vector và siêu dữ liệu phục vụ truy hồi gần như tức thời. Kho văn bản lưu nội dung đoạn, siêu dữ liệu bài báo và kết quả khai phá, được đọc theo lô để không kéo chi phí giải mã vào đường nóng. Cơ sở dữ liệu ứng dụng lưu tài khoản, phiên hội thoại và nhật ký kiểm toán. Việc tách như vậy cho phép truy hồi chỉ chạm vào tập ứng viên nhỏ, nên độ trễ gần như độc lập với quy mô kho.
+Dữ liệu được phân bố trên ba nguồn lưu trữ với vai trò khác nhau. Chỉ mục vector lưu vector và siêu dữ liệu phục vụ truy hồi gần như tức thời. Kho văn bản lưu nội dung đoạn, siêu dữ liệu bài báo và kết quả khai phá, được đọc theo lô để không kéo chi phí giải mã vào hot path. Cơ sở dữ liệu ứng dụng lưu tài khoản, phiên hội thoại và nhật ký kiểm toán. Việc tách như vậy cho phép truy hồi chỉ chạm vào tập ứng viên nhỏ, nên độ trễ gần như độc lập với quy mô kho.
 
 Cấu trúc tập hợp của cơ sở dữ liệu ứng dụng được cho ở bảng dưới. Cột khóa cho biết kiểu định danh, cột chỉ mục cho biết chỉ mục phục vụ truy vấn phân trang và cột thời hạn cho biết cơ chế tự dọn dữ liệu.
 
@@ -540,7 +540,7 @@ Cấu trúc tập hợp của cơ sở dữ liệu ứng dụng được cho ở
         \texttt{refresh\_tokens} & ObjectId & \texttt{token\_hash} duy nhất, tự xoá khi hết hạn \\
         \texttt{chat\_sessions} & UUIDv7 & Theo tài khoản, thời điểm tin nhắn cuối và định danh, giảm dần \\
         \texttt{chat\_messages} & UUIDv7 & Theo phiên, thời điểm tạo và định danh, giảm dần \\
-        \texttt{chat\_requests} & Khóa ghép tài khoản và mã yêu cầu & Tự xoá sau 24 giờ, khoá thuê 5 phút \\
+        \texttt{chat\_requests} & Khóa ghép tài khoản và mã yêu cầu & Tự xoá sau 24 giờ, khoá tạm thời (lease lock) 5 phút \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -619,7 +619,7 @@ Cấu trúc tập hợp của cơ sở dữ liệu ứng dụng được cho ở
         \toprule
         \textbf{Nguồn lưu trữ} & \textbf{Nội dung} & \textbf{Quy mô} & \textbf{Chế độ truy cập} & \textbf{Cơ chế bảo vệ} \\
         \midrule
-        Chỉ mục vector & Vector 768 chiều và siêu dữ liệu đoạn & 913.205 điểm & Chỉ đọc & Tập hợp khoa học vàng \\
+        Chỉ mục vector & Vector 768 chiều và siêu dữ liệu đoạn & 913.205 điểm & Chỉ đọc & Tập dữ liệu chuẩn (golden collection) \\
         Kho văn bản & Đoạn văn bản, bài báo, tác giả, luật kết hợp & 70.590 bài báo, 120 tác giả, 40 luật & Chỉ đọc từ ứng dụng & Tài khoản riêng không phải quản trị gốc \\
         Cơ sở dữ liệu ứng dụng & Tài khoản, phiên, tin nhắn, nhật ký & Tập dữ liệu làm việc nhỏ & Đọc và ghi & Xác thực, phân quyền, xoá mềm \\
         Kho cục bộ trình duyệt & Bản sao phiên và tin nhắn & Theo sử dụng & Đọc và ghi & IndexedDB theo tài khoản người dùng \\
@@ -693,13 +693,13 @@ Quy mô dữ liệu được xác định ở ba cấp độ, mỗi cấp độ 
         Chỉ mục vector & Điểm vector & 913.205 điểm & Tìm kiếm gần như tức thời bằng khoảng cách cosin \\
         Đồ thị tác giả & Tác giả có PageRank & 120 tác giả & Tín hiệu xếp hạng lại, nạp một lần lúc khởi động \\
         Luật kết hợp & Quy tắc kết hợp & 40 quy tắc & Mở rộng câu hỏi, nạp một lần lúc khởi động \\
-        Cơ sở dữ liệu ứng dụng & Tài khoản, phiên, tin nhắn & Tập dữ liệu làm việc nhỏ & Bộ nhớ đệm ghi xuyên qua và bộ đếm thế hệ \\
+        Cơ sở dữ liệu ứng dụng & Tài khoản, phiên, tin nhắn & Tập dữ liệu làm việc nhỏ & Bộ nhớ đệm ghi xuyên qua (write-through cache) và bộ đếm thế hệ \\
         Kho cục bộ & Phiên và tin nhắn đã đồng bộ & Theo sử dụng & Ưu tiên ngoại tuyến, đồng bộ khi có mạng \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Khả năng mở rộng được đánh giá theo ba hướng. Mở rộng lưu lượng là có kiểm soát, nhờ bộ nhớ đệm ghi xuyên qua, giới hạn tần công và hàng đợi có độ sâu giới hạn. Mở rộng theo chiều ngang phụ thuộc vào việc tách engine cốt lõi khỏi tầng HTTP, cho phép thay thế chỉ mục vector hay mô hình nhúng mà không sửa mã nghiệp vụ. Mở rộng về phía người dùng được đảm bảo bằng việc lưu trữ hai tầng, nên tải băng thông tăng không làm mất dữ liệu đã tạo.
+Khả năng mở rộng được đánh giá theo ba hướng. Mở rộng lưu lượng là có kiểm soát, nhờ write-through cache, giới hạn tần suất và hàng đợi có độ sâu giới hạn. Mở rộng theo chiều ngang phụ thuộc vào việc tách engine cốt lõi khỏi tầng HTTP, cho phép thay thế chỉ mục vector hay mô hình nhúng mà không sửa mã nghiệp vụ. Mở rộng về phía người dùng được đảm bảo bằng việc lưu trữ hai tầng, nên tải băng thông tăng không làm mất dữ liệu đã tạo.
 
 \begin{figure}[htbp]
     \centering
