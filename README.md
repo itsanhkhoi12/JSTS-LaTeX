@@ -154,6 +154,7 @@ export function generateKeys() {
 ```
 
 ### TypeScript Box
+
 ```latex
 \begin{tsbox}{Định nghĩa kiểu và interface}
 interface CipherResult {
@@ -170,6 +171,7 @@ const encryptData = (data: string): CipherResult => {
 ```
 
 ### Inline code
+
 - JavaScript: `\jscode{const x = 10;}`
 - TypeScript: `\tscode{type ID = string | number;}`
 

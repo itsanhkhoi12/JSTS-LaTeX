@@ -1,9 +1,59 @@
 \documentclass[a4paper,12pt]{report}
 \input{preamble}
+
 \begin{document}
 
-% Bìa
+% ------------------------------------------------------------------------------
+% 1. TRANG BÌA (COVER PAGE)
+% ------------------------------------------------------------------------------
+\input{cover}
 
-	\input{cover}
+% ------------------------------------------------------------------------------
+% 2. PHẦN ĐẦU TÀI LIỆU (FRONT MATTER)
+% ------------------------------------------------------------------------------
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+% Lời cảm ơn
+\input{sections/acknowledgments}
+
+% Mục lục
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{\contentsname}
+\tableofcontents
+
+% Danh mục hình ảnh (List of Figures)
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{\listfigurename}
+\listoffigures
+
+% Danh mục biểu đồ (List of Charts)
+\cleardoublepage
+\listofcharts
+
+% ------------------------------------------------------------------------------
+% 3. NỘI DUNG CHÍNH (MAIN MATTER)
+% ------------------------------------------------------------------------------
+\cleardoublepage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{sections/chapter1}
+\input{sections/chapter2}
+\input{sections/chapter3}
+\input{sections/chapter4}
+\input{sections/chapter5}
+\input{sections/chapter6}
+\input{sections/chapter7}
+\input{sections/chapter8}
+
+% ------------------------------------------------------------------------------
+% 4. PHẦN CUỐI TÀI LIỆU (BACK MATTER)
+% ------------------------------------------------------------------------------
+% \cleardoublepage
+% \appendix
+% \input{appendix}
 
 \end{document}

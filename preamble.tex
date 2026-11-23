@@ -11,6 +11,13 @@
 % XeLaTeX xử lý trực tiếp mã hóa UTF-8; không dùng inputenc/fontenc(T5) để tránh xung đột.
 \usepackage[vietnamese]{babel}
 
+% Tùy biến tiêu đề danh mục tiếng Việt chuẩn hóa
+\addto\captionsvietnamese{%
+    \renewcommand{\contentsname}{Mục lục}%
+    \renewcommand{\listfigurename}{Danh mục hình ảnh}%
+    \renewcommand{\listtablename}{Danh mục bảng biểu}%
+}
+
 % ------------------------------------------------------------------------------
 % 2. TYPOGRAPHY & FONT CONFIGURATION (fontspec)
 % ------------------------------------------------------------------------------
@@ -46,7 +53,8 @@
     top=20mm,
     bottom=20mm,
     left=30mm,
-    right=20mm
+    right=20mm,
+    headheight=15pt
 }
 
 \usepackage{setspace}
@@ -106,6 +114,17 @@
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{float}
+
+% Định nghĩa môi trường Biểu đồ (Chart) và Danh mục biểu đồ (List of Charts)
+\newfloat{chart}{htbp}{loc}[chapter]
+\floatname{chart}{Biểu đồ}
+\newcommand{\listofcharts}{%
+    \cleardoublepage
+    \phantomsection
+    \addcontentsline{toc}{chapter}{Danh mục biểu đồ}%
+    \listof{chart}{Danh mục biểu đồ}%
+}
+
 \usepackage{caption}
 \usepackage{subcaption}
 \captionsetup{
