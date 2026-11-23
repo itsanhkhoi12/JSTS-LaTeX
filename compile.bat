@@ -31,7 +31,7 @@ if "%1"=="clean" (
 )
 
 if "%1"=="watch" (
-    echo [INFO] Che do giam sat lien tuc (pvc mode)...
+    echo [INFO] Che do giam sat lien tuc...
     latexmk -pvc document.tex
     goto :eof
 )

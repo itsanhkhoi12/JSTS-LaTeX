@@ -5,42 +5,95 @@
 \chapter{Đóng gói, triển khai và vận hành}
 \label{chap:dong-goi-van-hanh}
 
+Chương này mô tả cấu hình của RAG\_TS tại commit \texttt{ab7da78} trên nhánh \texttt{main}. Bản này ghim backend tại \texttt{0368a3d} và frontend tại \texttt{0e62fe6}~\cite{ragtsDeployment}. Các mục về Nginx và HTTPS trình bày phương án phục vụ bản dựng tĩnh của giao diện.
+
 \section{Chuẩn bị môi trường triển khai}
 \label{sec:chuan-bi-moi-truong}
 
-% Nội dung phần 7.1
+Để phục vụ một lượt hỏi đáp, backend phải đọc được chỉ mục bài báo trong Qdrant, nạp được mô hình nhúng và có đủ bộ nhớ để chạy mô hình sinh câu trả lời. MongoDB lưu tài khoản và lịch sử hội thoại. Vì vậy, việc trình duyệt tải được giao diện mới chỉ xác nhận một phần của hệ thống đã khởi động.
+
+Cấu hình triển khai của dự án nằm trong thư mục \texttt{backend\_rag}. Máy chủ cần Docker với Compose, dung lượng đĩa cho dữ liệu và tệp trọng số, cùng bộ nhớ cho cả mô hình lẫn ngữ cảnh suy luận. Khi chọn phần cứng, cần đo bộ nhớ và thời gian đến token đầu tiên với câu hỏi đại diện trên chính máy đích. Kích thước tệp GGUF trên đĩa chưa phản ánh lượng bộ nhớ cần thiết khi xử lý một lượt hỏi đáp.
+
+Trước khi khởi động, người vận hành chuẩn bị thư mục \texttt{model} chứa trọng số, thư mục \texttt{data} chứa dữ liệu bản đồ và kết quả khai phá do pipeline xuất ra, đồng thời xác định bộ sưu tập Qdrant tương ứng. Mã bài báo trong chỉ mục và dữ liệu xuất phải cùng thuộc một phiên bản để kết quả truy hồi liên kết đúng với bài báo trên giao diện.
 
 \section{Đóng gói ứng dụng và các thành phần hệ thống}
 \label{sec:dong-goi-ung-dung}
 
-% Nội dung phần 7.2
+Dockerfile của backend dùng hai giai đoạn trên nền Node.js~22. Ở giai đoạn dựng, \texttt{npm ci} cài các gói theo tệp khóa, trình biên dịch chuyển mã TypeScript sang thư mục \texttt{dist}, rồi \texttt{npm prune --omit=dev} loại bỏ các gói chỉ phục vụ phát triển. Ảnh chạy chứa mã đã biên dịch và các phụ thuộc cần thiết. Tiến trình \texttt{node dist/main.js} chạy dưới tài khoản \texttt{node} và lắng nghe ở cổng 3000.
+
+Frontend có Dockerfile riêng. Node.js~20 dựng ứng dụng React bằng Vite, sau đó các tệp tĩnh trong \texttt{dist} được sao chép vào \path{/usr/share/nginx/html} của ảnh Nginx. Dockerfile xóa cấu hình máy chủ mặc định, nên bản triển khai cần cung cấp khối cấu hình \texttt{server} như mô tả ở Mục~\ref{sec:cau-hinh-nginx}.
+
+Trọng số và dữ liệu đầu vào được gắn vào container backend ở chế độ chỉ đọc tại \texttt{/models} và \texttt{/data}. MongoDB ghi vào volume \texttt{mongo-data}, còn thư viện nhúng dùng \texttt{hf-cache} để tái sử dụng mô hình đã tải. Cách bố trí này cho phép thay ảnh ứng dụng mà vẫn giữ lịch sử hội thoại và bộ nhớ đệm mô hình.
 
 \section{Quản lý cấu hình và biến môi trường}
 \label{sec:quan-ly-cau-hinh}
 
-% Nội dung phần 7.3
+MongoDB phân quyền theo mục đích sử dụng. Compose yêu cầu tên và mật khẩu cho cả tài khoản quản trị lẫn tài khoản ứng dụng, cùng khóa nội bộ của replica set (\texttt{RAGTS\_MONGO\_KEY}). Khi khởi tạo volume trống, script tạo cho tài khoản ứng dụng quyền \texttt{readWrite} trên cơ sở dữ liệu \texttt{rag\_ts}. Khi cần lấy nguyên văn các đoạn bài báo, backend đọc kho \texttt{rag\_ts\_corpus} bằng tài khoản riêng có quyền chỉ đọc. Địa chỉ kho này được truyền qua \texttt{CORPUS\_MONGO\_URI}. Tệp Compose hiện tại cần bổ sung biến đó vào môi trường của dịch vụ \texttt{app} để container có thể đọc kho văn bản.
+
+Compose nhận các biến có tiền tố \texttt{RAGTS\_} trên máy chủ và ánh xạ chúng sang tên mà ứng dụng đọc trong container. Chẳng hạn, \texttt{RAGTS\_QDRANT\_URL} xác định giá trị của \texttt{QDRANT\_URL}, còn \texttt{RAGTS\_MODEL\_FILE} xác định tên tệp dưới \texttt{/models}. Hai khóa ký JWT dành cho access token và refresh token phải có giá trị riêng, mỗi khóa dài ít nhất 32 ký tự. Người vận hành cấp các khóa này và khóa truy cập Qdrant cho backend qua môi trường chạy.
+
+Ở frontend, Vite thay các biến môi trường được mã phía trình duyệt sử dụng ngay khi dựng gói~\cite{viteEnvModes}. Để kiểm tra hỏi đáp với dữ liệu thật, cần đặt \texttt{VITE\_USE\_MOCK=false} trước khi dựng và dùng tiền tố API \texttt{/api/v1}. Dữ liệu bản đồ có công tắc riêng là \texttt{VITE\_MOCK\_WORLD}. Chỉ chuyển công tắc này sang \texttt{false} khi pipeline đã phục vụ các tuyến tương ứng. Khi đổi một trong hai giá trị, cần dựng lại frontend. Khóa ký và thông tin xác thực cơ sở dữ liệu chỉ thuộc cấu hình backend.
 
 \section{Triển khai Backend, Frontend và Database}
 \label{sec:trien-khai-be-fe-db}
 
-% Nội dung phần 7.4
+Trình tự triển khai trên một máy chủ gồm các bước sau.
+
+\begin{enumerate}
+    \item \textbf{Chuẩn bị chỉ mục truy hồi.} Theo mặc định, backend truy cập Qdrant của pipeline qua \texttt{host.docker.internal:6333} và đọc bộ sưu tập \texttt{scientific\_papers\_gold}. Khi chạy độc lập, hồ sơ Compose \texttt{standalone} tạo một Qdrant rỗng. Trường hợp này cần đặt \texttt{RAGTS\_QDRANT\_URL} thành \texttt{http://qdrant:6333}, nạp chỉ mục và chọn đúng bộ sưu tập trước khi thử tìm kiếm.
+    \item \textbf{Khởi động MongoDB và API.} Sau khi chuẩn bị mô hình ở Mục~\ref{sec:trien-khai-local-ai} và cấp các biến môi trường, chạy \texttt{docker compose up -d --build} từ \texttt{backend\_rag}. MongoDB~7 chạy dưới dạng replica set một nút tên \texttt{rs0} để hỗ trợ giao dịch. Compose chờ MongoDB vượt qua kiểm tra sức khỏe rồi mới chạy ứng dụng. Theo mặc định, cả MongoDB (cổng 27018) và API (cổng 3000) chỉ mở trên địa chỉ loopback của máy chủ.
+    \item \textbf{Đưa giao diện vào hoạt động.} Dựng ảnh từ \texttt{frontend\_rag}, cung cấp cấu hình Nginx và nối container frontend vào cùng mạng với dịch vụ \texttt{app}. Qua địa chỉ công khai, mở một đường dẫn trực tiếp của giao diện, kiểm tra trạng thái API, rồi gửi một câu hỏi có bài báo đã biết trong chỉ mục. Lượt kiểm tra đạt yêu cầu khi trình duyệt nhận dần câu trả lời và mở được đúng bài báo từ nguồn trích dẫn.
+\end{enumerate}
 
 \section{Triển khai Local AI Runtime và các model cần thiết}
 \label{sec:trien-khai-local-ai}
 
-% Nội dung phần 7.5
+Ngoài bước nhúng và sinh văn bản, backend hỗ trợ gói ONNX Laya để xếp hạng lại các đoạn truy hồi, đánh giá bằng chứng và kiểm tra mức độ câu trả lời bám sát nguồn. Khi sử dụng, người vận hành gắn thư mục mô hình và truyền đường dẫn trong container qua \texttt{LAYA\_MODEL\_DIR}. Khi bỏ trống đường dẫn, backend bỏ qua các bước dùng Laya.
+
+Hai mô hình đảm nhiệm hai bước khác nhau. Transformers.js nạp Nomic Embed Text v1.5 để ánh xạ câu hỏi vào cùng không gian 768 chiều với các đoạn bài báo trong Qdrant. Thay mô hình nhúng đòi hỏi đối chiếu lại mô hình đã dùng để lập chỉ mục. Ngay cả khi số chiều trùng nhau, vector của hai mô hình khác nhau vẫn có thể cho kết quả truy hồi sai.
+
+Sau bước truy hồi, backend dùng \texttt{node-llama-cpp} để chạy Qwen2.5-7B-Instruct, bản lượng tử hóa \texttt{Q4\_K\_M}. Trên máy chuẩn bị mô hình, có thể chạy \texttt{npm run download:model} từ \texttt{backend\_rag} sau khi cài các phụ thuộc phát triển. Cần đối chiếu tên tệp tải về với \texttt{MODEL\_PATH} trong container và kiểm tra tài khoản \texttt{node} có quyền đọc tệp. Bộ nhúng cũng cần truy cập nguồn tải ở lần nạp đầu hoặc có sẵn mô hình cục bộ.
+
+Compose đặt \texttt{LLM\_GPU=auto}, giới hạn hàng đợi mặc định ở tám yêu cầu và đặt thời gian chờ suy luận là 120 giây. Tệp môi trường mẫu dành cho chạy trực tiếp đặt thời gian chờ là 60 giây. Khi đánh giá độ trễ, cần ghi lại cấu hình thực chạy, thiết bị được runtime chọn và thời gian chờ trong hàng đợi để phân biệt tắc nghẽn do nhiều người dùng với tốc độ sinh token.
 
 \section{Cấu hình Nginx và Reverse Proxy}
 \label{sec:cau-hinh-nginx}
 
-% Nội dung phần 7.6
+Cấu hình Vite của dự án cho phép Cloudflare Tunnel chuyển yêu cầu tới máy chủ phát triển ở \texttt{127.0.0.1:5174}. Với bản dựng tĩnh, Nginx đảm nhận việc phục vụ tệp và định tuyến API. Nếu dùng địa chỉ IP máy khách để giới hạn tần suất, cần cấu hình proxy chuyển tiếp địa chỉ và đặt \texttt{RAGTS\_TRUST\_PROXY\_HOPS} theo số proxy tin cậy thực tế. Giá trị mặc định bằng 0.
+
+Trong phương án triển khai cùng mạng Docker, Nginx phục vụ tệp giao diện và chuyển yêu cầu API tới tên dịch vụ \texttt{app}. Ví dụ sau là phần định tuyến đề xuất bên trong khối \texttt{server}. Với \texttt{proxy\_pass} không kèm phần đường dẫn, backend nhận nguyên tiền tố \texttt{/api/v1/}. Tắt bộ đệm phản hồi ở tuyến hỏi đáp giúp trình duyệt nhận sự kiện SSE ngay khi backend gửi từng phần câu trả lời~\cite{nginxProxyModule}.
+
+\begin{verbatim}
+root /usr/share/nginx/html;
+
+location / {
+    try_files $uri $uri/ /index.html;
+}
+location /api/v1/ {
+    proxy_pass http://app:3000;
+}
+location = /api/v1/rag/chat/stream {
+    proxy_pass http://app:3000;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_read_timeout 150s;
+}
+\end{verbatim}
+
+Giá trị 150 giây trong ví dụ giới hạn khoảng im lặng giữa hai lần Nginx đọc dữ liệu từ backend. Khi kiểm tra qua proxy, cần quan sát thời điểm nhận sự kiện đầu tiên và các sự kiện tiếp theo. Nếu giao diện sử dụng pipeline thật, Nginx còn cần ánh xạ tiền tố \texttt{/pipeline/} sang \texttt{/api/} của pipeline, tương ứng với quy tắc proxy trong môi trường phát triển.
 
 \section{Cấu hình HTTPS và bảo mật kết nối}
 \label{sec:cau-hinh-https}
 
-% Nội dung phần 7.7
+Đối với bản triển khai có tên miền, phương án đề xuất là kết thúc TLS tại Nginx. Khối máy chủ ở cổng 443 khai báo \texttt{listen 443 ssl}, tên miền, tệp chứng thư kèm chuỗi trung gian và đường dẫn khóa riêng. Các tệp này được gắn vào container khi chạy. Quyền đọc khóa riêng chỉ cấp cho tiến trình cần sử dụng. Khối máy chủ ở cổng 80 chuyển hướng sang địa chỉ HTTPS của cùng tên miền~\cite{nginxHttpsServers}.
+
+Trước khi đưa phiên bản mới vào phục vụ, người vận hành chạy \texttt{nginx -t}, nạp lại cấu hình và dùng trình duyệt kiểm tra tên miền, chuỗi tin cậy cùng ngày hết hạn của chứng thư. Phép thử cuối cùng là gửi câu hỏi qua chính địa chỉ HTTPS và quan sát luồng SSE. Khi gia hạn chứng thư, cần nạp lại Nginx rồi đối chiếu ngày hết hạn mà máy khách thực sự nhận được.
 
 \section{Giám sát, ghi log và quản lý hoạt động hệ thống}
 \label{sec:giam-sat-logging}
 
-% Nội dung phần 7.8
+Để kiểm tra tiến trình backend, tuyến \path{/api/v1/health/live} trả HTTP~200 khi tiến trình còn trả lời. Docker dùng tuyến này để kiểm tra container. Tuyến \path{/api/v1/health/ready} dựa trên kết quả thăm dò phụ thuộc được cập nhật mỗi 10 giây. Nếu MongoDB hoặc Qdrant mất kết nối, tuyến này trả HTTP~503. Nếu chỉ mô hình sinh chưa sẵn sàng, tuyến vẫn trả HTTP~200 với trạng thái \texttt{degraded}. Vì vậy, để xác nhận chức năng hỏi đáp, cần đọc cả nội dung phản hồi và thực hiện một lượt sinh thử.
+
+Trong môi trường production, quản trị viên có thể xem mã mô hình, thiết bị và độ dài hàng đợi qua \path{/api/v1/admin/health}. Nhật ký Pino ghi mã yêu cầu \texttt{request\_id} để đối chiếu lỗi theo từng lượt gọi và che các trường chứa mật khẩu, token hoặc nội dung truy vấn. Khi một thành phần đổi trạng thái, backend ghi sự kiện \texttt{HEALTH\_CHANGED}. Nếu giao diện vẫn tải được nhưng hỏi đáp chậm, người vận hành có thể đối chiếu sự kiện này với độ dài hàng đợi và thời điểm nhận token đầu tiên.
+
+Khi nâng cấp, cần lưu phiên bản ảnh ứng dụng, tên mô hình và phiên bản dữ liệu tương ứng, đồng thời sao lưu MongoDB trước các thay đổi cấu trúc. Sau khi thay ảnh, lặp lại phép thử hỏi đáp có dẫn nguồn ở Mục~\ref{sec:trien-khai-be-fe-db}. Nếu phải quay lui, dùng lại bộ phiên bản tương thích và kiểm tra cả khả năng đọc lịch sử hội thoại lẫn truy hồi bài báo.

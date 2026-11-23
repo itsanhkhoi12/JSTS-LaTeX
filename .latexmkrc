@@ -5,7 +5,7 @@ use Cwd;
 
 # Prepend project local scripts/bin to PATH if present (provides fallback shims)
 my $cwd = Cwd::getcwd();
-if (-d "$cwd/scripts/bin") {
+if ($^O ne 'MSWin32' && -d "$cwd/scripts/bin") {
     $ENV{'PATH'} = "$cwd/scripts/bin:" . $ENV{'PATH'};
 }
 
