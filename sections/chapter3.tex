@@ -144,7 +144,7 @@ Mười nguyên tắc sau đây chi phối toàn bộ nội dung chương này v
         P-3 & Tách tầng trình bày khỏi engine truy hồi & Mỗi engine truy hồi nằm sau một giao diện, thay thế được mà không sửa logic nghiệp vụ \\
         P-4 & Mọi truy vấn cơ sở dữ liệu độc lập chạy song song & Không có mẫu truy vấn tuần tự trên các truy vấn có thể độc lập, vì mỗi lượt khứ hồi tới cơ sở dữ liệu từ xa tốn 15 đến 25 ms \\
         P-5 & Lịch sử hội thoại có hai tầng, tầng cục bộ là nguồn dữ liệu chuẩn (source of truth) phía người dùng & Mọi thay đổi phiên và tin nhắn được ghi vào kho cục bộ trước, rồi mới đồng bộ lên máy chủ ở chế độ nền \\
-        P-6 & Vô hiệu hoá bộ nhớ đệm theo bộ đếm thế hệ theo tài khoản & Mọi đường ghi trên phiên và tin nhắn phải gọi cơ chế vô hiệu hoá, nếu không người dùng sẽ đọc dữ liệu cũ \\
+        P-6 & Vô hiệu hoá bộ nhớ đệm theo counter generation theo tài khoản & Mọi đường ghi trên phiên và tin nhắn phải gọi cơ chế vô hiệu hoá, nếu không người dùng sẽ đọc dữ liệu cũ \\
         P-7 & Xác thực trước, phân quyền sau & Đối tượng không thuộc sở hữu trả về 404, không trả về 403, để không tiết lộ sự tồn tại \\
         P-8 & Lỗi cục bộ, không làm sập toàn hệ thống & Phụ thuộc ngoài không sẵn sàng làm hạn chế mức ảnh hưởng, không làm dừng tiến trình \\
         P-9 & Thao tác lặp lại không sinh tác dụng phụ & Cập nhật và xoá không đổi trạng thái thì không ghi thêm, không tăng phiên bản token, không ghi nhật ký kiểm toán \\
@@ -375,12 +375,12 @@ Bộ nhớ đệm trong bộ nhớ giảm áp lực lên kênh tunnel. Bộ nh�
         \textbf{Dịch vụ} & \textbf{Bộ nhớ đệm} & \textbf{Được nạp khi đọc} & \textbf{Nghĩa vụ khi ghi} \\
         \midrule
         Xác thực & Theo tài khoản, theo email, theo số lần thử & Đọc hồ sơ, đăng nhập, cập nhật hồ sơ & Nạp sẵn khi đăng ký, cập nhật tại chỗ khi đổi hồ sơ, xoá theo email khi đổi mật khẩu, đặt lại số lần thử khi thành công hoặc khi khoá \\
-        Phiên hội thoại & Danh sách phiên theo tài khoản và thế hệ, chi tiết phiên theo tài khoản và mã định danh & Liệt kê phiên, đọc chi tiết phiên & Gọi cơ chế vô hiệu hoá khi lưu lượt hỏi đáp, đổi tên, xoá, xoá hàng loạt \\
+        Phiên hội thoại & Danh sách phiên theo tài khoản và generator, chi tiết phiên theo tài khoản và mã định danh & Liệt kê phiên, đọc chi tiết phiên & Gọi cơ chế vô hiệu hoá khi lưu lượt hỏi đáp, đổi tên, xoá, xoá hàng loạt \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Cơ chế vô hiệu hoá theo thế hệ là điểm cần nhấn mạnh. Thay vì xoá từng mục của bộ nhớ đệm danh sách phiên khi có thay đổi, hệ thống tăng một bộ đếm thế hệ (generation counter) theo tài khoản và ghép bộ đếm này vào khoá của mọi mục đã nạp. Mọi mục thuộc thế hệ cũ trở nên không dùng được ngay lập tức, kể cả các mục đang được xem ở nhiều trang khác nhau. Thao tác vô hiệu hoá có độ phức tạp không đổi theo số mục đang nạp, và người dùng không bao giờ đọc được dữ liệu cũ.
+Cơ chế vô hiệu hoá theo generator là điểm cần nhấn mạnh. Thay vì xoá từng mục của bộ nhớ đệm danh sách phiên khi có thay đổi, hệ thống tăng một generation counter theo tài khoản và ghép bộ đếm này vào khoá của mọi mục đã nạp. Mọi mục thuộc generator cũ trở nên không dùng được ngay lập tức, kể cả các mục đang được xem ở nhiều trang khác nhau. Thao tác vô hiệu hoá có độ phức tạp không đổi theo số mục đang nạp, và người dùng không bao giờ đọc được dữ liệu cũ.
 
 \section{Thiết kế API và cơ chế giao tiếp giữa các thành phần}
 \label{sec:thiet-ke-api}

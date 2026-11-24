@@ -206,13 +206,13 @@ Hình~\ref{fig:co-lap-tai-mat-ma} thể hiện kết quả của tầng~C, trong
 Quá trình thực nghiệm đồng thời ghi nhận bốn kết luận kỹ thuật quan trọng:
 
 \begin{itemize}
-\item[--] \textbf{Cân chỉnh kích thước nhóm luồng thực thi (\texttt{UV\_THREADPOOL\_SIZE = 4}) khớp với tham số Argon2id}: Tham số này phải được gán ngay ở dòng đầu tiên của tệp khởi động \texttt{src/main.ts} trước khi nạp \texttt{dotenv}, vì thư viện native chỉ đọc giá trị này một lần duy nhất lúc khởi tạo để khớp với \texttt{parallelism: 4} của Argon2id. Thử nghiệm tăng số luồng từ 4 lên 12 đã gây tranh chấp băng thông bộ nhớ DRAM và làm độ trễ tăng thêm 26,7\%.
+\item[--] \textbf{Tinh chỉnh nhóm luồng (\texttt{UV\_\allowbreak{}THREADPOOL\_\allowbreak{}SIZE = 4}) cho Argon2id}: Tham số này phải được gán ngay ở dòng đầu tiên của tệp khởi động \texttt{src/main.ts} trước khi nạp \texttt{dotenv} để khớp với \texttt{parallelism: 4} của Argon2id. Kết quả đối chiếu tại Mục~\ref{subsec:tang-3-crypto} và Mục~\ref{subsec:telemetry-tai-nguyen} (Chương~\ref{chap:kiem-thu-danh-gia}) chứng minh việc tinh chỉnh \texttt{thread pool} giúp độ trễ \texttt{p95} kiểm tra sức khoẻ giảm 96,00\% (từ 566,11~ms xuống 22,66~ms) và xoay vòng token giảm 76,35\% (từ 2.267,89~ms xuống 536,51~ms) nhờ tận dụng đồng thời nhiều lõi CPU hơn cho tác vụ mật mã.
 \item[--] \textbf{Ngăn hiện tượng \texttt{cache stampede} khi bộ nhớ đệm trống}: Khi hơn 100 người dùng ảo đồng thời gọi \texttt{GET /chat-sessions/:id} lúc cache chưa có dữ liệu, các lượt \texttt{cache miss} xảy ra cùng thời điểm sẽ phát sinh nhiều cặp truy vấn MongoDB trùng lặp qua \texttt{tunnel}; cơ chế \texttt{Singleflight} gộp các lời gọi đồng thời này thành một truy vấn duy nhất.
-\item[--] \textbf{Khảo sát bão hoà hàng đợi suy luận}: Kịch bản \texttt{k6\_queue\_experiment.ts} kiểm chứng riêng hành vi xếp hàng và xác nhận hệ thống thực thi giảm tải có kiểm soát (\texttt{load shedding}) bằng mã \texttt{429} khi hàng đợi chạm ngưỡng tối đa.
+\item[--] \textbf{Khảo sát bão hoà hàng đợi suy luận}: Kịch bản \texttt{k6\_queue\_experiment.ts} (Mục~\ref{subsec:tang-4-llm-queue}, Chương~\ref{chap:kiem-thu-danh-gia}) kiểm chứng riêng hành vi xếp hàng và xác nhận hệ thống thực thi giảm tải có kiểm soát (\texttt{load shedding}) bằng mã \texttt{429} khi hàng đợi chạm ngưỡng tối đa.
 \item[--] \textbf{Tính đại diện của dữ liệu kiểm thử tích hợp}: Cơ sở dữ liệu kiểm thử được nạp sẵn 1.500~phiên và 15.000~tin nhắn kèm trích dẫn, đoạn truy hồi và thời gian xử lý, tạo kích thước phản hồi trung bình khoảng 4,6~KB thay vì đo trên bảng rỗng.
 \end{itemize}
 
-Phương pháp quét nhị phân tìm trần thông lượng bền vững qua ba hiệp liên tiếp và cấu hình kịch bản chi tiết đã được thiết lập tại Chương~\ref{chap:kiem-thu-danh-gia}; Bảng~\ref{tab:tran-thong-luong-kich-ban} tổng hợp kết quả trần thông lượng bền vững đạt được theo từng kịch bản nghiệp vụ.
+Phương pháp quét nhị phân tìm trần thông lượng bền vững qua ba hiệp liên tiếp và cấu hình kịch bản chi tiết đã được thiết lập tại Mục~\ref{subsec:quet-nhi-phan} (Chương~\ref{chap:kiem-thu-danh-gia}, Bảng~\ref{tab:ket-qua-quet-nhi-phan}); Bảng~\ref{tab:tran-thong-luong-kich-ban} tổng hợp kết quả trần thông lượng bền vững đạt được theo từng kịch bản nghiệp vụ.
 
 \begin{table}[htbp]
 \centering
@@ -278,20 +278,20 @@ Bảng~\ref{tab:khoi-luong-kiem-thu} tổng hợp khối lượng kiểm thử t
 \toprule
 \textbf{Tầng kiểm thử} & \textbf{Công cụ} & \textbf{Phạm vi} & \textbf{Khối lượng} \\
 \midrule
-Đơn vị và tích hợp phía máy chủ & Jest~29.x với cơ sở dữ liệu trong bộ nhớ & 25 tệp kiểm thử trong mã nguồn phía máy chủ & 267 khối kiểm thử \\
+Đơn vị và tích hợp phía máy chủ & Jest~30.x với cơ sở dữ liệu trong bộ nhớ & 25 tệp kiểm thử trong mã nguồn phía máy chủ & 267 khối kiểm thử \\
 \midrule
-Đầu cuối (E2E) phía máy chủ & Jest~29.x với cấu hình E2E riêng & Bộ kịch bản phủ luồng xác thực, phiên trò chuyện và hỏi đáp & 13 kịch bản \\
+Đầu cuối (E2E) phía máy chủ & Jest~30.x với cấu hình E2E riêng & Bộ kịch bản phủ luồng xác thực, phiên trò chuyện và hỏi đáp & 13 kịch bản \\
 \midrule
-Đơn vị và thành phần phía người dùng & Vitest~2.x với mô phỏng IndexedDB & 37 tệp kiểm thử trong mã nguồn phía người dùng & 309 khối kiểm thử \\
+Đơn vị và thành phần phía người dùng & Vitest~2.x với mô phỏng IndexedDB & 37 tệp kiểm thử trong mã nguồn phía người dùng & 327 khối kiểm thử \\
 \midrule
 Đầu cuối (E2E) phía người dùng & Playwright~1.x & Hành trình cây tri thức 3D, hồi quy hình ảnh và xác thực & 26 kịch bản \\
 \midrule
-\textbf{Tổng cộng} & & & \textbf{615 khối kiểm thử} \\
+\textbf{Tổng cộng} & & & \textbf{633 khối kiểm thử} \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Bảng~\ref{tab:khoi-luong-kiem-thu} cho thấy độ phủ kiểm thử tự động trải đều trên cả hai phân hệ backend và frontend. Ở phía máy chủ, ngoài tệp kiểm thử cấu hình khởi động chung, 24 tệp kiểm thử đi sâu vào từng mô đun nghiệp vụ và truy xuất; trong đó ba phân hệ được kiểm thử dày đặc nhất gồm phân hệ quản trị (30~khối), phân hệ quản lý phiên trò chuyện (26~khối, đối chiếu theo danh mục 32~kịch bản có mã định danh cố định) và phân hệ kho khoa học (40~khối, chia thành hai tệp kiểm chứng tổng kiểm tra \texttt{checksum} và thứ tự đoạn). Quá trình vận hành bộ kiểm thử tự động rút ra bốn kết luận về độ tin cậy:
+Bảng~\ref{tab:khoi-luong-kiem-thu} tổng hợp từ chi tiết đo kiểm tại các Mục~\ref{sec:unit-testing}--\ref{sec:e2e-testing} (Chương~\ref{chap:kiem-thu-danh-gia}) cho thấy độ phủ kiểm thử tự động trải đều trên cả hai phân hệ backend và frontend. Ở phía máy chủ, ngoài tệp kiểm thử cấu hình khởi động chung, 24~tệp kiểm thử đi sâu vào từng mô đun nghiệp vụ và truy xuất; trong đó ba phân hệ được kiểm thử dày đặc nhất gồm phân hệ quản trị (30~khối), phân hệ quản lý phiên trò chuyện (26~khối, đối chiếu theo danh mục 34~kịch bản tích hợp có mã định danh cố định ở Bảng~\ref{tab:kich-ban-tich-hop-session}) và phân hệ kho khoa học (40~khối, chia thành hai tệp kiểm chứng tổng kiểm tra \texttt{checksum} và thứ tự đoạn). Quá trình vận hành bộ kiểm thử tự động rút ra bốn kết luận về độ tin cậy:
 
 \begin{itemize}
 \item[--] \textbf{Tốc độ thực thi độc lập hạ tầng ngoài}: Toàn bộ kiểm thử đơn vị chạy trên cơ sở dữ liệu trong bộ nhớ nên không phụ thuộc \texttt{tunnel} mạng hay GPU, giúp hoàn tất toàn bộ lượt chạy trong vài giây trên quy trình tích hợp liên tục.
@@ -303,7 +303,7 @@ Bảng~\ref{tab:khoi-luong-kiem-thu} cho thấy độ phủ kiểm thử tự đ
 \subsection{Đánh giá chất lượng truy xuất}
 \label{subsec:danh-gia-chat-luong-truy-xuat}
 
-Chất lượng truy xuất được đánh giá trên bộ chuẩn 150~câu hỏi khoa học (gồm 100~câu có đáp án nằm trong kho và 50~câu ngoài phạm vi) qua hai cấu hình độc lập: chỉ dùng thứ hạng tương đồng của chỉ mục vector Qdrant, và kết hợp lớp xếp hạng lại kèm bộ chấm điểm ngôn ngữ Laya. Bảng~\ref{tab:chat-luong-truy-xuat} đối chiếu các chỉ số chất lượng giữa hai cấu hình.
+Chất lượng truy xuất được đánh giá trên bộ chuẩn 150~câu hỏi khoa học (gồm 100~câu có đáp án nằm trong kho và 50~câu ngoài phạm vi) trong Mục~\ref{sec:danh-gia-retrieval} (Chương~\ref{chap:kiem-thu-danh-gia}, Bảng~\ref{tab:so-sanh-xep-hang-ch6}). Bảng~\ref{tab:chat-luong-truy-xuat} đối chiếu các chỉ số chất lượng giữa cấu hình chỉ dùng chỉ mục vector Qdrant và cấu hình kết hợp lớp xếp hạng lại với bộ chấm điểm \texttt{Laya Baseline} (riêng biến thể \texttt{Laya seed0} nâng \texttt{MRR} lên 0,8939, \texttt{Hit@1} 0,82 và \texttt{Hit@5} 0,98).
 
 \begin{table}[htbp]
 \centering
@@ -346,7 +346,7 @@ Số liệu từ Bảng~\ref{tab:chat-luong-truy-xuat} làm rõ hai kết luận
 \subsection{Đánh giá chất lượng sinh và độ trễ cảm nhận}
 \label{subsec:danh-gia-chat-luong-sinh}
 
-Trên tập câu hỏi trong phạm vi, chất lượng văn bản do mô hình sinh ra được đo lường qua ba chỉ số chuẩn của khung đánh giá RAG tại Bảng~\ref{tab:chat-luong-sinh}.
+Trên tập câu hỏi trong phạm vi thuộc bộ 150~câu hỏi, chất lượng văn bản do mô hình sinh ra được tổng hợp từ phép đo DeepEval tại Mục~\ref{sec:danh-gia-rag} (Chương~\ref{chap:kiem-thu-danh-gia}, Bảng~\ref{tab:deepeval-doi-dau-ch6}) trong Bảng~\ref{tab:chat-luong-sinh}. Ngoài ra, trên bộ 105~mẫu chuẩn vàng đã nạp đủ văn bản đoạn (Bảng~\ref{tab:deepeval-hydrated-ch6}), các chỉ số truy hồi và dẫn nguồn đều vượt ngưỡng (\texttt{Contextual Recall} 0,900, \texttt{Contextual Precision} 0,852, \texttt{Academic Citation Grounding} 0,762), còn \texttt{Faithfulness} (0,667), \texttt{Answer Relevancy} (0,667) và \texttt{Contextual Relevancy} (0,520) thấp hơn ngưỡng do đặc trưng đoạn học thuật dài.
 
 \begin{table}[htbp]
 \centering
@@ -463,7 +463,7 @@ Tổng thời gian chặn luồng chính (\texttt{TBT}) & 40~ms & Lighthouse \\
 \midrule
 Độ lệch bố cục tích lũy (\texttt{CLS}) & 0,002 & Lighthouse \\
 \midrule
-Khối kiểm thử đơn vị và thành phần giao diện & 309 khối / 37 tệp & Vitest~2.x kèm mô phỏng kho cục bộ \texttt{IndexedDB} \\
+Khối kiểm thử đơn vị và thành phần giao diện & 327 khối / 37 tệp & Vitest~2.x kèm mô phỏng kho cục bộ \texttt{IndexedDB} (Mục~\ref{sec:unit-testing}, Chương~\ref{chap:kiem-thu-danh-gia}) \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -513,11 +513,11 @@ M4 & Sinh câu trả lời cục bộ, phát trực tiếp theo luồng, dẫn n
 \midrule
 M5 & Giao diện khám phá ba chiều và khung trò chuyện & Cảnh WebGL ba chiều (\texttt{three.js}/\texttt{R3F}), khung trò chuyện học thuật & Điểm hiệu năng Lighthouse 97/100, \texttt{LCP} 1,0~s; 26~kịch bản E2E; 17~kịch bản hồi quy hình ảnh (Mục~\ref{subsec:ket-qua-kiem-thu-giao-dien}) & Đạt \\
 \midrule
-M6 & Lưu trữ hội thoại ưu tiên ngoại tuyến và đồng bộ hai chiều & Kho cục bộ trình duyệt \texttt{IndexedDB} (\texttt{RagChatDB}) khoá chính \texttt{UUIDv7} & 309 khối kiểm thử phía người dùng bao phủ cơ chế đồng bộ và phục hồi ngoại tuyến (Mục~\ref{subsec:ket-qua-kiem-thu-tu-dong}) & Đạt \\
+M6 & Lưu trữ hội thoại ưu tiên ngoại tuyến và đồng bộ hai chiều & Kho cục bộ trình duyệt \texttt{IndexedDB} (\texttt{RagChatDB}) khoá chính \texttt{UUIDv7} & 327 khối kiểm thử phía người dùng bao phủ cơ chế đồng bộ và phục hồi ngoại tuyến (Mục~\ref{subsec:ket-qua-kiem-thu-tu-dong}) & Đạt \\
 \midrule
-M7 & Xác thực, phân quyền và kiểm toán vững chắc & Băm mật khẩu \texttt{Argon2id}, xoay vòng JWT theo \texttt{token family}, nhật ký kiểm toán \texttt{append-only} & 27 khối kiểm thử xác thực và 30 khối kiểm thử quản trị; 100\% xoay vòng token thành công dưới tải mật mã (Mục~\ref{subsec:ket-qua-hieu-nang}, \ref{subsec:ket-qua-kiem-thu-tu-dong}) & Đạt \\
+M7 & Xác thực, phân quyền và kiểm toán vững chắc & Băm mật khẩu \texttt{Argon2id}, xoay vòng JWT theo \texttt{token family}, nhật ký kiểm toán \texttt{append-only} & 34 khối kiểm thử xác thực (26 khối lõi và 8 khối mật khẩu bị cấm) và 30 khối kiểm thử quản trị; 100\% xoay vòng token thành công dưới tải mật mã (Mục~\ref{subsec:ket-qua-hieu-nang}, \ref{subsec:ket-qua-kiem-thu-tu-dong}) & Đạt \\
 \midrule
-M8 & Bộ kiểm thử và quy trình đánh giá bao phủ toàn diện & Bốn công cụ kiểm thử tự động (\texttt{Jest}, \texttt{Vitest}, \texttt{Playwright}, \texttt{k6}) và bộ đánh giá RAG & 615 khối kiểm thử tự động; 150~câu hỏi đánh giá chất lượng; 5~kịch bản đo tải (Mục~\ref{subsec:ket-qua-hieu-nang}, \ref{subsec:ket-qua-kiem-thu-tu-dong}, \ref{subsec:danh-gia-chat-luong-truy-xuat}) & Đạt \\
+M8 & Bộ kiểm thử và quy trình đánh giá bao phủ toàn diện & Bốn công cụ kiểm thử tự động (\texttt{Jest}, \texttt{Vitest}, \texttt{Playwright}, \texttt{k6}) và bộ đánh giá RAG & 633 khối kiểm thử tự động; 150~câu hỏi đánh giá chất lượng; 5~kịch bản đo tải (Mục~\ref{subsec:ket-qua-hieu-nang}, \ref{subsec:ket-qua-kiem-thu-tu-dong}, \ref{subsec:danh-gia-chat-luong-truy-xuat}) & Đạt \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -550,9 +550,9 @@ Hình~\ref{fig:anh-xa-muc-tieu-ket-qua} tổng hợp sơ đồ ánh xạ từ t�
     \node[enode, right=1.1cm of m3] (e3) {\texttt{Hit@1}: 0,81; \texttt{Hit@3}: 0,97};
     \node[enode, right=1.1cm of m4] (e4) {\texttt{Faithfulness}: 0,797; sai: 0,00\%};
     \node[enode, right=1.1cm of m5] (e5) {Lighthouse: 97/100; 26 kịch bản E2E};
-    \node[enode, right=1.1cm of m6] (e6) {309 khối kiểm thử phía người dùng};
-    \node[enode, right=1.1cm of m7] (e7) {57 khối kiểm thử; 100\% xoay vòng};
-    \node[enode, right=1.1cm of m8] (e8) {615 khối kiểm thử; 150 câu đánh giá};
+    \node[enode, right=1.1cm of m6] (e6) {327 khối kiểm thử phía người dùng};
+    \node[enode, right=1.1cm of m7] (e7) {64 khối kiểm thử; 100\% xoay vòng};
+    \node[enode, right=1.1cm of m8] (e8) {633 khối kiểm thử; 150 câu đánh giá};
 
     % Column 3: R1..R8
     \node[rnode_cond, right=1.1cm of e1] (r1) {Đạt có điều kiện};
@@ -681,7 +681,7 @@ Mặc dù hệ thống \texttt{RAG\_TS} đã hoàn thiện các mục tiêu thi�
 \begin{itemize}
 \item[--] \textbf{\texttt{HC-07} -- Cấu hình tên dịch vụ và cổng chưa đồng bộ giữa hai tầng Compose}: Cấu hình \texttt{reverse proxy} Nginx ở tầng biên trong bộ tệp kế thừa vẫn trỏ tới tên dịch vụ \texttt{backend-rag} ở cổng 8000, trong khi tầng dịch vụ dữ liệu hiện tại định danh backend là \texttt{app} ở cổng 3000, buộc người vận hành phải hiệu chỉnh thủ công khối \texttt{upstream} khi ghép hai tầng.
 \item[--] \textbf{\texttt{HC-08} -- Khối \texttt{upstream} của Nginx mới khai báo một thực thể đơn lẻ}: Dù các tham số chịu lỗi (\texttt{max\_fails}, \texttt{fail\_timeout}) và chỉ thị chuyển tiếp (\texttt{proxy\_next\_upstream}) đã được cấu hình sẵn, cơ chế dự phòng lỗi tại tầng biên chưa phát huy tác dụng thực tế do chưa triển khai nhiều bản sao backend song song.
-\item[--] \textbf{\texttt{HC-09} -- Thiếu ngăn xếp giám sát tập trung và tự động hoá chứng thư \texttt{TLS}}: Dù hệ thống đã xuất nhật ký JSON một dòng ra \texttt{stdout} và có script lấy mẫu CPU/RAM mỗi hai giây (Mục~\ref{subsec:ket-qua-hieu-nang}), dữ liệu này mới lưu cục bộ mà chưa kết nối vào hệ thống lưu trữ chuỗi thời gian và bảng điều khiển trực quan hoá tập trung; đồng thời tham số giao thức \texttt{TLS} chưa chốt cứng và khâu gia hạn chứng thư vẫn thực hiện thủ công.
+\item[--] \textbf{\texttt{HC-09} -- Thiếu ngăn xếp giám sát tập trung và tự động hoá chứng thư \texttt{TLS}}: Dù backend đã xuất nhật ký JSON một dòng ra \texttt{stdout}, có script lấy mẫu CPU/RAM mỗi hai giây (Mục~\ref{subsec:ket-qua-hieu-nang}) và mở điểm thu thập Prometheus cục bộ phục vụ đo kiểm (Mục~\ref{sec:danh-gia-tai-nguyen-chi-phi}, Chương~\ref{chap:kiem-thu-danh-gia}), môi trường production chưa dựng ngăn xếp quan trắc tập trung hoàn chỉnh với bảng điều khiển trực quan hoá dài hạn; đồng thời tham số giao thức \texttt{TLS} chưa chốt cứng và khâu gia hạn chứng thư cùng cảnh báo hết hạn vẫn thực hiện thủ công.
 \end{itemize}
 
 \subsection{Hạn chế quản lý bí mật}
@@ -709,7 +709,7 @@ Hướng này giải quyết \texttt{HC-07} và \texttt{HC-08} thông qua việc
 \subsection{Xây dựng hệ thống quan trắc và giám sát tập trung}
 \label{subsec:giam-sat-tap-trung}
 
-Hướng này giải quyết \texttt{HC-09} bằng cách xây dựng hệ thống quan trắc (\texttt{Observability}) với ngăn xếp Prometheus và Grafana để thu thập, lưu trữ chuỗi thời gian và trực quan hoá các chỉ số thời gian thực (CPU, RAM, phân vị độ trễ \texttt{p95}/\texttt{p99}, độ sâu hàng đợi \texttt{LlmQueue}), kết hợp Grafana Loki và OpenTelemetry để tập trung hoá nhật ký JSON từ \texttt{stdout} cùng truy vết phân tán (\textit{distributed tracing}) xuyên suốt từ Nginx, NestJS tới Qdrant. Thuận lợi lớn của hướng này là tầng thu thập chỉ số lấy mẫu hai giây và cấu trúc log Pino gắn \texttt{UUIDv7} đã có sẵn; công việc mở rộng chỉ tập trung vào tầng lưu trữ và hiển thị.
+Hướng này giải quyết \texttt{HC-09} bằng cách hoàn thiện ngăn xếp quan trắc (\texttt{Observability}) chuẩn production dựa trên điểm thu thập Prometheus đã có: bổ sung hệ thống lưu trữ chuỗi thời gian dài hạn, bảng điều khiển Grafana theo dõi thời gian thực (CPU, RAM, \texttt{p95}/\texttt{p99}, tách biệt histogram REST và \texttt{TTFT} của luồng \texttt{SSE}, độ sâu hàng đợi \texttt{LlmQueue}), kết hợp Grafana Loki gom nhật ký JSON từ \texttt{stdout} và OpenTelemetry truy vết phân tán (\textit{distributed tracing}) xuyên suốt từ Nginx, NestJS tới Qdrant. Thuận lợi lớn của hướng này là điểm thu thập Prometheus cục bộ, tầng lấy mẫu hai giây và cấu trúc log Pino gắn \texttt{UUIDv7} đã có sẵn từ pha kiểm thử; công việc mở rộng chỉ tập trung vào tầng thu thập tập trung và hiển thị.
 
 \subsection{Chuyên nghiệp hóa quản lý bí mật và bảo mật dữ liệu}
 \label{subsec:quan-ly-bi-mat}
