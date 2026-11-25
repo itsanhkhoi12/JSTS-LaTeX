@@ -922,7 +922,7 @@ Truyền đối tượng NoSQL injection & Kiểm tra đầu vào & Đạt & B�
 Chuỗi tìm kiếm có ký tự đặc biệt regex & Chống \texttt{ReDoS} & Đạt & Ký tự đặc biệt được thoát và khớp theo nghĩa đen \\
 Gửi XML chứa khai báo \texttt{DOCTYPE} & Chống \texttt{XXE} & Đạt & Bị từ chối ngay tại bộ phân tích XML với HTTP~\texttt{400} \\
 Người dùng thường gọi route quản trị & Phân quyền & Đạt & Trả về HTTP~\texttt{403} \\
-Quản trị viên tự khoá hoặc xoá vai trò cuối & Phân quyền & Đạt & Từ chối thao tác với HTTP~\texttt{400} \\
+Quản trị viên tự khoá hoặc xoá vai trò cuối & Phân quyền & Đạt & Từ chối thao tác với HTTP~\texttt{409} \\
 Vô hiệu hoá tài khoản đang hoạt động & Phân quyền & Đạt & Toàn bộ access và refresh token bị thu hồi tức thời \\
 Nhật ký kiểm toán chỉ cho phép ghi thêm & Toàn vẹn dấu vết & Đạt & Không tồn tại API sửa hoặc xoá bản ghi kiểm toán \\
 \end{longtable}
