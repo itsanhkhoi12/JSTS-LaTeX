@@ -337,3 +337,6 @@ build/
 
 # PDF
 *.pdf
+
+# Local agent rulesets
+agents/

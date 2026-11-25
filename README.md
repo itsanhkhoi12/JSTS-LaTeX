@@ -114,23 +114,23 @@ Theo yêu cầu chuẩn hóa, các thông tin định danh cá nhân và thông 
 - **Biên dịch tài liệu ra thư mục `build/`:**
   - Linux/macOS:
     ```bash
-    ./compile.sh
+    ./scripts/compile.sh
     ```
   - Windows:
     ```cmd
-    compile.bat
+    scripts/compile.bat
     ```
 - **Dọn dẹp thư mục tạm:**
   ```bash
-  ./compile.sh clean
+  ./scripts/compile.sh clean
   # hoặc trên Windows:
-  compile.bat clean
+  ./scripts/compile.bat clean
   ```
 - **Chế độ tự động biên dịch khi lưu (Watch mode):**
   ```bash
-  ./compile.sh watch
+  ./scripts/compile.sh watch
   # hoặc trên Windows:
-  compile.bat watch
+  ./scripts/compile.bat watch
   ```
 
 ---
