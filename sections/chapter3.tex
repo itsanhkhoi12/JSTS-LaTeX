@@ -228,9 +228,12 @@ Nguyên tắc phân rã được giữ xuyên suốt là mô đun nghiệp vụ 
 \section{Thiết kế kiến trúc Frontend và tổ chức ứng dụng}
 \label{sec:kien-truc-frontend}
 
-Phía người dùng được xây dựng trên React phiên bản 19, đóng gói bằng Vite phiên bản 6, với React Three Fiber phiên bản 8 đặt trên three.js r160 để dựng không gian ba chiều. Mô hình tổ chức ứng dụng dựa trên nguyên tắc đặt mã nguồn theo tính năng, trong đó mỗi tính năng giữ riêng thành phần giao diện, kho trạng thái, thư viện gọi API và kiểu dữ liệu của mình. Mã nguồn dùng chung giữa nhiều tính năng được đưa vào thư mục dùng chung, và chỉ chuyển sang vùng này khi thực sự cần thiết.
+Phía người dùng được xây dựng trên React phiên bản 19, đóng gói bằng Vite phiên bản 6, với React Three Fiber (R3F) phiên bản 9 đặt trên three.js r186 để dựng không gian ba chiều. Giao diện hai chiều dùng Tailwind CSS phiên bản 4, trạng thái được quản lý bằng Zustand và lịch sử hội thoại được lưu cục bộ bằng Dexie.js trên IndexedDB. Phần này trình bày ba lớp thiết kế: cách tổ chức mã nguồn, hệ thống thiết kế (design system) mà mọi thành phần giao diện phải tuân theo, và vật liệu kính Liquid Glass cùng cách vật liệu này được tinh chỉnh cho hai chế độ sáng và tối.
 
-Bảng~\ref{tab:cau-truc-frontend} trình bày cấu trúc tổ chức ứng dụng phía người dùng.
+\subsection{Tổ chức ứng dụng theo tính năng}
+\label{subsec:to-chuc-frontend}
+
+Mô hình tổ chức ứng dụng dựa trên nguyên tắc đặt mã nguồn theo tính năng (feature-based), trong đó mỗi tính năng giữ riêng thành phần giao diện, kho trạng thái, thư viện gọi API và kiểu dữ liệu của mình. Mã nguồn dùng chung giữa nhiều tính năng được đưa vào thư mục dùng chung, và chỉ chuyển sang vùng này khi thực sự cần thiết. Bảng~\ref{tab:cau-truc-frontend} trình bày cấu trúc tổ chức ứng dụng phía người dùng.
 
 \begin{table}[htbp]
     \centering
@@ -246,12 +249,212 @@ Bảng~\ref{tab:cau-truc-frontend} trình bày cấu trúc tổ chức ứng d�
         Tính năng không gian & Cảnh WebGL, nhánh cây, tán cây vector, hiệu ứng luồng, lớp phủ chỉ số, kho trạng thái không gian & Hiển thị và điều hướng cây tri thức, kích hoạt luồng dẫn tới tài liệu được trích dẫn \\
         Tính năng xác thực & Lớp phủ đăng nhập, kho trạng thái xác thực & Quản lý danh tính phía người dùng và trạng thái phiên đăng nhập \\
         Tính năng thu thập và kết quả & Giao diện tiến trình thu thập, giao diện kết quả tìm kiếm & Tích hợp quy trình xử lý dữ liệu và hiển thị kết quả tìm kiếm \\
-        Dùng chung & Thư viện gọi API, hooks, kho trạng thái giao diện, hệ thống giao diện (theming), kiểu dữ liệu, thành phần giao diện cơ bản, hàm tiện ích & Mã nguồn dùng chung giữa các tính năng \\
+        Dùng chung & Thư viện gọi API, hooks, kho trạng thái giao diện, bộ máy theme và design token, component kính, kiểu dữ liệu, thành phần giao diện cơ bản, hàm tiện ích & Mã nguồn dùng chung giữa các tính năng \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Hai ràng buộc kỹ thuật chi phối thiết kế phía người dùng. Ràng buộc thứ nhất là ranh giới điều phối của R3F (reconciler boundary): trong canvas không được đặt phần tử HTML thô (raw HTML element), mọi lớp phủ chỉ số hiệu năng phải được đặt ngoài canvas dưới dạng phần tử cùng cấp (sibling element). Ràng buộc thứ hai là bảo vệ luồng chính (main thread) khi truyền kết quả theo luồng: phân tích văn bản định dạng và công thức phải được trì hoãn bằng \texttt{useDeferredValue} của React, còn token phải được đưa vào bộ đệm (buffer) ở mức 30 mili giây trước khi cập nhật trạng thái. Chi tiết về cơ chế này được trình bày ở Mục~\ref{sec:state-management}. Chi tiết về cấu trúc mã nguồn cụ thể và cách triển khai từng tính năng được trình bày ở Mục~\ref{sec:trien-khai-frontend}.
+Hai ràng buộc kỹ thuật chi phối thiết kế phía người dùng. Ràng buộc thứ nhất là ranh giới điều phối của R3F (reconciler boundary): trong canvas không được đặt phần tử HTML thô (raw HTML element), mọi lớp phủ chỉ số hiệu năng và mọi bề mặt kính phải được đặt ngoài canvas dưới dạng phần tử cùng cấp (sibling element). Ràng buộc thứ hai là bảo vệ luồng chính (main thread) khi truyền kết quả theo luồng: phân tích văn bản định dạng và công thức phải được trì hoãn bằng \texttt{useDeferredValue} của React, còn mỗi token chỉ được gây ra một lần cập nhật trạng thái. Chi tiết về cơ chế này được trình bày ở Mục~\ref{sec:state-management} và Mục~\ref{subsec:fe-rag-store}.
+
+\subsection{Hệ thống thiết kế và quy chuẩn cố định}
+\label{subsec:design-system}
+
+Sau nhiều vòng phát triển rời rạc, giao diện ban đầu bị lệch chuẩn: tám mức bo góc, năm mức độ mờ, mười hai mức độ trong suốt của màu trắng, mười chín cỡ chữ, và một số biến CSS được gọi nhưng chưa từng được khai báo. Mỗi thành phần tự chọn giá trị riêng nên cùng một loại bề mặt lại trông khác nhau ở từng màn hình. Để khắc phục, nhóm xây dựng một quy chuẩn thiết kế cố định (tài liệu \texttt{FE\_DESIGN\_SYSTEM.md}) theo nguyên tắc \emph{giữ cái đang có, chỉ sửa chỗ lệch}: mỗi bậc trong một thang đều được lấy từ giá trị đang được dùng nhiều nhất trong mã nguồn, và các giá trị lạc thang được gộp về bậc gần nhất. Phần lớn các giá trị được gộp chỉ lệch không quá 2 pixel hoặc 0,04 độ trong suốt, nên giao diện được chuẩn hoá mà mắt thường gần như không nhận ra thay đổi.
+
+\paragraph{Luồng design token.} Hệ thống token được tổ chức thành một luồng một chiều. Mọi màu sắc của hai theme (kể cả màu kính có kênh alpha) được khai báo một lần trong tệp \texttt{tokens.ts}. Hàm \texttt{applyCssVars} ghi các giá trị này thành biến CSS trên phần tử gốc \texttt{:root}, và mọi lớp giao diện chỉ đọc lại các biến đó. Các thang không phụ thuộc theme (bo góc, độ mờ, cỡ chữ, thời gian, đường cong chuyển động, bóng đổ) được khai báo trong khối \texttt{@theme} của Tailwind CSS 4, nhờ đó Tailwind tự sinh ra đúng các lớp tiện ích tương ứng (ví dụ \texttt{rounded-md}, \texttt{backdrop-blur-lg}, \texttt{text-caption}) và không sinh ra lớp nào nằm ngoài thang. Cảnh ba chiều đọc trực tiếp cùng đối tượng token đó và bỏ kênh alpha bằng hàm \texttt{opaqueHex}, nên cây tri thức và giao diện hai chiều luôn đổi màu đồng bộ khi người dùng đổi theme.
+
+Bảng~\ref{tab:thang-thiet-ke} tóm tắt các thang cố định của hệ thống thiết kế. Thang bo góc, ba cấp vật liệu kính và sáu tầng hiển thị được trình bày chi tiết ở Mục~\ref{sec:ui-ux}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các thang cố định của hệ thống thiết kế phía người dùng.}
+    \label{tab:thang-thiet-ke}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{5.4cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Thang} & \textbf{Các bậc} & \textbf{Quy tắc sử dụng} \\
+        \midrule
+        Bo góc (5 bậc) & 4, 6, 10, 14, 9999 pixel & Bo góc đồng tâm: bán kính con bằng bán kính cha trừ khoảng đệm \\
+        Độ mờ nền (3 bậc) & 6, 12, 16 pixel, kèm độ bão hoà 1,2 & 6 pixel cho nhãn neo trong cảnh, 12 pixel cho control đứng riêng, 16 pixel cho panel \\
+        Cỡ chữ (7 bậc) & 10, 11, 12, 13, 14, 16, 22 pixel & 12 pixel cho giao diện dày đặc, 13 pixel cho control, 14 pixel cho nội dung hội thoại \\
+        Độ đậm (4 bậc) & 400, 500, 600, 700 & 600 cho tiêu đề và hành động chính, 700 chỉ cho điểm số nổi bật \\
+        Tỷ lệ pha màu (7 mức) & 6, 12, 16, 24, 40, 55 \% và 45/70 \% cho ánh sáng & Mọi phép \texttt{color-mix} với màu trạng thái chỉ được dùng các tỷ lệ này \\
+        Thời gian chuyển động & 120, 160, 240, 480, 1500 mili giây & Nhấn, rê chuột, xuất hiện, bật ra, và chuyển động đồng bộ với camera \\
+        Đường cong chuyển động & Chuẩn, đàn hồi, cảnh & Đường cong cảnh phải khớp với hằng số trượt cột chat trong bộ điều khiển camera \\
+        Icon & 12, 14, 16, 28 pixel & Cỡ icon bằng cỡ chữ đi kèm cộng 2 pixel, làm tròn về bậc gần nhất \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\paragraph{Màu sắc.} Bảng màu được định nghĩa theo vai trò thay vì theo sắc độ: chữ chính, chữ phụ, chữ mờ, màu nhấn, chữ trên nền nhấn, cảnh báo, nguy hiểm, thành công, bề mặt vừa và bề mặt đặc. Bảng màu mặc định của Tailwind (ví dụ \texttt{red-500}, \texttt{gray-400}, \texttt{text-white}) bị cấm hoàn toàn trong thành phần giao diện. Màu nhấn chỉ dành cho hành động chính, giống quy ước của Apple, và mười hai màu danh mục bài báo được coi là \emph{dữ liệu} chứ không phải màu trang trí, nên không được dùng lại cho bất kỳ chi tiết giao diện nào khác.
+
+\paragraph{Trạng thái tương tác thống nhất.} Mọi control dùng chung một bộ quy tắc trạng thái: khi rê chuột, nền tăng lên một bậc và viền chuyển sang màu nhấn 55\%; khi nhấn, phần tử dịch xuống 1 pixel trong 120 mili giây; khi đang bật, viền và chữ dùng màu nhấn trên nền nhấn 16\%; khi được chọn bằng bàn phím, phần tử có đường viền hai pixel màu nhấn; khi bị vô hiệu hoá, độ mờ đục giảm còn 0,45; khi có lỗi, viền chuyển sang màu nguy hiểm.
+
+\paragraph{Một component kính duy nhất.} Các kiểu kính rời rạc trước đây được gộp thành một component \texttt{Glass} với bốn thuộc tính: vật liệu (thường, mạnh, trong), hình dạng (panel, control, chip, ánh xạ trực tiếp sang bậc bo góc lớn, trung bình và đầy đủ), cờ lồng nhau (\texttt{nested}, khi bật thì phần tử không dùng hiệu ứng làm mờ nền vì đã nằm trong một tấm kính khác) và cờ tương tác. Nhờ chỉ có một điểm hiện thực, toàn bộ phần nâng cấp Liquid Glass ở Mục~\ref{subsec:liquid-glass} chỉ phải thay đổi ở một chỗ.
+
+\paragraph{Cơ chế giữ quy chuẩn.} Quy chuẩn không chỉ nằm trên tài liệu mà được kiểm tra tự động bằng bốn công cụ. Script \texttt{check:design} quét toàn bộ mã nguồn theo mười bốn quy tắc trên cả mã TSX lẫn CSS: mã màu ghi trực tiếp, màu Tailwind mặc định, giá trị tuỳ ý ngoài thang, bậc bo góc đã bị loại bỏ, biến CSS không tồn tại hoặc có giá trị dự phòng, lời gọi lượng giác trong vòng lặp kết xuất, và giá trị thô của bo góc, độ mờ, cỡ chữ, màu, thời gian và đường cong chuyển động trong CSS. Bộ kiểm thử thang (\texttt{scale.test.ts}) bảo đảm khối \texttt{@theme} không bị thêm bậc lạ. Bộ kiểm thử tương phản (\texttt{contrast.test.ts}) tính tỷ lệ tương phản theo chuẩn WCAG cho mọi cặp chữ trên nền ở cả hai theme. Cuối cùng, bộ kiểm thử hình ảnh của Playwright so sánh giao diện với ảnh mốc để phát hiện các thay đổi ngoài ý muốn. Bảng~\ref{tab:ket-qua-chuan-hoa} cho thấy kết quả của quá trình chuẩn hoá.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Kết quả chuẩn hoá giao diện theo hệ thống thiết kế.}
+    \label{tab:ket-qua-chuan-hoa}
+    \small
+    \begin{tabularx}{\textwidth}{@{}X>{\raggedleft\arraybackslash}p{2.4cm}>{\raggedleft\arraybackslash}p{2.4cm}@{}}
+        \toprule
+        \textbf{Chỉ số} & \textbf{Trước} & \textbf{Sau} \\
+        \midrule
+        Số mức bo góc (không tính bậc đầy đủ) & 8 & 4 \\
+        Số mức độ mờ nền (không tính 0 pixel) & 5 & 3 \\
+        Số mức độ trong suốt của màu trắng & 12 & 6 \\
+        Số cỡ chữ & 19 & 9 \\
+        Số lớp làm mờ nền ở màn hình đăng nhập & 7 & 3 \\
+        Số lớp làm mờ nền ở màn hình lịch sử & 5 & 3 \\
+        Vi phạm quy tắc thiết kế theo \texttt{check:design} & Chưa đo & 0 trên 14 quy tắc \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Số cỡ chữ sau chuẩn hoá là chín vì ngoài bảy bậc của thang còn hai cỡ tính theo đơn vị \texttt{em} dành riêng cho phần tử nội tuyến trong văn bản (mã nội tuyến và chip trích dẫn), vốn phải co giãn theo chữ của đoạn chứa chúng.
+
+\subsection{Vật liệu Liquid Glass}
+\label{subsec:liquid-glass}
+
+Liquid Glass là ngôn ngữ thiết kế Apple giới thiệu cho macOS và iOS 26 tại WWDC 2025. Khác với glassmorphism thông thường vốn chỉ làm mờ nền phía sau, Liquid Glass mô phỏng một khối kính có độ dày: nền phía sau bị bẻ cong ở dải mép như nhìn qua thấu kính (lensing), cạnh kính bắt sáng và vệt sáng thay đổi theo hướng nguồn sáng (specular), và hình dạng các khối kính lồng nhau luôn đồng tâm. Hệ thống áp dụng ý tưởng này trên web vì toàn bộ giao diện nổi trên một cây tri thức ba chiều gồm khoảng 150 nghìn điểm vector: kính phải cho người dùng thấy cảnh phía sau, chữ vẫn phải dễ đọc, và cảnh ba chiều không được chậm đi. Đây là bản dựng lại theo ý tưởng của Apple, không sử dụng công nghệ của Apple.
+
+Kính chỉ được dùng cho tầng điều khiển nổi trên cảnh (thanh trên cùng, khung cột chat, bảng chú thích danh mục, bảng thiết lập, chip lọc và nhãn ba chiều), không dùng cho chính nội dung. Văn bản trả lời, danh sách đoạn trích và bảng điểm luôn được đặt trên vật liệu mạnh hoặc nền đặc để giữ khả năng đọc.
+
+\paragraph{Năm cấp kính và cơ chế tự hạ cấp.} Vì hiệu ứng khúc xạ tốn chi phí và chỉ một số trình duyệt hỗ trợ đầy đủ, Liquid Glass được thiết kế thành các cấp bật dần, mỗi cấp có phương án dự phòng là cấp ngay dưới (Bảng~\ref{tab:cap-liquid-glass}). Cấp hiện hành được ghi vào thuộc tính \texttt{data-lg-level} trên phần tử \texttt{<html>}, và toàn bộ khác biệt giữa các cấp nằm trong CSS, nên component không phải thay đổi khi cấp thay đổi.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các cấp vật liệu Liquid Glass.}
+    \label{tab:cap-liquid-glass}
+    \small
+    \begin{tabularx}{\textwidth}{@{}c>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{2.8cm}@{}}
+        \toprule
+        \textbf{Cấp} & \textbf{Tên} & \textbf{Kỹ thuật} & \textbf{Phạm vi} \\
+        \midrule
+        0 & Đục & Bề mặt đặc, không làm mờ nền & Mọi trình duyệt \\
+        1 & Kính mờ & Làm mờ và tăng bão hoà nền, viền sáng tĩnh & Mọi trình duyệt hiện đại \\
+        2 & Kính và vệt sáng động & Cấp 1, cộng viền sáng chạy theo con trỏ và ánh sáng vát cạnh được nướng sẵn thành ảnh & Mọi trình duyệt \\
+        3 & Khúc xạ & Cấp 2, cộng bộ lọc dịch chuyển SVG bẻ cong nền qua mép kính & Chromium (Chrome, Edge) \\
+        4 & Kính WebGL & Vẽ kính trực tiếp trong cảnh R3F bằng một lượt kết xuất riêng & Đã thiết kế, chưa triển khai \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Hàm \texttt{detectLevel} chọn cấp cao nhất mà cả môi trường và lựa chọn của người dùng cho phép. Người dùng có bốn lựa chọn trong bảng thiết lập: tự động, đục, mờ và liquid. Chọn đục, hoặc hệ điều hành bật chế độ giảm độ trong suốt, sẽ ép về cấp 0; chọn mờ giới hạn ở cấp 1; hệ điều hành bật chế độ tăng tương phản, chất lượng hình ảnh đặt ở mức thấp, hoặc trình duyệt không thuộc họ Chromium đều giới hạn ở cấp 2; chỉ trình duyệt Chromium với lựa chọn tự động hoặc liquid mới đạt cấp 3. Một điểm thiết kế quan trọng là cấp kính được tách khỏi bậc chất lượng tự thích ứng của cảnh ba chiều. Ở phiên bản đầu, hai cơ chế này gắn với nhau, và vì bậc chất lượng ba chiều thay đổi liên tục khi người dùng xoay cảnh nên các panel nhấp nháy giữa hai cấp kính. Sau khi tách, cấp kính chỉ phụ thuộc vào thiết lập chất lượng mà người dùng chọn.
+
+\paragraph{Cấu trúc lớp của một bề mặt kính.} Mỗi bề mặt kính được chia thành ba lớp cố định. Lớp giả \texttt{::before} giữ màu nền (tint) và ảnh ánh sáng vát cạnh, lớp nội dung nằm ở giữa, và lớp giả \texttt{::after} vẽ viền sáng động. Ba quyết định triển khai ở lớp này đều được đưa ra dựa trên số đo thực tế:
+\begin{itemize}[label=$\bullet$]
+    \item \textbf{Viền sáng chỉ nằm ở mép.} Lớp \texttt{::after} dùng mặt nạ (mask) loại trừ vùng nội dung, nên dải gradient sáng chỉ hiện trong khoảng 1,5 pixel quanh mép. Phiên bản phủ gradient lên cả mặt kính tạo ra một mảng sáng lớn trên thanh trên cùng.
+    \item \textbf{Không dùng \texttt{mix-blend-mode}.} Trong Chromium, một phần tử con có chế độ hoà trộn biến tấm kính thành gốc của bộ lọc nền (backdrop root), làm hiệu ứng làm mờ mất tác dụng và để lộ rõ nét các panel phía sau.
+    \item \textbf{Hướng sáng được ghi theo từng bề mặt.} Hai biến \texttt{--lg-light-x} và \texttt{--lg-light-y} được đăng ký bằng \texttt{@property} với \texttt{inherits: false} và chỉ được ghi lên các bề mặt có viền sáng, kết hợp \texttt{will-change: transform} để việc vẽ lại viền sáng không kích hoạt lại phép làm mờ nền. So với việc ghi lên phần tử gốc ở mỗi khung hình, cách này hạ thời gian khung hình trung vị khi rê chuột từ 2,9 xuống 2,5 mili giây.
+\end{itemize}
+
+Hướng nguồn sáng được biểu diễn bằng một vectơ đơn vị (rotor) theo đúng nguyên tắc dùng số phức cho phép quay của hệ thống. Hàm \texttt{lightFromPointer} chuẩn hoá vectơ từ tâm màn hình tới con trỏ thay vì tính góc bằng \texttt{atan2}. Sau đó, hook \texttt{useLiquidLight} nội suy giữa hai rotor bằng phép nội suy tuyến tính có chuẩn hoá (nlerp), gom các lần ghi theo \texttt{requestAnimationFrame} để mỗi khung hình chỉ ghi tối đa một lần. Khi con trỏ không hoạt động, nguồn sáng trở về vị trí nghỉ phía trên màn hình nên cạnh trên của mọi panel luôn bắt sáng.
+
+\paragraph{Phần quang học tự xây dựng.} Ánh sáng vát cạnh ở cấp 2 và bản khúc xạ SVG đầu tiên ở cấp 3 do nhóm tự hiện thực trong \texttt{refractionMap.ts} và \texttt{LiquidFilters.tsx}. Hình dạng tấm kính được mô tả bằng hàm khoảng cách có dấu (signed distance field, SDF) của hình chữ nhật bo góc, cho biết mỗi điểm cách mép bao xa và pháp tuyến của mép tại đó. Từ SDF, một hồ sơ vát cạnh (bezel profile) lồi được tính sao cho dốc nhất ở mép và phẳng dần về phía trong, rồi được mã hoá thành ảnh dịch chuyển: kênh đỏ và xanh lá lưu độ lệch theo hai trục (giá trị 128 là không lệch), còn ảnh ánh sáng vát cạnh được nướng một lần theo kích thước panel và vẽ như một ảnh nền thông thường nên không tốn chi phí ở mỗi khung hình. Tổng độ dốc của thấu kính được giới hạn dưới 0,92, vì khi độ dốc chạm ngưỡng 1 nền sẽ bị gập ngược và tạo ra một đường cứng song song với mép kính.
+
+\paragraph{Thư viện \texttt{@samasante/liquid-glass}.} Ở cấp 3, lớp bẻ cong nền của bốn panel nổi (cột chat, thanh trên cùng, bảng chú thích danh mục và bảng thiết lập) được giao cho thư viện mã nguồn mở \texttt{@samasante/liquid-glass} phiên bản 0.1.1 (giấy phép MIT). Thư viện cung cấp một component \texttt{<Glass>} dạng headless: bọc một khối bất kỳ thì khối đó trở thành vật liệu kính khúc xạ trực tiếp DOM đang chạy, nên chữ bên dưới vẫn chọn được và liên kết vẫn bấm được, khác với các thư viện WebGL phải chụp ảnh tĩnh trang web. Cơ chế xử lý của thư viện gồm bốn bước:
+\begin{enumerate}
+    \item Rời rạc hoá SDF của hình chữ nhật bo góc thành một ảnh dịch chuyển, trong đó kênh đỏ và xanh lá mã hoá độ lệch theo hai trục và kênh xanh dương mã hoá mặt nạ vệt sáng.
+    \item Đưa ảnh dịch chuyển vào bộ lọc SVG \texttt{feDisplacementMap}, áp lên nền phía sau bằng \texttt{backdrop-filter: url(\#...)} trên Chromium.
+    \item Tách ba kênh màu thành ba lượt dịch chuyển lệch nhau để tạo hiện tượng tán sắc (chromatic aberration) ở mép kính.
+    \item Điều khiển hình học bằng các giá trị chuyển động (motion value) ghi trực tiếp vào DOM ở mỗi khung hình, nên thấu kính có thể chuyển động 60 khung hình mỗi giây mà không làm React vẽ lại.
+\end{enumerate}
+Trên Safari và Firefox, thư viện vẫn làm mờ, phủ màu và vẽ viền sáng nên bề mặt vẫn trông như kính, chỉ không bẻ cong được nền. Phiên bản hiện tại của hệ thống vẫn chỉ mở cấp 3 cho Chromium.
+
+Việc tích hợp thư viện được đóng gói trong component \texttt{LiquidShell} và \texttt{LiquidLens}. Ở cấp 3, panel được bọc bởi lớp vỏ của thư viện và được đánh dấu bằng thuộc tính \texttt{data-lgr}; khi đó panel bỏ hiệu ứng làm mờ nền của chính nó, vì một phần tử con có bộ lọc nền nằm trong một phần tử cha cũng có bộ lọc nền chỉ nhìn thấy phần tử cha chứ không nhìn thấy cảnh ba chiều. Các thuộc tính bố cục cần chuyển động cùng tấm kính (độ rộng, hoạt cảnh trượt vào và trượt ra của cột chat) được chuyển lên lớp vỏ. Dưới cấp 3, \texttt{LiquidShell} trả về panel nguyên trạng, nên cùng một cây component chạy được ở mọi cấp.
+
+Thông số quang học (optics) của thư viện không dùng giá trị mặc định mà được nhóm tinh chỉnh tay cho từng panel và từng theme bằng bảng điều chỉnh của thư viện, rồi lưu thành hai tệp cấu hình riêng \texttt{LiquidShell.dark.ts} và \texttt{LiquidShell.light.ts}. Thư viện tự co giãn thông số theo kích thước panel (độ mạnh khúc xạ theo đường chéo, độ cong theo cạnh ngắn), nên cùng một bộ số bẻ cong thanh trên cùng cao khoảng 49 pixel ít hơn nhiều so với cột chat cao khoảng 774 pixel. Bảng~\ref{tab:optics-liquid-glass} trình bày các thông số chính.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thông số quang học của thư viện Liquid Glass theo theme.}
+    \label{tab:optics-liquid-glass}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{1.6cm}>{\centering\arraybackslash}p{1.6cm}@{}}
+        \toprule
+        \textbf{Thông số} & \textbf{Ý nghĩa} & \textbf{Tối} & \textbf{Sáng} \\
+        \midrule
+        \texttt{strength} & Độ lệch tối đa của một điểm ảnh, tính theo tỷ lệ kích thước panel & 0,2 & 0,02 \\
+        \texttt{depth} & Độ sâu dải khúc xạ tính từ mép vào trong (thanh trên cùng dùng giá trị riêng) & 0,02 (0,1) & 0,05 (0,04) \\
+        \texttt{curvature} & Độ lồi của mặt kính, tạo vùng giữa phóng to kiểu ``giọt nước'' & 0,7 & 0 \\
+        \texttt{dispersion} & Mức tán sắc, tách màu đỏ và xanh ở mép & 1 & 0 \\
+        \texttt{bendWidth} & Bề rộng dải khúc xạ sát mép & 0,26 & 0,05 \\
+        \texttt{sheen} & Cường độ vệt sáng có hướng trên cạnh kính & 0,5 & 0,04 \\
+        \texttt{specular} & Hệ số khuếch đại chung của vệt sáng & 0,6 & 0,2 \\
+        \texttt{sheenAngle} & Góc nguồn sáng mà vệt sáng hội tụ về & 55$^\circ$ & 55$^\circ$ \\
+        \texttt{glow} & Độ phát sáng mềm bên trong khối kính & 0,3 & 0 \\
+        \texttt{frost} & Độ mờ của nền trước khi khúc xạ & 7 & 0 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\paragraph{Thiết lập CSS ở cấp 2 và cấp 3.} Song song với thông số của thư viện, các biến CSS tiền tố \texttt{--lg-} điều khiển phần vật liệu do hệ thống tự quản lý. Ở cấp 2, các panel nổi chuyển từ vật liệu gần đục sang một vật liệu kính duy nhất: tint chỉ còn 10\% màu nền thay vì 24--45\%, độ mờ hạ xuống 6 pixel để thấu kính lộ ra, độ bão hoà tăng lên 1,8 và độ sáng nền tăng 15\%. Các control bên trong panel được vẽ như những hạt kính nhỏ có viền sáng bao quanh và bóng đổ mềm, không có bộ lọc nền riêng. Ở cấp 3, kính được làm ``trong như nước'': không làm mờ, không lớp sữa, không tint; độ lệch tối đa ở mép là 40 pixel trên dải vát 48 pixel. Độ bão hoà được đưa về 1 vì hệ số 1,8 biến vệt chân trời tím mờ phía sau cột chat thành một mảng tím đậm, trong khi thanh trên cùng đặt trên nền trời gần đen vẫn trông trong, tức cùng một tấm kính lại cho hai cảm giác khác nhau tuỳ nền phía sau.
+
+\subsection{Chế độ sáng, chế độ tối và tinh chỉnh kính theo theme}
+\label{subsec:theme-sang-toi}
+
+Người dùng chọn một trong ba chế độ giao diện: theo hệ điều hành, sáng, hoặc tối. Hàm \texttt{resolveTheme} quy chế độ đã chọn về một trong hai theme, và hook \texttt{useThemeSync} lắng nghe truy vấn \texttt{prefers-color-scheme} để đổi theme ngay khi hệ điều hành đổi, trong khi \texttt{applyCssVars} ghi lại toàn bộ biến CSS. Bộ biến được áp lên \texttt{:root} ngay từ lần vẽ đầu tiên trước khi React được gắn, nên trang không bị nháy màu khi tải.
+
+Hai theme không chỉ khác nhau về màu chữ mà là hai khung cảnh khác nhau. Theme tối là cây tri thức ban đêm: trời gần đen có sao và trăng, thân cây có mạch nhựa phát sáng màu lam, các điểm vector là những đốm neon phát sáng theo kiểu cộng sáng (additive blending). Theme sáng là cây ban ngày: bầu trời xanh dải màu theo tán xạ Rayleigh có sương mờ ở chân trời và mặt trời, thân cây gỗ nâu có vân, và mỗi điểm vector nở thành một bông hoa năm cánh mang màu danh mục. Bảng màu danh mục của theme sáng giữ cùng sắc độ nhưng đậm hơn một chút để cánh hoa vẫn nổi trên nền trời xanh. Bảng~\ref{tab:token-sang-toi} so sánh các token giao diện chính của hai theme.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các token giao diện chính của theme tối và theme sáng.}
+    \label{tab:token-sang-toi}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.4cm}@{}}
+        \toprule
+        \textbf{Vai trò} & \textbf{Tối} & \textbf{Sáng} \\
+        \midrule
+        Nền trang & \texttt{\#070614} & \texttt{\#e3f0fc} \\
+        Chữ chính & \texttt{\#ece9ff} & \texttt{\#0b192c} \\
+        Chữ phụ & \texttt{\#a29cc4} & \texttt{\#334155} \\
+        Màu nhấn & \texttt{\#7fe8ff} & \texttt{\#0969da} \\
+        Chữ trên nền nhấn & \texttt{\#06121a} & \texttt{\#ffffff} \\
+        Bề mặt đặc & \texttt{\#151129} ($\alpha$~0,90) & \texttt{\#ffffff} ($\alpha$~0,92) \\
+        Viền kính & Trắng $\alpha$~0,14 & Xanh đậm $\alpha$~0,08 \\
+        Tint của kính & \texttt{\#0c0a18} ($\alpha$~0,24) & Trắng $\alpha$~0,08 \\
+        Viền sáng phía trên & Trắng $\alpha$~0,16 & Trắng $\alpha$~0,70 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Vì nền phía sau hai theme khác nhau hoàn toàn, vật liệu kính phải được tinh chỉnh riêng cho từng theme thay vì dùng chung một bộ số:
+\begin{itemize}[label=$\bullet$]
+    \item \textbf{Theme tối: kính mờ có chiều sâu.} Trên nền trời gần đen, kính hoàn toàn trong sẽ gần như vô hình. Vì vậy thông số quang học giữ một chút độ mờ (\texttt{frost} 7) và ánh sáng bên trong (\texttt{glow} 0,3) để nâng panel khỏi nền, độ cong lớn (0,7) cùng tán sắc đầy đủ để mép kính bẻ cong rõ các nhánh cây sáng phía sau. Panel có bóng đổ để tách khỏi cảnh.
+    \item \textbf{Theme sáng: kính trong suốt.} Trên bầu trời xanh sáng, lớp phát sáng bên trong và lớp làm mờ biến thành một lớp sương xám đục. Vì vậy theme sáng tắt hẳn \texttt{frost}, \texttt{glow}, độ cong và tán sắc, chỉ giữ một khúc xạ rất nhẹ ở mép (\texttt{strength} 0,02) và một vệt sáng màu trắng ngọc mảnh để tấm kính vẫn được nhận ra. Bóng đổ màu đen dưới panel cũng bị bỏ vì trên trời sáng nó trông như một quầng bẩn; thay vào đó viền kính dùng chính màu viền sáng phía trên. Ở cấp 2 và cấp 3, tint, lớp sữa và ánh sáng vát cạnh bên trong bộ lọc đều được đưa về 0.
+    \item \textbf{Màu chữ trên kính trong.} Ở cấp 3 của theme tối, các biến chữ trong phạm vi panel được trỏ sang màu trắng theo ba bậc (chính 100\%, phụ 72\%, mờ 48\%), kèm một quầng tối mỏng quanh mỗi ký tự để chữ vẫn đọc được khi thấu kính để lộ tán cây sáng phía sau. Ở theme sáng, chữ trắng sẽ bị nhoà trên trời xanh, nên panel giữ màu chữ tối của theme và quầng quanh chữ chuyển sang tông trời nhạt. Các màu nhấn, màu trạng thái và nút chính giữ nguyên màu riêng ở cả hai theme.
+\end{itemize}
+
+Khả năng đọc của cả hai theme được kiểm chứng tự động bằng bộ kiểm thử tương phản: chữ chính đạt tối thiểu 7:1 trên nền trang, chữ phụ đạt tối thiểu 4,5:1, chữ mờ chỉ đạt khoảng 3:1 nên chỉ được dùng cho chữ gợi ý, mốc thời gian và trạng thái vô hiệu hoá, và chữ trên nền nhấn đạt tối thiểu 4,5:1. Riêng theme sáng còn có ca kiểm thử chữ tối trên thấu kính cấp 3 đặt trên nền trời xanh, yêu cầu tối thiểu 7:1.
+
+\subsection{Trợ năng và ngân sách hiệu năng của kính}
+\label{subsec:tro-nang-kinh}
+
+Liquid Glass tôn trọng các thiết lập trợ năng của hệ điều hành và được tính lại ngay khi các thiết lập này thay đổi (Bảng~\ref{tab:tro-nang-kinh}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ánh xạ thiết lập trợ năng sang hành vi của kính.}
+    \label{tab:tro-nang-kinh}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Điều kiện} & \textbf{Hành vi} \\
+        \midrule
+        Giảm độ trong suốt (\texttt{prefers-reduced-\allowbreak transparency}) hoặc người dùng chọn đục & Ép về cấp 0, panel đục hoàn toàn \\
+        Tăng tương phản (\texttt{prefers-contrast: more}) & Viền đậm hơn, tắt khúc xạ, bật lớp làm tối 0,35 dưới chữ trên kính trong \\
+        Giảm chuyển động (\texttt{prefers-reduced-\allowbreak motion}) & Viền sáng đứng yên, không chạy theo con trỏ \\
+        Chữ trên kính trong & Tương phản tối thiểu 4,5:1 so với nền thực tế phía sau; không đạt thì bật lớp làm tối hoặc chuyển sang vật liệu thường \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Về hiệu năng, quy chuẩn đặt ra ngân sách trước khi bật cấp 3: thời gian khung hình trung vị không được tăng quá 10\% so với cấp 1, cùng lúc có tối đa bốn bề mặt lớn dùng bộ lọc nền, và nhãn ba chiều không bao giờ được khúc xạ vì số lượng lớn và di chuyển theo từng khung hình. Trên bản khúc xạ tự viết (đo ngày 30/10/2026, chạy headless không đồng bộ dọc, với 150 nghìn vector), thời gian khung hình trung vị khi rê chuột là 2,5--2,7 mili giây ở cấp 1 và 2,5 mili giây ở cấp 3 khi không tách màu, nhưng tăng lên 4,3--4,6 mili giây khi bật tách màu 0,5 pixel. Số đo này là lý do nhóm tắt tách màu trong bản khúc xạ tự viết. Bản tích hợp thư viện hiện tại (bốn panel khúc xạ, tán sắc bật ở theme tối) chưa được đo lại theo cùng phương pháp, nên việc đo lại trên GPU thật là một hạng mục còn mở.
 
 \section{Thiết kế cơ sở dữ liệu và Data Schema}
 \label{sec:thiet-ke-csdl}
@@ -994,7 +1197,7 @@ Ranh giới trách nhiệm giữa lớp tích hợp trí tuệ nhân tạo và c
 \section{Thiết kế giao diện và trải nghiệm người dùng}
 \label{sec:ui-ux}
 
-Phần này trình bày nguyên tắc thiết kế giao diện và trải nghiệm người dùng của hệ thống. Cấu trúc tổ chức mã nguồn phía người dùng đã được nêu ở Mục~\ref{sec:kien-truc-frontend}, cơ chế quản lý trạng thái phía trình duyệt đã được nêu ở Mục~\ref{sec:state-management}, còn chi tiết triển khai từng thành phần sẽ trình bày ở Mục~\ref{sec:trien-khai-frontend}. Ở đây chỉ nêu hệ thống thiết kế và các ràng buộc định hình trải nghiệm.
+Phần này trình bày nguyên tắc thiết kế giao diện và trải nghiệm người dùng của hệ thống. Cấu trúc tổ chức mã nguồn phía người dùng đã được nêu ở Mục~\ref{sec:kien-truc-frontend}, cơ chế quản lý trạng thái phía trình duyệt đã được nêu ở Mục~\ref{sec:state-management}, còn chi tiết triển khai từng thành phần được trình bày ở Mục~\ref{sec:trien-khai-frontend}. Ở đây chỉ nêu hệ thống thiết kế và các ràng buộc định hình trải nghiệm.
 
 Giao diện của hệ thống không phải là một lớp trang trí đặt trên chức năng, mà là phương tiện chính để người dùng kiểm chứng kết quả. Vì hệ thống trả lời câu hỏi khoa học bằng trích dẫn, mọi quyết định thiết kế đều xoay quanh việc làm cho người dùng nhìn thấy được nguồn gốc của câu trả lời ngay trong không gian mà họ đang làm việc.
 
@@ -1133,4 +1336,4 @@ Các quãng cảnh bay được sinh từ định tuyến của câu hỏi, do �
 
 Ranh giới giữa giao diện và hệ thống truy hồi được định nghĩa rõ. Giao diện không tự quyết định câu trả lời, mà chỉ hiển thị pha hiện tại, điểm căn cứ, trích dẫn và kết quả được làm sáng trong không gian ba chiều. Mỗi câu hỏi được gán một số thứ tự tăng dần, nên khi người dùng chuyển sang cuộc hội thoại khác hoặc gửi câu hỏi mới, luồng đang chạy bị huỷ bằng cơ chế huỷ yêu cầu (\texttt{AbortController}). Chi tiết về cơ chế này được trình bày ở Mục~\ref{sec:state-management}.
 
-Danh sách các thành phần giao diện cùng vai trò của từng thành phần đã được trình bày ở Mục~\ref{sec:kien-truc-frontend}, và chi tiết về cách triển khai từng thành phần sẽ được trình bày ở Mục~\ref{sec:trien-khai-frontend}.
+Danh sách các thành phần giao diện cùng vai trò của từng thành phần đã được trình bày ở Mục~\ref{sec:kien-truc-frontend}, và chi tiết về cách triển khai từng thành phần được trình bày ở Mục~\ref{sec:trien-khai-frontend}.

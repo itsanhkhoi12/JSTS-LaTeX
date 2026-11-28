@@ -65,7 +65,7 @@
     }
 }
 
-Chương~\ref{chap:thiet-ke-kien-truc} đã thiết kế kiến trúc tổng thể và Chương~\ref{chap:data-pipeline-ai} đã đặc tả chi tiết pipeline dữ liệu cùng phân hệ tích hợp AI. Chương này trình bày cách các thiết kế đó được hiện thực trong mã nguồn: từ thiết lập môi trường phát triển, tổ chức monorepo, triển khai phân hệ backend, hiện thực các engine AI cùng pipeline nạp kho, đến tích hợp toàn hệ thống và kiểm soát tình huống biên.
+Chương~\ref{chap:thiet-ke-kien-truc} đã thiết kế kiến trúc tổng thể và Chương~\ref{chap:data-pipeline-ai} đã đặc tả chi tiết pipeline dữ liệu cùng phân hệ tích hợp AI. Chương này trình bày cách các thiết kế đó được hiện thực trong mã nguồn: từ thiết lập môi trường phát triển, tổ chức monorepo, triển khai phân hệ backend, triển khai phân hệ giao diện, hiện thực các engine AI cùng pipeline nạp kho, đến tích hợp toàn hệ thống và kiểm soát tình huống biên.
 
 % ==============================================================================
 \section{Thiết lập môi trường phát triển và khởi tạo dự án}
@@ -1233,6 +1233,406 @@ Kho cục bộ trình duyệt \texttt{RagChatDB} & Đọc và ghi & Xoá theo th
 \bottomrule
 \end{tabularx}
 \end{table}
+
+% ==============================================================================
+\section{Triển khai Frontend}
+\label{sec:trien-khai-frontend}
+
+Phân hệ giao diện hiện thực các thiết kế ở Mục~\ref{sec:kien-truc-frontend}, Mục~\ref{sec:state-management} và Mục~\ref{sec:ui-ux} trên React~19, đóng gói bằng Vite~6. Cảnh ba chiều được dựng bằng React Three Fiber~9 trên three.js~r186, trạng thái được quản lý bằng Zustand~5, lịch sử hội thoại được lưu cục bộ bằng Dexie.js~4 trên IndexedDB, còn giao diện hai chiều được tạo kiểu bằng Tailwind CSS~4. Mã nguồn gồm khoảng 14~nghìn dòng TypeScript (không tính tệp kiểm thử), chia thành năm tính năng: hội thoại, không gian ba chiều, xác thực, thu thập dữ liệu và kết quả. Mỗi tính năng tuân theo chuỗi phân tầng \texttt{component} $\rightarrow$ \texttt{hook} $\rightarrow$ \texttt{service} $\rightarrow$ \texttt{api}, đặt cạnh kho trạng thái \texttt{store/} và kiểu dữ liệu riêng (Hình~\ref{fig:cay-thu-muc-frontend}).
+
+\subsection{Khởi động ứng dụng và lắp ráp giao diện}
+\label{subsec:fe-khoi-dong}
+
+Thứ tự khởi động được sắp xếp để phần chữ của giao diện hiện ra trước, còn cảnh ba chiều nặng được dựng sau. Bảng~\ref{tab:fe-khoi-dong} liệt kê bốn bước theo đúng trình tự thực thi.
+
+\begin{table}[htbp]
+\centering
+\caption{Trình tự khởi động phía giao diện}
+\label{tab:fe-khoi-dong}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{3.0cm}
+  >{\raggedright\arraybackslash}p{5.0cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Bước} & \textbf{Hiện thực} & \textbf{Mục đích} \\
+\midrule
+Áp theme trước khi gắn React & \texttt{main.tsx} gọi \texttt{applyCssVars(\allowbreak{}themes[\allowbreak{}currentThemeName()])} trước \texttt{createRoot} & Không nháy màu tối sang sáng ở lần vẽ đầu \\
+\midrule
+Tải song song mã nguồn cảnh 3D & \texttt{AppShell.tsx} gọi \texttt{import('.../WorldCanvas')} ngay khi mô đun được nạp, rồi bọc kết quả bằng \texttt{lazy} & Gói mã WebGL được tải song song với lần vẽ đầu, không nằm trên đường găng \\
+\midrule
+Trì hoãn nạp dữ liệu thế giới & \texttt{App.tsx} gọi \texttt{useWorld.getState().load()} bên trong \texttt{requestAnimationFrame} & Thanh trên cùng và khung hội thoại được vẽ trước, giữ \texttt{LCP} dưới 2,5~giây \\
+\midrule
+Nạp năm tài nguyên thế giới & \texttt{loadWorld} chạy \texttt{Promise.all} trên danh mục, nền đất, cây, \texttt{vectors.bin} và danh sách định danh & Một lượt chờ mạng thay cho năm lượt tuần tự \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Thành phần \texttt{AppShell} xếp các lớp giao diện theo đúng sáu tầng hiển thị đã quy định ở Bảng~\ref{tab:sau-lop-phu}. Cảnh ba chiều nằm ở tầng thấp nhất và chỉ được gắn khi trạng thái thế giới là \texttt{ready}. Thanh trên cùng, cột hội thoại, bảng chú thích danh mục và bảng thiết lập nằm ở các tầng phía trên. Trên màn hình hẹp, cột hội thoại được thay bằng một ngăn kéo từ dưới lên (\textit{bottom sheet}). Phím \texttt{Esc} đóng phần tử nằm trên cùng theo thứ tự: bảng thiết lập, panel bài báo, rồi bộ lọc làm nổi bật.
+
+\begin{tsbox}{Tải song song cảnh 3D và trì hoãn nạp thế giới trong AppShell.tsx, App.tsx}
+// AppShell.tsx: the WorldCanvas chunk starts downloading during the first paint
+const worldCanvasPromise = import('../features/world/scene/WorldCanvas');
+const WorldCanvas = lazy(() => worldCanvasPromise);
+
+// App.tsx: yield one frame so the text shell paints before the 3D world is built
+useEffect(() => {
+  const id = requestAnimationFrame(() => {
+    void useWorld.getState().load();
+  });
+  return () => cancelAnimationFrame(id);
+}, []);
+\end{tsbox}
+
+\subsection{Lớp giao tiếp API và làm mới token}
+\label{subsec:fe-lop-api}
+
+Mọi lời gọi cần xác thực tới máy chủ đều đi qua một hàm duy nhất là \texttt{apiFetch} trong \texttt{shared/\allowbreak{}api/\allowbreak{}http.ts}. Hàm này gắn access token vào tiêu đề \texttt{Authorization}. Khi máy chủ trả về \texttt{401}, hàm xoay vòng cặp token đúng một lần rồi gửi lại yêu cầu. Nếu xoay vòng thất bại, mã \texttt{401} ban đầu được trả nguyên cho tầng gọi. Các lời gọi công khai như đăng nhập và đăng ký dùng \texttt{publicFetch}, không có cơ chế tự làm mới.
+
+\begin{tsbox}{Gắn access token và xoay vòng một lần khi gặp 401 trong http.ts}
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const send = (token: string | null) =>
+    fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+  const token = useAuth.getState().accessToken;
+  const res = await send(token);
+  if (res.status !== 401 || !token) return res;
+  const rotated = await useAuth.getState().rotateTokens(token);
+  return rotated ? send(useAuth.getState().accessToken) : res;
+}
+\end{tsbox}
+
+Phía máy chủ áp dụng xoay vòng refresh token theo cơ chế atomic và thu hồi cả họ token khi phát hiện dùng lại (Mục~\ref{subsec:trien-khai-auth}). Vì vậy giao diện tuyệt đối không được gửi cùng một refresh token hai lần. Rủi ro này xuất hiện khi nhiều yêu cầu cùng nhận \texttt{401} một lúc, hoặc khi người dùng mở nhiều tab. Hàm \texttt{rotateSessionTokens} chặn rủi ro ở hai mức. Trong một tab, mọi lời gọi đồng thời dùng chung một \texttt{Promise} xoay vòng duy nhất. Giữa các tab, phần xoay vòng chạy bên trong khoá \texttt{navigator.locks} tên \texttt{rag-token-rotation}. Sau khi giành được khoá, hàm đọc lại token từ \texttt{localStorage}. Nếu một tab khác vừa xoay xong thì access token đã khác token cũ, và hàm trả về thành công mà không gọi lại máy chủ. Chỉ khi máy chủ trả \texttt{401} cho chính refresh token, phiên đăng nhập mới bị xoá.
+
+\begin{tsbox}{Xoay vòng token dùng chung Promise và khoá Web Lock trong authService.ts}
+function withTabLock<T>(run: () => Promise<T>): Promise<T> {
+  const locks = globalThis.navigator?.locks;
+  return locks ? (locks.request('rag-token-rotation', run) as Promise<T>) : run();
+}
+
+export function rotateSessionTokens(staleAccessToken: string, hooks: TokenRotationHooks): Promise<boolean> {
+  rotation ??= withTabLock(async () => {
+    await hooks.rehydrate();
+    const { accessToken, refreshToken } = hooks.getTokens();
+    if (accessToken && accessToken !== staleAccessToken) return true; // another tab rotated
+    if (!refreshToken) return false;
+    try {
+      const data = await refreshAuthTokens(refreshToken);
+      hooks.onRotated(data);
+      return true;
+    } catch (err) {
+      if (err instanceof HttpError && err.status === 401) hooks.onRevoked();
+      return false;
+    }
+  }).finally(() => {
+    rotation = null;
+  });
+  return rotation;
+}
+\end{tsbox}
+
+Ba cơ chế bổ trợ khác của lớp API được trình bày ở Bảng~\ref{tab:fe-co-che-api}. Cả ba đều nhằm giảm số lượt đi--về qua \texttt{tunnel} tới máy chủ.
+
+\begin{table}[htbp]
+\centering
+\caption{Các cơ chế giảm số lượt gọi mạng ở lớp API phía giao diện}
+\label{tab:fe-co-che-api}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{3.0cm}
+  >{\raggedright\arraybackslash}p{5.2cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Cơ chế} & \textbf{Hiện thực} & \textbf{Tác dụng} \\
+\midrule
+Duyệt hết danh sách theo \texttt{cursor} & \texttt{fetchAllPages} lần theo \texttt{next\_\allowbreak{}cursor} cho tới khi rỗng, có giới hạn số trang tối đa & Dùng đúng ngôn ngữ phân trang chung của API, không tự chế tham số \texttt{offset} \\
+\midrule
+Gom yêu cầu bài báo & Các yêu cầu chi tiết bài báo phát sinh trong cùng 10~ms được gộp thành một lời gọi \texttt{GET /papers?ids=}, tối đa 20 định danh; kết quả được lưu đệm theo định danh & Một danh sách thẻ kết quả chỉ tốn một lượt gọi thay vì một lượt cho mỗi thẻ \\
+\midrule
+Định dạng nhị phân cho toạ độ & \texttt{vectors.bin} được giải mã bằng \texttt{DataView} thành các mảng cột kiểu \texttt{Float32Array}, \texttt{Uint32Array}, \texttt{Uint16Array} & Khoảng 150 nghìn bản ghi được truyền gọn hơn JSON và đưa thẳng vào bộ đệm GPU \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Tệp \texttt{vectors.bin} có phần đầu 16~byte gồm chữ ký \texttt{VTRE}, số phiên bản (hiện là 2), số bản ghi và độ dài mỗi bản ghi (32~byte). Mỗi bản ghi chứa toạ độ ba chiều, định danh cành và thùng tri thức, mã danh mục, năm xuất bản, điểm uy tín và cờ trạng thái. Hàm \texttt{parseVectors} kiểm tra chữ ký, phiên bản, độ dài bản ghi và kích thước tệp trước khi giải mã. Sau đó \texttt{loadWorld} đối chiếu số bản ghi với độ dài danh sách định danh. Nhờ vậy một tệp bị cắt cụt hoặc lệch phiên bản sẽ báo lỗi rõ ràng thay vì dựng ra một cảnh sai.
+
+\subsection{Truyền phát SSE và nối lại luồng bị mất}
+\label{subsec:fe-sse}
+
+API chuẩn \texttt{EventSource} của trình duyệt chỉ hỗ trợ phương thức \texttt{GET}, trong khi điểm cuối hỏi đáp \texttt{/rag/chat/stream} nhận câu hỏi qua thân yêu cầu \texttt{POST}. Vì vậy hàm \texttt{streamChat} trong \texttt{shared/\allowbreak{}api/\allowbreak{}client.ts} tự đọc luồng phản hồi bằng \texttt{ReadableStream}. Các byte nhận được đi qua \texttt{TextDecoder} ở chế độ \texttt{stream} để không cắt đôi ký tự tiếng Việt nhiều byte. Bộ đệm \texttt{SseBuffer} tách dữ liệu theo khối sự kiện, và mỗi khối được phân tích thành một sự kiện có kiểu. Hàm được viết dưới dạng \texttt{async generator}, nên tầng trên chỉ cần duyệt bằng \texttt{for await} và dừng được bất cứ lúc nào qua \texttt{AbortSignal}.
+
+Mỗi lượt hỏi gửi kèm tiêu đề \texttt{Idempotency-Key} có giá trị bằng định danh \texttt{UUIDv7} của tin nhắn người dùng. Với người dùng đã đăng nhập, máy chủ tiếp tục sinh câu trả lời khi kết nối bị đứt và lưu kết quả theo khoá này (Mục~\ref{subsec:van-chuyen-sse-idempotency}). Giao diện tận dụng điều đó để nối lại luồng: khi mất kết nối, hàm gửi lại đúng yêu cầu \texttt{POST} với cùng khoá, cách nhau 3~giây, trong cửa sổ tối đa 180~giây. Mã \texttt{409} (lượt đầu vẫn đang giữ khoá) và \texttt{429} (lượt đầu vẫn giữ suất chạy đồng thời của người dùng) được hiểu là ``đang bận'' nên hàm tiếp tục chờ, có tôn trọng tiêu đề \texttt{Retry-After}. Khi luồng mới bắt đầu, câu trả lời được phát lại từ đầu, nên giao diện phát sự kiện \texttt{answer\_\allowbreak{}replaced} rỗng để xoá phần chữ của luồng cũ. Yêu cầu ẩn danh không được nối lại, vì máy chủ không lưu câu trả lời cho chúng và gửi lại sẽ chạy toàn bộ pipeline thêm một lần.
+
+\begin{tsbox}{Nối lại luồng SSE bị mất bằng cùng Idempotency-Key trong client.ts}
+const resumable = Boolean(idempotencyKey) && Boolean(useAuth.getState().accessToken);
+const deadline = Date.now() + RESUME_WINDOW_MS; // 180 000 ms
+// ...
+try {
+  for await (const ev of readSse(res.body)) {
+    if (!isStreamEvent(ev)) continue;
+    yield ev;
+    if (ev.type === 'done' || ev.type === 'error') return;
+  }
+  // A proxy can close the response cleanly when its upstream drops: that is a lost stream too.
+  throw new Error('stream closed before done');
+} catch (err) {
+  if (signal.aborted) return; // only our own signal means "cancelled"
+  lost = `Mất kết nối stream: ${(err as Error).message}`;
+  if (resumable && Date.now() < deadline) {
+    resuming = true;
+    if (!(await pause(RESUME_DELAY_MS, signal))) return; // 3 000 ms
+    continue; // repeat the same POST with the same Idempotency-Key
+  }
+  yield* giveUp(lost, streamedText);
+  return;
+}
+\end{tsbox}
+
+Hai chi tiết nhỏ giúp luồng đóng đúng lúc. Thứ nhất, một proxy có thể đóng phản hồi ``sạch'' khi phía sau nó bị đứt, nên kết thúc luồng mà chưa gặp sự kiện \texttt{done} cũng được coi là mất kết nối. Thứ hai, khi hết cửa sổ nối lại, hàm \texttt{giveUp} không xoá phần trả lời đã nhận. Nếu đã có chữ, hàm phát một sự kiện \texttt{done} cục bộ và trích các trích dẫn \texttt{[Paper: \dots]} có trong phần chữ đó, nên người dùng vẫn giữ được câu trả lời dở dang cùng nguồn của nó.
+
+\subsection{Quản lý trạng thái lượt hỏi đáp và hiển thị câu trả lời}
+\label{subsec:fe-rag-store}
+
+Kho \texttt{useRag} trong \texttt{features/\allowbreak{}chat/\allowbreak{}store/\allowbreak{}ragStore.ts} điều phối một lượt hỏi đáp từ lúc gửi tới lúc lưu. Khi người dùng gửi câu hỏi, kho thực hiện các bước sau:
+\begin{enumerate}
+    \item Huỷ lượt đang chạy (nếu có) bằng \texttt{AbortController}, rồi tăng số thứ tự lượt \texttt{runId}.
+    \item Sinh hai định danh \texttt{UUIDv7} cho tin nhắn người dùng và tin nhắn trả lời, rồi thêm ngay cả hai vào danh sách. Tin trả lời mang trạng thái \texttt{streaming}.
+    \item Tạo hoặc lấy phiên hội thoại hiện tại trong IndexedDB trước khi mở luồng (Mục~\ref{subsec:fe-offline-first}).
+    \item Duyệt luồng sự kiện. Mỗi sự kiện chỉ được áp dụng khi \texttt{runId} của nó vẫn là lượt hiện hành, nên sự kiện đến muộn của một lượt đã huỷ bị bỏ qua.
+    \item Trong khối \texttt{finally}, lưu cặp hỏi--đáp vào IndexedDB, kể cả khi lượt kết thúc bằng lỗi hoặc bị dừng.
+\end{enumerate}
+
+\begin{sloppypar}
+Mọi thay đổi trạng thái của một lượt đều đi qua hàm thuần \texttt{reduceEvent} trong \texttt{pipeline.ts}. Hàm này nhận trạng thái hiện tại cùng một sự kiện và trả về trạng thái mới, không có tác dụng phụ. Các pha được xếp theo thứ tự cố định \texttt{idle} $\rightarrow$ \texttt{embedding} $\rightarrow$ \texttt{flying} $\rightarrow$ \texttt{comparing} $\rightarrow$ \texttt{found} $\rightarrow$ \texttt{generating} $\rightarrow$ \texttt{done}. Một chuyển pha chỉ hợp lệ khi đi tới, hoặc khi chuyển sang \texttt{error}. Sự kiện đến sau khi lượt đã kết thúc bị bỏ qua kèm cảnh báo trong console. Khi nhận \texttt{done}, hàm \texttt{checkCitations} đối chiếu từng bài báo được trích dẫn với danh sách đoạn căn cứ đã truy hồi, rồi gắn nhãn \texttt{verified} hoặc \texttt{unverified}.
+\end{sloppypar}
+
+\begin{tsbox}{Máy trạng thái pha và kiểm chứng trích dẫn trong pipeline.ts}
+export const PHASE_ORDER = ['idle', 'embedding', 'flying', 'comparing', 'found', 'generating', 'done'] as const;
+
+export function isValidTransition(from: PipelinePhase, to: PipelinePhase): boolean {
+  if (to === 'error') return true;
+  if ((from === 'done' || from === 'error') && to === 'embedding') return true;
+  if (from === 'error') return false;
+  return phaseIndex(to) > phaseIndex(from);
+}
+
+export function checkCitations(citations: readonly string[], chunks: readonly GroundedChunk[]): CitationCheck[] {
+  const ids = new Set(chunks.map((c) => c.paper_id));
+  return citations.map((paper_id) => ({ paper_id, status: ids.has(paper_id) ? 'verified' : 'unverified' }));
+}
+\end{tsbox}
+
+Kho tách \emph{pha dữ liệu} (\texttt{phase}) khỏi \emph{pha hình ảnh} (\texttt{visualPhase}). Pha dữ liệu đi theo sự kiện của máy chủ. Pha hình ảnh do hoạt cảnh bay qua cây tri thức đẩy lên từng bước bằng \texttt{advanceVisual} và không bao giờ vượt pha dữ liệu. Nhờ vậy hoạt cảnh không hiển thị một kết quả chưa có. Ngược lại, khi máy chủ trả lời nhanh hơn hoạt cảnh, người dùng có thể bỏ qua phần còn lại bằng \texttt{skipAnimation}. Khi bật chế độ giảm chuyển động, hoạt cảnh được bỏ qua ngay từ đầu.
+
+Với sự kiện \texttt{token}, phần chữ mới của câu trả lời và trạng thái của lượt được cập nhật trong cùng một lời gọi \texttt{set} của Zustand. Nhờ vậy mỗi token chỉ gây một lượt vẽ lại thay vì hai. Phần tốn kém nhất là phân tích Markdown và công thức KaTeX. Thành phần \texttt{Markdown} xử lý phần này bằng \texttt{useDeferredValue} của React~19 khi đang truyền phát: React được phép trì hoãn lượt phân tích sang mức ưu tiên thấp, nhường chỗ cho thao tác của người dùng và khung hình của cảnh ba chiều. Khi câu trả lời đã xong, văn bản được hiển thị trực tiếp không qua trì hoãn. Thanh cuộn tự động bám theo câu trả lời được gom vào \texttt{requestAnimationFrame} để tránh ép trình duyệt tính lại bố cục đồng bộ.
+
+Trước khi phân tích, hàm \texttt{normalizeDisplayMath} chuyển các ký hiệu công thức mà mô hình ngôn ngữ hay sinh ra (\texttt{\textbackslash[\dots\textbackslash]} và \texttt{\textbackslash(\dots\textbackslash)}) về cú pháp \texttt{\$\$\dots\$\$} và \texttt{\$\dots\$} mà \texttt{remark-math} hiểu được. Plugin tự viết \texttt{remarkCitations} chuyển các mẫu \texttt{[Paper: \dots]} trong nút văn bản thành phần tử \texttt{<cite>}, và bỏ qua nội dung bên trong công thức và khối mã. Mỗi phần tử \texttt{<cite>} được hiển thị thành một chip trích dẫn có ba trạng thái: đã kiểm chứng, chưa kiểm chứng (viền đứt màu cảnh báo) và đang chờ (khi câu trả lời còn đang truyền). Bấm vào chip sẽ đưa camera tới đúng điểm của bài báo đó trong cây tri thức.
+
+\subsection{Lưu trữ cục bộ theo hướng offline-first}
+\label{subsec:fe-offline-first}
+
+Lịch sử hội thoại phía trình duyệt được lưu trong cơ sở dữ liệu IndexedDB tên \texttt{RagChatDB}, khai báo bằng Dexie.js. IndexedDB được chọn thay cho \texttt{localStorage} vì hai lý do. Thứ nhất, \texttt{localStorage} chạy đồng bộ nên tuần tự hoá JSON lớn sẽ chặn luồng chính. Thứ hai, \texttt{localStorage} bị giới hạn khoảng 5~MB. Cơ sở dữ liệu cục bộ là nguồn dữ liệu đầu tiên mà giao diện đọc: lịch sử vẫn xem và chuyển phiên được ngay cả khi máy chủ không hoạt động.
+
+\begin{tsbox}{Lược đồ IndexedDB hai bảng khoá UUIDv7 trong chatDb.ts}
+export class ChatDatabase extends Dexie {
+  sessions!: Table<LocalChatSession, string>;
+  messages!: Table<LocalChatMessage, string>;
+
+  constructor() {
+    super('RagChatDB');
+    this.version(1).stores({
+      sessions: 'id, userId, last_message_at, updated_at',
+      messages: 'id, sessionId, role, created_at',
+    });
+  }
+}
+
+/** Local sessions, most recent conversation first. */
+export const listLocalSessions = () => chatDb.sessions.orderBy('last_message_at').reverse().toArray();
+\end{tsbox}
+
+Hai bảng dùng khoá chính \texttt{UUIDv7} sinh ngay tại trình duyệt, cùng định dạng với khoá của \texttt{chat\_\allowbreak{}sessions} và \texttt{chat\_\allowbreak{}messages} phía máy chủ. Vì \texttt{UUIDv7} mang dấu thời gian mili giây ở các bit cao, định danh sinh ngoại tuyến vẫn sắp đúng thứ tự thời gian khi được đồng bộ lên MongoDB. Mỗi phiên cục bộ có cờ \texttt{synced} cho biết máy chủ đã xác nhận phiên đó hay chưa. Chỉ phiên đã đồng bộ mới được gửi kèm \texttt{session\_\allowbreak{}id} trong yêu cầu hỏi đáp. Bảng~\ref{tab:fe-dong-bo} mô tả cách từng thao tác được ghi cục bộ và đồng bộ với máy chủ.
+
+\begin{table}[htbp]
+\centering
+\caption{Ghi cục bộ và đồng bộ nền của từng thao tác trên phiên hội thoại}
+\label{tab:fe-dong-bo}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}p{2.6cm}
+  >{\raggedright\arraybackslash}p{5.0cm}
+  >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Thao tác} & \textbf{Ghi cục bộ (IndexedDB)} & \textbf{Đồng bộ với máy chủ} \\
+\midrule
+Mở ứng dụng & Đọc ngay danh sách phiên cục bộ, sắp theo tin nhắn gần nhất & Kiểm tra \texttt{/health}; nếu sống và đã đăng nhập thì kéo danh sách phiên từ xa, giữ bản có \texttt{updated\_\allowbreak{}at} mới hơn \\
+\midrule
+Gửi câu hỏi đầu tiên & Tạo phiên với khoá \texttt{UUIDv7}, tiêu đề là 48 ký tự đầu của câu hỏi, \texttt{synced: false} & Khi sự kiện \texttt{done} trả về \texttt{session\_\allowbreak{}id}, chuyển phiên và các tin nhắn sang khoá của máy chủ, đặt \texttt{synced: true}, đồng bộ tiêu đề ở nền \\
+\midrule
+Kết thúc một lượt & Ghi cặp hỏi--đáp bằng \texttt{bulkPut}, kể cả lượt lỗi hoặc bị dừng & Với người dùng đã đăng nhập, máy chủ đã tự lưu lượt hỏi đáp vào phiên khi kết thúc truyền phát \\
+\midrule
+Chuyển phiên & Đọc tin nhắn cục bộ theo \texttt{sessionId}, sắp theo \texttt{created\_\allowbreak{}at} & Chỉ khi cục bộ rỗng và đang trực tuyến mới tải tin nhắn từ xa rồi lưu lại \\
+\midrule
+Xoá phiên & Xoá phiên và toàn bộ tin nhắn của phiên & Gửi \texttt{DELETE} ở nền (máy chủ xoá mềm); lỗi chỉ ghi cảnh báo \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Mỗi lượt đồng bộ đều có giới hạn an toàn: danh sách phiên được tải 50 mục mỗi trang, tối đa 10 trang (500 phiên); tin nhắn được tải 100 mục mỗi trang, tối đa 20 trang (2.000 tin nhắn); mỗi yêu cầu bị huỷ sau 4~giây bằng \texttt{AbortSignal.timeout}. Khi máy chủ không phản hồi, kho \texttt{useSessionStore} bật cờ \texttt{isOffline} và giao diện hiển thị nhãn ``Ngoại tuyến'', nhưng mọi phiên cũ vẫn đọc được. Hàm \texttt{init} ghi nhớ danh tính mà nó đã chạy cho, nên khi bố cục chuyển giữa cột hội thoại và ngăn kéo di động, thành phần hội thoại được gắn lại mà không nạp lại phiên và không huỷ câu trả lời đang truyền.
+
+\subsection{Hiện thực cảnh ba chiều}
+\label{subsec:fe-canh-3d}
+
+Toàn bộ cảnh được vẽ trong một \texttt{<Canvas>} duy nhất của React Three Fiber, chia thành bốn nhóm: nền đất, thân cây, tán vector và hiệu ứng. Cấu hình bộ vẽ được chọn theo hai nguyên tắc: không trả chi phí cho thứ không nhìn thấy, và giữ độ nét trước khi giữ độ phân giải. Khử răng cưa của canvas bị tắt vì ảnh được vẽ ngoài màn hình qua bộ hậu kỳ, nên khử răng cưa ở canvas là lãng phí. Kênh alpha và bộ đệm stencil cũng bị tắt vì bầu trời luôn phủ kín khung hình. Tỷ lệ điểm ảnh được giới hạn trong khoảng 1 tới 1,15 lần độ phân giải thiết bị.
+
+Theo ràng buộc ranh giới điều phối của R3F, bên trong canvas chỉ có đối tượng three.js và các thành phần không vẽ gì (\textit{renderless}). Ví dụ, \texttt{PerfSampler} đo khung hình bên trong canvas và trả về \texttt{null}, còn bảng hiển thị chỉ số \texttt{PerfHUD} là phần tử HTML đặt cạnh canvas.
+
+\begin{tsbox}{Cấu hình bộ vẽ và ranh giới R3F trong WorldCanvas.tsx}
+<Canvas
+  dpr={[1, 1.15]}
+  camera={{ fov: 45, near: 0.5, far: 3000, position: [...start.position] }}
+  // Canvas MSAA is wasted under the composer (it renders off-screen). Opaque: the sky covers everything.
+  gl={{ antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance', toneMapping: THREE.NoToneMapping }}
+  performance={{ min: 0.6, debounce: 250 }}
+>
+  <group name="ground"><GroundGrid /><KnowledgeBlocks /><FeedCables /></group>
+  <group name="tree"><AncientTree /></group>
+  <group name="canopy"><VectorCanopy /></group>
+  <group name="fx"><Fireflies /><QueryFlight /><CrawlEffects /></group>
+  <CameraDirector />
+  <AdaptiveQuality />
+  {SHOW_PERF && <PerfSampler />}   {/* renderless: returns null */}
+</Canvas>
+{SHOW_PERF && <PerfHUD />}         {/* HTML overlay: sibling of the canvas */}
+\end{tsbox}
+
+\paragraph{Tán vector.} Khoảng 150 nghìn bài báo được vẽ bằng một đối tượng \texttt{THREE.Points} duy nhất với shader tự viết, tức chỉ tốn một lệnh vẽ. Shader đỉnh loại sớm các điểm không nhìn thấy theo hai điều kiện. Điểm nằm sau mặt phẳng camera ($z \geq -0{,}1$ trong hệ toạ độ quan sát) bị loại. Điểm có tâm nằm ngoài vùng đệm 1,25 lần khung hình cũng bị loại. Mỗi điểm bị loại được đẩy ra ngoài không gian cắt với kích thước 0, nên GPU không phải tô điểm ảnh nào cho nó.
+
+\begin{tsbox}{Loại sớm điểm sau camera và ngoài vùng đệm trong canopyShader.ts}
+vec4 mv = modelViewMatrix * vec4(position, 1.0);
+// Near-plane culling: prune points behind the camera plane
+if (mv.z >= -0.1) {
+  gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+  gl_PointSize = 0.0;
+  return;
+}
+vec4 clip = projectionMatrix * mv;
+// Guard-band frustum culling: early out if the point centre is outside the screen bounds
+if (abs(clip.x) > clip.w * 1.25 || abs(clip.y) > clip.w * 1.25) {
+  gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+  gl_PointSize = 0.0;
+  return;
+}
+\end{tsbox}
+
+Trạng thái hiển thị của từng điểm (được lọc, được làm nổi bật, đang được so sánh) nằm trong hai thuộc tính đỉnh kiểu \texttt{DynamicDrawUsage}. Khi bộ lọc hoặc lớp làm nổi bật thay đổi, kho chỉ tính các chỉ số điểm thực sự đổi, gộp chúng thành các đoạn liên tiếp và gọi \texttt{addUpdateRange} cho từng đoạn. Nhờ vậy GPU chỉ nhận lại phần bộ đệm bị thay đổi thay vì toàn bộ 150 nghìn phần tử.
+
+\paragraph{Chọn điểm dưới con trỏ.} Hàm dựng sẵn \texttt{THREE.Points.raycast} phải kiểm tra lần lượt toàn bộ 150 nghìn điểm cho mỗi tia. Hệ thống thay nó bằng một lưới không gian đều dựng một lần khi nạp thế giới (\texttt{spatialGrid.ts}). Mỗi ô có cạnh 3 đơn vị, và chỉ số điểm của các ô được lưu liền nhau theo định dạng nén hàng (CSR): điểm của ô $c$ nằm trong đoạn \texttt{items[start[c] .. start[c+1])}. Khi chọn điểm, tia được cắt theo hộp bao của lưới. Sau đó thuật toán duyệt lưới 3D DDA đi qua từng ô mà tia xuyên qua, kèm các ô lân cận trong bán kính ngưỡng, nên các điểm nằm sát tia không bị bỏ sót. Mảng đánh dấu ``đã thăm ở truy vấn thứ $n$'' được tái sử dụng giữa các truy vấn, nên mỗi lần chọn không phải cấp phát bộ nhớ mới. Các điểm được thêm vào sau khi lưới đã dựng (bài báo mới từ luồng thu thập) được kiểm tra riêng bằng phép duyệt tuyến tính trên đoạn đuôi của mảng.
+
+\begin{tsbox}{Dựng lưới không gian theo định dạng CSR trong spatialGrid.ts}
+for (let i = 0; i < n; i++) {
+  const cx = Math.min(dims[0] - 1, Math.floor((positions[i * 3] - min[0]) / cellSize));
+  const cy = Math.min(dims[1] - 1, Math.floor((positions[i * 3 + 1] - min[1]) / cellSize));
+  const cz = Math.min(dims[2] - 1, Math.floor((positions[i * 3 + 2] - min[2]) / cellSize));
+  const c = (cz * dims[1] + cy) * dims[0] + cx;
+  cellOf[i] = c;
+  count[c + 1]++;
+}
+for (let c = 0; c < cells; c++) count[c + 1] += count[c]; // prefix sum -> start offsets
+const start = count;
+const fill = start.slice(0, cells);
+const items = new Uint32Array(n);
+for (let i = 0; i < n; i++) items[fill[cellOf[i]]++] = i;
+return { cellSize, min, dims, start, items, positions, stamp: new Uint32Array(cells), query: 0 };
+\end{tsbox}
+
+Bộ chọn điểm lắng nghe trực tiếp sự kiện con trỏ trên canvas và giới hạn tối đa một lần chọn mỗi 30~ms. Khi người dùng đang kéo để xoay cảnh, bộ chọn không chạy. Một cú nhấp chỉ được tính là chọn bài báo khi con trỏ di chuyển không quá 5~pixel giữa lúc nhấn và lúc thả, nên thao tác xoay không vô tình mở panel bài báo.
+
+\paragraph{Thang chất lượng tự thích ứng.} Thành phần \texttt{AdaptiveQuality} hiện thực thang bốn bậc ở Bảng~\ref{tab:bon-bac-chat-luong} bằng \texttt{PerformanceMonitor} của thư viện drei. Bộ theo dõi chỉ bắt đầu đánh giá sau 2,5~giây khởi động, để bỏ qua giai đoạn dựng thế giới và biên dịch shader. Ngưỡng hạ và nâng bậc phụ thuộc tần số quét của màn hình: $[40, 58]$ khung hình mỗi giây với màn hình 60~Hz và $[75, 115]$ với màn hình trên 100~Hz. Sau bốn lần đảo chiều liên tiếp, bộ theo dõi dừng ở bậc 2 để giao diện không dao động mãi giữa hai bậc. Khi người dùng chọn chất lượng ``Cao'' hoặc ``Thấp'', bậc được cố định lần lượt ở 0 và 2.
+
+\paragraph{Camera.} Thành phần \texttt{CameraDirector} đưa camera tới một trong năm góc nhìn định sẵn (tổng quan, tán cây, mặt đất, bay theo và tiêu điểm), sau đó người dùng vẫn xoay tự do được. Khi cột hội thoại trượt vào hoặc trượt ra, tâm khung nhìn được dịch theo cùng thời lượng với hoạt cảnh trượt (hằng số \texttt{CHAT\_\allowbreak{}SLIDE\_\allowbreak{}S}, khớp với bậc thời gian 1.500~ms của hệ thống thiết kế), nên cây tri thức luôn nằm giữa phần màn hình còn trống.
+
+Bảng~\ref{tab:fe-hieu-nang-canh} trình bày kết quả đo trước và sau khi áp dụng các tối ưu ở trên. Số đo được lấy trên bản build production, 150 nghìn vector, máy Apple M4 với GPU tích hợp 8~nhân, Chromium headless ở độ phân giải $1440 \times 900$, ngày 19/10/2026. Thời gian khung hình được đo ở chế độ đồng bộ: mỗi khung hình đọc lại một điểm ảnh để buộc GPU vẽ xong, nên đây là cận trên của chi phí thật.
+
+\begin{table}[htbp]
+\centering
+\caption{Hiệu năng cảnh ba chiều trước và sau tối ưu (150 nghìn vector)}
+\label{tab:fe-hieu-nang-canh}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}X
+  >{\raggedright\arraybackslash}p{1.4cm}
+  >{\raggedleft\arraybackslash}p{2.0cm}
+  >{\raggedleft\arraybackslash}p{2.0cm}
+  >{\raggedleft\arraybackslash}p{1.6cm}
+}
+\toprule
+\textbf{Hạng mục} & \textbf{Theme} & \textbf{Trước} & \textbf{Sau} & \textbf{Thay đổi} \\
+\midrule
+Thời gian khung hình trung vị & Tối & 12,7~ms & 8,0~ms & $-37\%$ \\
+Thời gian khung hình trung vị & Sáng & 13,3~ms & 8,9~ms & $-33\%$ \\
+Thời gian khung hình p95 & Tối & 17,3~ms & 13,7~ms & $-21\%$ \\
+Thời gian khung hình p95 & Sáng & 18,4~ms & 13,7~ms & $-26\%$ \\
+Chọn điểm khi rê chuột (trung bình) & Tối & 2,10~ms & 0,165~ms & $\div 12{,}7$ \\
+Chọn điểm khi rê chuột (trung bình) & Sáng & 5,95~ms & 0,34~ms & $\div 17{,}5$ \\
+Cập nhật trạng thái điểm khi đổi bộ lọc (trung bình) & Tối & 6,18~ms & 0,22~ms & $\div 28$ \\
+Cập nhật trạng thái điểm khi đổi bộ lọc (trung bình) & Sáng & 14,27~ms & 0,53~ms & $\div 27$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Đo riêng trên CPU bằng Vitest bench với 150 nghìn vector, một lần bắn tia giảm từ 1,20~ms (\texttt{THREE.Points.raycast}) xuống 0,022~ms trên lưới không gian, tức nhanh hơn khoảng 56 lần.
+
+\subsection{Hiện thực hệ thống thiết kế và Liquid Glass}
+\label{subsec:fe-design-system}
+
+Hệ thống thiết kế và vật liệu Liquid Glass đã được trình bày ở Mục~\ref{subsec:design-system} và Mục~\ref{subsec:liquid-glass}. Phần này chỉ nêu cách chúng được nối vào mã nguồn.
+
+\begin{sloppypar}
+Toàn bộ token màu của hai theme nằm trong \texttt{shared/\allowbreak{}theme/\allowbreak{}tokens.ts}. Hook \texttt{useThemeSync} được gọi một lần ở \texttt{App}. Hook này ghi token ra biến CSS mỗi khi theme đổi, và lắng nghe truy vấn \texttt{prefers-color-scheme} khi người dùng chọn chế độ ``theo hệ điều hành''. Cảnh ba chiều đọc cùng đối tượng token qua \texttt{useTheme}. Ví dụ, khi đổi theme, tán vector cập nhật lại màu, cường độ phát sáng, viền và chế độ vẽ hoa của các điểm ngay trên vật liệu shader hiện có mà không dựng lại hình học.
+\end{sloppypar}
+
+\begin{sloppypar}
+Mọi bề mặt kính được tạo bằng component \texttt{Glass} trong \texttt{shared/\allowbreak{}ui/\allowbreak{}Glass.tsx}. Component này chỉ xuất ra các thuộc tính dữ liệu \texttt{data-material}, \texttt{data-shape}, \texttt{data-nested} và \texttt{data-refract}, còn toàn bộ phần vẽ do CSS đảm nhận theo cấp kính ghi trên \texttt{<html data-lg-level>}. Panel có thuộc tính \texttt{refract} tự đăng ký với \texttt{LiquidFilters}. Từ cấp 2, \texttt{LiquidFilters} nướng ánh sáng vát cạnh theo kích thước panel thành ảnh và ghi vào biến \texttt{--lg-light-map}. Hook \texttt{useLiquidLight} theo dõi con trỏ, nội suy hướng sáng dạng rotor bằng \texttt{nlerp} với hệ số 0,25 mỗi khung hình, và chỉ ghi hai biến \texttt{--lg-light-x}, \texttt{--lg-light-y} lên các bề mặt có viền sáng. Vòng \texttt{requestAnimationFrame} tự dừng khi hướng sáng đã gần đích (sai lệch dưới $10^{-3}$), nên khi chuột đứng yên không có công việc nào chạy.
+\end{sloppypar}
+
+Ở cấp 3, bốn panel nổi được bọc bởi thư viện \texttt{@samasante/\allowbreak{}liquid-glass} thông qua \texttt{LiquidShell}. Dưới cấp 3, \texttt{LiquidShell} trả về panel nguyên trạng, nên cùng một cây component chạy ở mọi cấp.
+
+\begin{tsbox}{Bọc thấu kính ở cấp 3 và chọn optics theo theme trong LiquidShell.tsx}
+const OPTICS: Record<ThemeName, Record<LiquidPanel, Partial<GlassOptics>>> = { dark: DARK_OPTICS, light: LIGHT_OPTICS };
+
+export function LiquidLens({ panel, ...props }: Omit<GlassProps, 'optics'> & { panel: LiquidPanel }) {
+  const theme = useTheme().name;
+  return <LiquidGlass {...props} optics={liquidOptics(panel, theme)} />;
+}
+
+export function LiquidShell({ panel, className, style, children }: {
+  panel: LiquidPanel;
+  className?: string;
+  style?: CSSProperties;
+  children: ReactElement<{ 'data-lgr'?: boolean }>;
+}) {
+  const liquid = useGlassLevel() === 3;
+  if (!liquid) return children;
+  // The wrapper bends the backdrop, so the panel drops its own backdrop filter ([data-lgr] in index.css).
+  return (
+    <LiquidLens panel={panel} className={className} style={style}>
+      {cloneElement(children, { 'data-lgr': true })}
+    </LiquidLens>
+  );
+}
+\end{tsbox}
+
+Các quy tắc của hệ thống thiết kế được kiểm tra tự động trong quá trình phát triển: \texttt{npm run check:design} quét mã nguồn theo 14 quy tắc, \texttt{npm run test:visual} so sánh ảnh chụp giao diện với ảnh mốc, và các bộ kiểm thử đơn vị trong \texttt{shared/\allowbreak{}theme/} kiểm tra thang token cùng tỷ lệ tương phản WCAG của cả hai theme. Kết quả kiểm thử của toàn bộ phân hệ giao diện được tổng hợp ở Mục~\ref{subsec:kiem-thu-bat-bien}.
 
 % ==============================================================================
 \section[Triển khai AI Subsystem, Local Inference Runtime và Pipeline nạp kho]{Triển khai AI Subsystem, Local Inference Runtime\\và Pipeline nạp kho}
