@@ -5,32 +5,6 @@
 \chapter{Thiết kế kiến trúc và hệ thống}
 \label{chap:thiet-ke-kien-truc}
 
-% Style dùng chung cho các sơ đồ TikZ trong Chương 3
-\tikzset{
-    ragbox/.style={
-        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!5,
-        thick, minimum height=0.8cm, align=center, font=\small, inner sep=5pt
-    },
-    ragdb/.style={
-        cylinder, shape border rotate=90, aspect=0.25, draw=primaryBlue, fill=primaryBlue!8,
-        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
-    },
-    ragdecision/.style={
-        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
-        thick, align=center, font=\small, inner sep=2pt
-    },
-    raggroup/.style={
-        rectangle, rounded corners=4pt, draw=primaryBlue!50, dashed, fill=primaryBlue!2,
-        inner sep=8pt
-    },
-    ragarrow/.style={
-        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!80!black
-    },
-    ragdashed/.style={
-        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
-    }
-}
-
 \section{Phân tích và lựa chọn kiến trúc tổng thể}
 \label{sec:kien-truc-tong-the}
 
@@ -39,7 +13,7 @@ Chương~\ref{chap:phan-tich-yeu-cau} đã xác định bốn nhóm ràng buộc
 \begin{itemize}
     \item[--] Đường xử lý chính là một đường đi có trạng thái, đi qua nhúng câu hỏi, định tuyến trên cây tri thức, truy vấn chỉ mục vector, chấm điểm và xếp hạng lại, nạp đoạn văn bản theo lô, rồi mới tới sinh văn bản. Mỗi chặng có thời hạn chờ riêng và tổng các thời hạn chờ phải nằm trong ngưỡng chấp nhận được, nên bất kỳ phương án nào làm thêm một lượt khứ hồi mạng vào đường xử lý chính đều vi phạm ngưỡng đã công bố.
     \item[--] Tài nguyên suy luận là hàng đợi một luồng: mô hình ngôn ngữ chạy cục bộ với một luồng sinh đồng thời và hàng đợi có độ sâu tối đa tám. Kiến trúc phải có cơ chế giảm tải khi hàng đợi đầy (load shedding), tức là từ chối có kiểm soát trước khi tài nguyên bị cạn kiệt, chứ không dựa vào việc tăng tài nguyên.
-    \item[--] Quy mô dữ liệu phân bố rất lệch: chỉ mục vector chứa 913.205 điểm, kho khoa học chứa 70.590 bài báo cùng hơn một triệu đoạn văn bản, trong khi cơ sở dữ liệu ứng dụng chỉ chứa tài khoản người dùng, phiên hội thoại và nhật ký kiểm toán. Kiến trúc phải đồng nhất được việc truy vấn tập ứng viên nhỏ trên quy mô lớn mà không phải tải toàn bộ kho văn bản vào bộ nhớ.
+    \item[--] Quy mô dữ liệu phân bố rất lệch: chỉ mục vector chứa 913.205 điểm, kho khoa học chứa 70.590 bài báo cùng 913.205 đoạn văn bản, trong khi cơ sở dữ liệu ứng dụng chỉ chứa tài khoản người dùng, phiên hội thoại và nhật ký kiểm toán. Kiến trúc phải đồng nhất được việc truy vấn tập ứng viên nhỏ trên quy mô lớn mà không phải tải toàn bộ kho văn bản vào bộ nhớ.
     \item[--] Ràng buộc tự triển khai trong hạ tầng nội bộ (on-premise): cả mô hình nhúng, mô hình ngôn ngữ và kho khoa học đều nằm trong hạ tầng của hệ thống. Điều này loại trừ các phương án phụ thuộc hạ tầng dùng chung bên ngoài và ưu tiên phương án triển khai được trên một máy chủ đơn.
 \end{itemize}
 
@@ -177,18 +151,18 @@ Bảng~\ref{tab:trach-nhiem-thanh-phan} tóm tắt trách nhiệm và cơ chế 
 \section{Thiết kế kiến trúc Backend và phân rã module}
 \label{sec:kien-truc-backend}
 
-Phía máy chủ được xây dựng trên nền tảng NestJS phiên bản 11 với ngôn ngữ TypeScript phiên bản 5.7. Toàn bộ mã nguồn được chia thành bốn vùng theo ranh giới trách nhiệm. Vùng mô đun nghiệp vụ chứa các tính năng có bề mặt HTTP, mỗi tính năng là một mô đun gồm controller và service. Vùng engine chứa các thành phần truy hồi và suy luận, không có controller và được tiêm phụ thuộc (DI) qua giao diện. Vùng dùng chung chứa bộ lọc ngoại lệ, bộ kiểm tra đầu vào (\texttt{ValidationPipe}), phân trang, cấu hình bảo mật, ghi log, chỉ số và hàm tiện ích. Vùng cấu hình chứa mô đun cấu hình với lược đồ kiểm tra biến môi trường lúc khởi động.
+Phía máy chủ được xây dựng trên nền tảng NestJS phiên bản 11 với ngôn ngữ TypeScript phiên bản 5.7. Toàn bộ mã nguồn được chia thành bốn vùng theo ranh giới trách nhiệm. Vùng module nghiệp vụ chứa các tính năng có bề mặt HTTP, mỗi tính năng là một module gồm controller và service. Vùng engine chứa các thành phần truy hồi và suy luận, không có controller và được tiêm phụ thuộc (DI) qua giao diện. Vùng dùng chung chứa bộ lọc ngoại lệ, bộ kiểm tra đầu vào (\texttt{ValidationPipe}), phân trang, cấu hình bảo mật, ghi log, chỉ số và hàm tiện ích. Vùng cấu hình chứa module cấu hình với lược đồ kiểm tra biến môi trường lúc khởi động.
 
-Bảng~\ref{tab:module-backend} liệt kê các mô đun nghiệp vụ và trách nhiệm chính.
+Bảng~\ref{tab:module-backend} liệt kê các module nghiệp vụ và trách nhiệm chính.
 
 \begin{table}[htbp]
     \centering
-    \caption{Danh mục mô đun nghiệp vụ phía máy chủ.}
+    \caption{Danh mục module nghiệp vụ phía máy chủ.}
     \label{tab:module-backend}
     \small
     \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{4.5cm}>{\raggedright\arraybackslash}X@{}}
         \toprule
-        \textbf{Mô đun} & \textbf{Đường dẫn gốc} & \textbf{Trách nhiệm chính} \\
+        \textbf{Module} & \textbf{Đường dẫn gốc} & \textbf{Trách nhiệm chính} \\
         \midrule
         Xác thực & \texttt{/api/v1/users}, \texttt{/api/v1/auth} & Đăng ký, đăng nhập, xoay vòng token, thu hồi token, quản lý hồ sơ, quy tắc mật khẩu \\
         Quản trị & \texttt{/api/v1/admin} & Phân quyền, khoá và mở khoá tài khoản, thu hồi token theo tài khoản, tra cứu nhật ký kiểm toán \\
@@ -223,7 +197,7 @@ Bảng~\ref{tab:engine-truy-hoi} liệt kê các engine và trách nhiệm chín
     \end{tabularx}
 \end{table}
 
-Nguyên tắc phân rã được giữ xuyên suốt là mô đun nghiệp vụ không bao giờ truy cập trực tiếp vào kho lưu trữ bên ngoài mà phải đi qua engine tương ứng. Nhờ đó khi cần thay một cơ sở dữ liệu vector bằng một lựa chọn khác, chỉ có tệp hiện thực của engine chỉ mục vector thay đổi, còn mô đun truy hồi tăng cường và mọi mô đun khác giữ nguyên. Chi tiết về cấu trúc mã nguồn cụ thể, cách tổ chức tệp và quản lý phụ thuộc được trình bày ở Mục~\ref{sec:cau-truc-ma-nguon} và Mục~\ref{sec:trien-khai-backend}.
+Nguyên tắc phân rã được giữ xuyên suốt là module nghiệp vụ không bao giờ truy cập trực tiếp vào kho lưu trữ bên ngoài mà phải đi qua engine tương ứng. Nhờ đó khi cần thay một cơ sở dữ liệu vector bằng một lựa chọn khác, chỉ có tệp hiện thực của engine chỉ mục vector thay đổi, còn module truy hồi tăng cường và mọi module khác giữ nguyên. Chi tiết về cấu trúc mã nguồn cụ thể, cách tổ chức tệp và quản lý phụ thuộc được trình bày ở Mục~\ref{sec:cau-truc-ma-nguon} và Mục~\ref{sec:trien-khai-backend}.
 
 \section{Thiết kế kiến trúc Frontend và tổ chức ứng dụng}
 \label{sec:kien-truc-frontend}
@@ -259,7 +233,7 @@ Hai ràng buộc kỹ thuật chi phối thiết kế phía người dùng. Ràn
 \subsection{Hệ thống thiết kế và quy chuẩn cố định}
 \label{subsec:design-system}
 
-Sau nhiều vòng phát triển rời rạc, giao diện ban đầu bị lệch chuẩn: tám mức bo góc, năm mức độ mờ, mười hai mức độ trong suốt của màu trắng, mười chín cỡ chữ, và một số biến CSS được gọi nhưng chưa từng được khai báo. Mỗi thành phần tự chọn giá trị riêng nên cùng một loại bề mặt lại trông khác nhau ở từng màn hình. Để khắc phục, nhóm xây dựng một quy chuẩn thiết kế cố định (tài liệu \texttt{FE\_DESIGN\_SYSTEM.md}) theo nguyên tắc \emph{giữ cái đang có, chỉ sửa chỗ lệch}: mỗi bậc trong một thang đều được lấy từ giá trị đang được dùng nhiều nhất trong mã nguồn, và các giá trị lạc thang được gộp về bậc gần nhất. Phần lớn các giá trị được gộp chỉ lệch không quá 2 pixel hoặc 0,04 độ trong suốt, nên giao diện được chuẩn hoá mà mắt thường gần như không nhận ra thay đổi.
+Sau nhiều vòng phát triển rời rạc, giao diện ban đầu bị lệch chuẩn: tám mức bo góc, năm mức độ mờ, mười hai mức độ trong suốt của màu trắng, mười chín cỡ chữ, và một số biến CSS được gọi nhưng chưa từng được khai báo. Mỗi thành phần tự chọn giá trị riêng nên cùng một loại bề mặt lại trông khác nhau ở từng màn hình. Để khắc phục, hệ thống áp dụng một quy chuẩn thiết kế cố định (tài liệu \texttt{FE\_DESIGN\_SYSTEM.md}) theo nguyên tắc \emph{giữ cái đang có, chỉ sửa chỗ lệch}: mỗi bậc trong một thang đều được lấy từ giá trị đang được dùng nhiều nhất trong mã nguồn, và các giá trị lạc thang được gộp về bậc gần nhất. Phần lớn các giá trị được gộp chỉ lệch không quá 2 pixel hoặc 0,04 độ trong suốt, nên giao diện được chuẩn hoá mà mắt thường gần như không nhận ra thay đổi.
 
 \paragraph{Luồng design token.} Hệ thống token được tổ chức thành một luồng một chiều. Mọi màu sắc của hai theme (kể cả màu kính có kênh alpha) được khai báo một lần trong tệp \texttt{tokens.ts}. Hàm \texttt{applyCssVars} ghi các giá trị này thành biến CSS trên phần tử gốc \texttt{:root}, và mọi lớp giao diện chỉ đọc lại các biến đó. Các thang không phụ thuộc theme (bo góc, độ mờ, cỡ chữ, thời gian, đường cong chuyển động, bóng đổ) được khai báo trong khối \texttt{@theme} của Tailwind CSS 4, nhờ đó Tailwind tự sinh ra đúng các lớp tiện ích tương ứng (ví dụ \texttt{rounded-md}, \texttt{backdrop-blur-lg}, \texttt{text-caption}) và không sinh ra lớp nào nằm ngoài thang. Cảnh ba chiều đọc trực tiếp cùng đối tượng token đó và bỏ kênh alpha bằng hàm \texttt{opaqueHex}, nên cây tri thức và giao diện hai chiều luôn đổi màu đồng bộ khi người dùng đổi theme.
 
@@ -274,12 +248,12 @@ Bảng~\ref{tab:thang-thiet-ke} tóm tắt các thang cố định của hệ th
         \toprule
         \textbf{Thang} & \textbf{Các bậc} & \textbf{Quy tắc sử dụng} \\
         \midrule
-        Bo góc (5 bậc) & 4, 6, 10, 14, 9999 pixel & Bo góc đồng tâm: bán kính con bằng bán kính cha trừ khoảng đệm \\
+        Bo góc (5 bậc) & 4, 6, 10, 14, 9.999 pixel & Bo góc đồng tâm: bán kính con bằng bán kính cha trừ khoảng đệm \\
         Độ mờ nền (3 bậc) & 6, 12, 16 pixel, kèm độ bão hoà 1,2 & 6 pixel cho nhãn neo trong cảnh, 12 pixel cho control đứng riêng, 16 pixel cho panel \\
         Cỡ chữ (7 bậc) & 10, 11, 12, 13, 14, 16, 22 pixel & 12 pixel cho giao diện dày đặc, 13 pixel cho control, 14 pixel cho nội dung hội thoại \\
         Độ đậm (4 bậc) & 400, 500, 600, 700 & 600 cho tiêu đề và hành động chính, 700 chỉ cho điểm số nổi bật \\
-        Tỷ lệ pha màu (7 mức) & 6, 12, 16, 24, 40, 55 \% và 45/70 \% cho ánh sáng & Mọi phép \texttt{color-mix} với màu trạng thái chỉ được dùng các tỷ lệ này \\
-        Thời gian chuyển động & 120, 160, 240, 480, 1500 mili giây & Nhấn, rê chuột, xuất hiện, bật ra, và chuyển động đồng bộ với camera \\
+        Tỷ lệ pha màu (7 mức) & 6, 12, 16, 24, 40, 55\% và 45/70\% cho ánh sáng & Mọi phép \texttt{color-mix} với màu trạng thái chỉ được dùng các tỷ lệ này \\
+        Thời gian chuyển động & 120, 160, 240, 480, 1.500 ms & Nhấn, rê chuột, xuất hiện, bật ra, và chuyển động đồng bộ với camera \\
         Đường cong chuyển động & Chuẩn, đàn hồi, cảnh & Đường cong cảnh phải khớp với hằng số trượt cột chat trong bộ điều khiển camera \\
         Icon & 12, 14, 16, 28 pixel & Cỡ icon bằng cỡ chữ đi kèm cộng 2 pixel, làm tròn về bậc gần nhất \\
         \bottomrule
@@ -288,33 +262,11 @@ Bảng~\ref{tab:thang-thiet-ke} tóm tắt các thang cố định của hệ th
 
 \paragraph{Màu sắc.} Bảng màu được định nghĩa theo vai trò thay vì theo sắc độ: chữ chính, chữ phụ, chữ mờ, màu nhấn, chữ trên nền nhấn, cảnh báo, nguy hiểm, thành công, bề mặt vừa và bề mặt đặc. Bảng màu mặc định của Tailwind (ví dụ \texttt{red-500}, \texttt{gray-400}, \texttt{text-white}) bị cấm hoàn toàn trong thành phần giao diện. Màu nhấn chỉ dành cho hành động chính, giống quy ước của Apple, và mười hai màu danh mục bài báo được coi là \emph{dữ liệu} chứ không phải màu trang trí, nên không được dùng lại cho bất kỳ chi tiết giao diện nào khác.
 
-\paragraph{Trạng thái tương tác thống nhất.} Mọi control dùng chung một bộ quy tắc trạng thái: khi rê chuột, nền tăng lên một bậc và viền chuyển sang màu nhấn 55\%; khi nhấn, phần tử dịch xuống 1 pixel trong 120 mili giây; khi đang bật, viền và chữ dùng màu nhấn trên nền nhấn 16\%; khi được chọn bằng bàn phím, phần tử có đường viền hai pixel màu nhấn; khi bị vô hiệu hoá, độ mờ đục giảm còn 0,45; khi có lỗi, viền chuyển sang màu nguy hiểm.
+\paragraph{Trạng thái tương tác thống nhất.} Mọi control dùng chung một bộ quy tắc trạng thái: khi rê chuột, nền tăng lên một bậc và viền chuyển sang màu nhấn 55\%; khi nhấn, phần tử dịch xuống 1 pixel trong 120 ms; khi đang bật, viền và chữ dùng màu nhấn trên nền nhấn 16\%; khi được chọn bằng bàn phím, phần tử có đường viền hai pixel màu nhấn; khi bị vô hiệu hoá, độ mờ đục giảm còn 0,45; khi có lỗi, viền chuyển sang màu nguy hiểm.
 
-\paragraph{Một component kính duy nhất.} Các kiểu kính rời rạc trước đây được gộp thành một component \texttt{Glass} với bốn thuộc tính: vật liệu (thường, mạnh, trong), hình dạng (panel, control, chip, ánh xạ trực tiếp sang bậc bo góc lớn, trung bình và đầy đủ), cờ lồng nhau (\texttt{nested}, khi bật thì phần tử không dùng hiệu ứng làm mờ nền vì đã nằm trong một tấm kính khác) và cờ tương tác. Nhờ chỉ có một điểm hiện thực, toàn bộ phần nâng cấp Liquid Glass ở Mục~\ref{subsec:liquid-glass} chỉ phải thay đổi ở một chỗ.
+\paragraph{Một component kính duy nhất.} Toàn bộ các kiểu kính rời rạc trước đây được gộp thành component \texttt{Glass} với bốn thuộc tính: vật liệu (thường, mạnh, trong), hình dạng (panel, control, chip, ánh xạ trực tiếp sang bậc bo góc lớn, trung bình và đầy đủ), cờ lồng nhau (\texttt{nested}, khi bật thì phần tử không dùng hiệu ứng làm mờ nền vì đã nằm trong một tấm kính khác) và cờ tương tác. Nhờ chỉ có một điểm hiện thực, toàn bộ phần nâng cấp Liquid Glass ở Mục~\ref{subsec:liquid-glass} chỉ phải thay đổi ở một chỗ.
 
-\paragraph{Cơ chế giữ quy chuẩn.} Quy chuẩn không chỉ nằm trên tài liệu mà được kiểm tra tự động bằng bốn công cụ. Script \texttt{check:design} quét toàn bộ mã nguồn theo mười bốn quy tắc trên cả mã TSX lẫn CSS: mã màu ghi trực tiếp, màu Tailwind mặc định, giá trị tuỳ ý ngoài thang, bậc bo góc đã bị loại bỏ, biến CSS không tồn tại hoặc có giá trị dự phòng, lời gọi lượng giác trong vòng lặp kết xuất, và giá trị thô của bo góc, độ mờ, cỡ chữ, màu, thời gian và đường cong chuyển động trong CSS. Bộ kiểm thử thang (\texttt{scale.test.ts}) bảo đảm khối \texttt{@theme} không bị thêm bậc lạ. Bộ kiểm thử tương phản (\texttt{contrast.test.ts}) tính tỷ lệ tương phản theo chuẩn WCAG cho mọi cặp chữ trên nền ở cả hai theme. Cuối cùng, bộ kiểm thử hình ảnh của Playwright so sánh giao diện với ảnh mốc để phát hiện các thay đổi ngoài ý muốn. Bảng~\ref{tab:ket-qua-chuan-hoa} cho thấy kết quả của quá trình chuẩn hoá.
-
-\begin{table}[htbp]
-    \centering
-    \caption{Kết quả chuẩn hoá giao diện theo hệ thống thiết kế.}
-    \label{tab:ket-qua-chuan-hoa}
-    \small
-    \begin{tabularx}{\textwidth}{@{}X>{\raggedleft\arraybackslash}p{2.4cm}>{\raggedleft\arraybackslash}p{2.4cm}@{}}
-        \toprule
-        \textbf{Chỉ số} & \textbf{Trước} & \textbf{Sau} \\
-        \midrule
-        Số mức bo góc (không tính bậc đầy đủ) & 8 & 4 \\
-        Số mức độ mờ nền (không tính 0 pixel) & 5 & 3 \\
-        Số mức độ trong suốt của màu trắng & 12 & 6 \\
-        Số cỡ chữ & 19 & 9 \\
-        Số lớp làm mờ nền ở màn hình đăng nhập & 7 & 3 \\
-        Số lớp làm mờ nền ở màn hình lịch sử & 5 & 3 \\
-        Vi phạm quy tắc thiết kế theo \texttt{check:design} & Chưa đo & 0 trên 14 quy tắc \\
-        \bottomrule
-    \end{tabularx}
-\end{table}
-
-Số cỡ chữ sau chuẩn hoá là chín vì ngoài bảy bậc của thang còn hai cỡ tính theo đơn vị \texttt{em} dành riêng cho phần tử nội tuyến trong văn bản (mã nội tuyến và chip trích dẫn), vốn phải co giãn theo chữ của đoạn chứa chúng.
+\paragraph{Cơ chế giữ quy chuẩn.} Quy chuẩn không chỉ nằm trên tài liệu mà được kiểm tra tự động bằng bốn công cụ. Script \texttt{check:design} quét toàn bộ mã nguồn theo mười bốn quy tắc trên cả mã TSX lẫn CSS: mã màu ghi trực tiếp, màu Tailwind mặc định, giá trị tuỳ ý ngoài thang, bậc bo góc đã bị loại bỏ, biến CSS không tồn tại hoặc có giá trị dự phòng, lời gọi lượng giác trong vòng lặp kết xuất, và giá trị thô của bo góc, độ mờ, cỡ chữ, màu, thời gian và đường cong chuyển động trong CSS. Bộ kiểm thử thang (\texttt{scale.test.ts}) bảo đảm khối \texttt{@theme} không bị thêm bậc lạ. Bộ kiểm thử tương phản (\texttt{contrast.test.ts}) tính tỷ lệ tương phản theo chuẩn WCAG cho mọi cặp chữ trên nền ở cả hai theme. Cuối cùng, bộ kiểm thử hình ảnh của Playwright so sánh giao diện với ảnh mốc để phát hiện các thay đổi ngoài ý muốn. Kết quả đối chiếu thực nghiệm trước và sau quá trình chuẩn hoá được trình bày tại Bảng~\ref{tab:ket-qua-chuan-hoa-ch6} ở Mục~\ref{sec:danh-gia-tai-nguyen-chi-phi}.
 
 \subsection{Vật liệu Liquid Glass}
 \label{subsec:liquid-glass}
@@ -336,38 +288,38 @@ Kính chỉ được dùng cho tầng điều khiển nổi trên cảnh (thanh 
         \midrule
         0 & Đục & Bề mặt đặc, không làm mờ nền & Mọi trình duyệt \\
         1 & Kính mờ & Làm mờ và tăng bão hoà nền, viền sáng tĩnh & Mọi trình duyệt hiện đại \\
-        2 & Kính và vệt sáng động & Cấp 1, cộng viền sáng chạy theo con trỏ và ánh sáng vát cạnh được nướng sẵn thành ảnh & Mọi trình duyệt \\
+        2 & Kính và vệt sáng động & Cấp 1, cộng viền sáng chạy theo con trỏ và ánh sáng vát cạnh được kết xuất sẵn thành ảnh & Mọi trình duyệt \\
         3 & Khúc xạ & Cấp 2, cộng bộ lọc dịch chuyển SVG bẻ cong nền qua mép kính & Chromium (Chrome, Edge) \\
         4 & Kính WebGL & Vẽ kính trực tiếp trong cảnh R3F bằng một lượt kết xuất riêng & Đã thiết kế, chưa triển khai \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Hàm \texttt{detectLevel} chọn cấp cao nhất mà cả môi trường và lựa chọn của người dùng cho phép. Người dùng có bốn lựa chọn trong bảng thiết lập: tự động, đục, mờ và liquid. Chọn đục, hoặc hệ điều hành bật chế độ giảm độ trong suốt, sẽ ép về cấp 0; chọn mờ giới hạn ở cấp 1; hệ điều hành bật chế độ tăng tương phản, chất lượng hình ảnh đặt ở mức thấp, hoặc trình duyệt không thuộc họ Chromium đều giới hạn ở cấp 2; chỉ trình duyệt Chromium với lựa chọn tự động hoặc liquid mới đạt cấp 3. Một điểm thiết kế quan trọng là cấp kính được tách khỏi bậc chất lượng tự thích ứng của cảnh ba chiều. Ở phiên bản đầu, hai cơ chế này gắn với nhau, và vì bậc chất lượng ba chiều thay đổi liên tục khi người dùng xoay cảnh nên các panel nhấp nháy giữa hai cấp kính. Sau khi tách, cấp kính chỉ phụ thuộc vào thiết lập chất lượng mà người dùng chọn.
+Hàm \texttt{detectLevel} chọn cấp cao nhất mà cả môi trường và lựa chọn của người dùng cho phép. Người dùng có bốn lựa chọn trong bảng thiết lập: tự động, đục, mờ và liquid. Chọn đục, hoặc hệ điều hành bật chế độ giảm độ trong suốt, sẽ ép về cấp 0; chọn mờ giới hạn ở cấp 1. Tương tự, thiết lập tăng tương phản, chất lượng hình ảnh thấp hoặc trình duyệt ngoài họ Chromium giới hạn ở cấp 2; chỉ trình duyệt Chromium với lựa chọn tự động hoặc liquid mới đạt cấp 3. Một điểm thiết kế quan trọng là cấp kính được tách khỏi bậc chất lượng tự thích ứng của cảnh ba chiều. Ở phiên bản đầu, hai cơ chế này gắn với nhau, và vì bậc chất lượng ba chiều thay đổi liên tục khi người dùng xoay cảnh nên các panel nhấp nháy giữa hai cấp kính. Sau khi tách, cấp kính chỉ phụ thuộc vào thiết lập chất lượng mà người dùng chọn.
 
-\paragraph{Cấu trúc lớp của một bề mặt kính.} Mỗi bề mặt kính được chia thành ba lớp cố định. Lớp giả \texttt{::before} giữ màu nền (tint) và ảnh ánh sáng vát cạnh, lớp nội dung nằm ở giữa, và lớp giả \texttt{::after} vẽ viền sáng động. Ba quyết định triển khai ở lớp này đều được đưa ra dựa trên số đo thực tế:
+\paragraph{Cấu trúc lớp của một bề mặt kính.} Mỗi bề mặt kính được chia thành ba lớp cố định. Lớp giả \texttt{::before} giữ màu nền (tint) và ảnh ánh sáng vát cạnh, lớp nội dung nằm ở giữa, và lớp giả \texttt{::after} vẽ viền sáng động. Ba quyết định triển khai ở lớp này đều dựa trên cấu trúc kết xuất của trình duyệt:
 \begin{itemize}[label=$\bullet$]
     \item \textbf{Viền sáng chỉ nằm ở mép.} Lớp \texttt{::after} dùng mặt nạ (mask) loại trừ vùng nội dung, nên dải gradient sáng chỉ hiện trong khoảng 1,5 pixel quanh mép. Phiên bản phủ gradient lên cả mặt kính tạo ra một mảng sáng lớn trên thanh trên cùng.
     \item \textbf{Không dùng \texttt{mix-blend-mode}.} Trong Chromium, một phần tử con có chế độ hoà trộn biến tấm kính thành gốc của bộ lọc nền (backdrop root), làm hiệu ứng làm mờ mất tác dụng và để lộ rõ nét các panel phía sau.
-    \item \textbf{Hướng sáng được ghi theo từng bề mặt.} Hai biến \texttt{--lg-light-x} và \texttt{--lg-light-y} được đăng ký bằng \texttt{@property} với \texttt{inherits: false} và chỉ được ghi lên các bề mặt có viền sáng, kết hợp \texttt{will-change: transform} để việc vẽ lại viền sáng không kích hoạt lại phép làm mờ nền. So với việc ghi lên phần tử gốc ở mỗi khung hình, cách này hạ thời gian khung hình trung vị khi rê chuột từ 2,9 xuống 2,5 mili giây.
+    \item \textbf{Hướng sáng được ghi theo từng bề mặt.} Hai biến \texttt{--lg-light-x} và \texttt{--lg-light-y} được đăng ký bằng \texttt{@property} với \texttt{inherits: false} và chỉ được ghi lên các bề mặt có viền sáng, kết hợp \texttt{will-change: transform} để việc cập nhật viền sáng không kích hoạt lại phép làm mờ nền. Hiệu quả giảm thời gian khung hình của cơ chế này được ghi nhận thực nghiệm tại Mục~\ref{sec:danh-gia-tai-nguyen-chi-phi}.
 \end{itemize}
 
-Hướng nguồn sáng được biểu diễn bằng một vectơ đơn vị (rotor) theo đúng nguyên tắc dùng số phức cho phép quay của hệ thống. Hàm \texttt{lightFromPointer} chuẩn hoá vectơ từ tâm màn hình tới con trỏ thay vì tính góc bằng \texttt{atan2}. Sau đó, hook \texttt{useLiquidLight} nội suy giữa hai rotor bằng phép nội suy tuyến tính có chuẩn hoá (nlerp), gom các lần ghi theo \texttt{requestAnimationFrame} để mỗi khung hình chỉ ghi tối đa một lần. Khi con trỏ không hoạt động, nguồn sáng trở về vị trí nghỉ phía trên màn hình nên cạnh trên của mọi panel luôn bắt sáng.
+Hướng nguồn sáng được biểu diễn bằng một vector đơn vị (rotor) theo đúng nguyên tắc dùng số phức cho phép quay của hệ thống. Hàm \texttt{lightFromPointer} chuẩn hoá vector từ tâm màn hình tới con trỏ thay vì tính góc bằng \texttt{atan2}. Sau đó, hook \texttt{useLiquidLight} nội suy giữa hai rotor bằng phép nội suy tuyến tính có chuẩn hoá (nlerp), gom các lần ghi theo \texttt{requestAnimationFrame} để mỗi khung hình chỉ ghi tối đa một lần. Khi con trỏ không hoạt động, nguồn sáng trở về vị trí nghỉ phía trên màn hình nên cạnh trên của mọi panel luôn bắt sáng.
 
-\paragraph{Phần quang học tự xây dựng.} Ánh sáng vát cạnh ở cấp 2 và bản khúc xạ SVG đầu tiên ở cấp 3 do nhóm tự hiện thực trong \texttt{refractionMap.ts} và \texttt{LiquidFilters.tsx}. Hình dạng tấm kính được mô tả bằng hàm khoảng cách có dấu (signed distance field, SDF) của hình chữ nhật bo góc, cho biết mỗi điểm cách mép bao xa và pháp tuyến của mép tại đó. Từ SDF, một hồ sơ vát cạnh (bezel profile) lồi được tính sao cho dốc nhất ở mép và phẳng dần về phía trong, rồi được mã hoá thành ảnh dịch chuyển: kênh đỏ và xanh lá lưu độ lệch theo hai trục (giá trị 128 là không lệch), còn ảnh ánh sáng vát cạnh được nướng một lần theo kích thước panel và vẽ như một ảnh nền thông thường nên không tốn chi phí ở mỗi khung hình. Tổng độ dốc của thấu kính được giới hạn dưới 0,92, vì khi độ dốc chạm ngưỡng 1 nền sẽ bị gập ngược và tạo ra một đường cứng song song với mép kính.
+\paragraph{Phần quang học tự xây dựng.} Ánh sáng vát cạnh ở cấp 2 và bản khúc xạ SVG đầu tiên ở cấp 3 được hiện thực nội bộ trong \texttt{refractionMap.ts} và \texttt{LiquidFilters.tsx}. Hình dạng tấm kính được mô tả bằng hàm khoảng cách có dấu (signed distance field, SDF) của hình chữ nhật bo góc, cho biết mỗi điểm cách mép bao xa và pháp tuyến của mép tại đó. Từ SDF, một hồ sơ vát cạnh (bezel profile) lồi được tính sao cho dốc nhất ở mép và phẳng dần về phía trong, rồi được mã hoá thành ảnh dịch chuyển: kênh đỏ và xanh lá lưu độ lệch theo hai trục (giá trị 128 là không lệch), còn ảnh ánh sáng vát cạnh được tính sẵn một lần theo kích thước panel và vẽ như một ảnh nền thông thường nên không tốn chi phí ở mỗi khung hình. Tổng độ dốc của thấu kính được giới hạn dưới 0,92, vì khi độ dốc chạm ngưỡng 1 nền sẽ bị gập ngược và tạo ra một đường cứng song song với mép kính.
 
 \paragraph{Thư viện \texttt{@samasante/liquid-glass}.} Ở cấp 3, lớp bẻ cong nền của bốn panel nổi (cột chat, thanh trên cùng, bảng chú thích danh mục và bảng thiết lập) được giao cho thư viện mã nguồn mở \texttt{@samasante/liquid-glass} phiên bản 0.1.1 (giấy phép MIT). Thư viện cung cấp một component \texttt{<Glass>} dạng headless: bọc một khối bất kỳ thì khối đó trở thành vật liệu kính khúc xạ trực tiếp DOM đang chạy, nên chữ bên dưới vẫn chọn được và liên kết vẫn bấm được, khác với các thư viện WebGL phải chụp ảnh tĩnh trang web. Cơ chế xử lý của thư viện gồm bốn bước:
 \begin{enumerate}
     \item Rời rạc hoá SDF của hình chữ nhật bo góc thành một ảnh dịch chuyển, trong đó kênh đỏ và xanh lá mã hoá độ lệch theo hai trục và kênh xanh dương mã hoá mặt nạ vệt sáng.
     \item Đưa ảnh dịch chuyển vào bộ lọc SVG \texttt{feDisplacementMap}, áp lên nền phía sau bằng \texttt{backdrop-filter: url(\#...)} trên Chromium.
-    \item Tách ba kênh màu thành ba lượt dịch chuyển lệch nhau để tạo hiện tượng tán sắc (chromatic aberration) ở mép kính.
-    \item Điều khiển hình học bằng các giá trị chuyển động (motion value) ghi trực tiếp vào DOM ở mỗi khung hình, nên thấu kính có thể chuyển động 60 khung hình mỗi giây mà không làm React vẽ lại.
+    \item Tách ba kênh màu thành ba lượt dịch chuyển lệch nhau nhằm tạo tán sắc màu (chromatic aberration) ở mép kính.
+    \item Điều khiển hình học bằng các giá trị chuyển động (motion value) ghi trực tiếp vào DOM ở mỗi khung hình, nên thấu kính có thể chuyển động 60 khung hình mỗi giây mà không kích hoạt re-render của React.
 \end{enumerate}
 Trên Safari và Firefox, thư viện vẫn làm mờ, phủ màu và vẽ viền sáng nên bề mặt vẫn trông như kính, chỉ không bẻ cong được nền. Phiên bản hiện tại của hệ thống vẫn chỉ mở cấp 3 cho Chromium.
 
-Việc tích hợp thư viện được đóng gói trong component \texttt{LiquidShell} và \texttt{LiquidLens}. Ở cấp 3, panel được bọc bởi lớp vỏ của thư viện và được đánh dấu bằng thuộc tính \texttt{data-lgr}; khi đó panel bỏ hiệu ứng làm mờ nền của chính nó, vì một phần tử con có bộ lọc nền nằm trong một phần tử cha cũng có bộ lọc nền chỉ nhìn thấy phần tử cha chứ không nhìn thấy cảnh ba chiều. Các thuộc tính bố cục cần chuyển động cùng tấm kính (độ rộng, hoạt cảnh trượt vào và trượt ra của cột chat) được chuyển lên lớp vỏ. Dưới cấp 3, \texttt{LiquidShell} trả về panel nguyên trạng, nên cùng một cây component chạy được ở mọi cấp.
+Việc tích hợp thư viện được đóng gói trong component \texttt{LiquidShell} và \texttt{LiquidLens}. Ở cấp 3, panel được bọc bởi lớp vỏ của thư viện và đánh dấu bằng thuộc tính \texttt{data-lgr}. Khi đó panel bỏ hiệu ứng làm mờ nền của chính nó, vì một phần tử con có bộ lọc nền đặt trong phần tử cha cũng có bộ lọc nền sẽ chỉ nhìn thấy phần tử cha thay vì cảnh ba chiều. Các thuộc tính bố cục cần chuyển động cùng tấm kính (độ rộng, hoạt cảnh trượt vào và trượt ra của cột chat) được chuyển lên lớp vỏ. Dưới cấp 3, \texttt{LiquidShell} trả về panel nguyên trạng, nên cùng một cây component chạy được ở mọi cấp.
 
-Thông số quang học (optics) của thư viện không dùng giá trị mặc định mà được nhóm tinh chỉnh tay cho từng panel và từng theme bằng bảng điều chỉnh của thư viện, rồi lưu thành hai tệp cấu hình riêng \texttt{LiquidShell.dark.ts} và \texttt{LiquidShell.light.ts}. Thư viện tự co giãn thông số theo kích thước panel (độ mạnh khúc xạ theo đường chéo, độ cong theo cạnh ngắn), nên cùng một bộ số bẻ cong thanh trên cùng cao khoảng 49 pixel ít hơn nhiều so với cột chat cao khoảng 774 pixel. Bảng~\ref{tab:optics-liquid-glass} trình bày các thông số chính.
+Thông số quang học (optics) của thư viện không dùng giá trị mặc định mà được tinh chỉnh riêng cho từng panel và từng theme bằng bảng điều chỉnh của thư viện, rồi lưu thành hai tệp cấu hình riêng \texttt{LiquidShell.dark.ts} và \texttt{LiquidShell.light.ts}. Thư viện tự co giãn thông số theo kích thước panel (độ mạnh khúc xạ theo đường chéo, độ cong theo cạnh ngắn), nên cùng một bộ số bẻ cong thanh trên cùng cao khoảng 49 pixel ít hơn nhiều so với cột chat cao khoảng 774 pixel. Bảng~\ref{tab:optics-liquid-glass} trình bày các thông số chính.
 
 \begin{table}[htbp]
     \centering
@@ -454,7 +406,7 @@ Liquid Glass tôn trọng các thiết lập trợ năng của hệ điều hàn
     \end{tabularx}
 \end{table}
 
-Về hiệu năng, quy chuẩn đặt ra ngân sách trước khi bật cấp 3: thời gian khung hình trung vị không được tăng quá 10\% so với cấp 1, cùng lúc có tối đa bốn bề mặt lớn dùng bộ lọc nền, và nhãn ba chiều không bao giờ được khúc xạ vì số lượng lớn và di chuyển theo từng khung hình. Trên bản khúc xạ tự viết (đo ngày 30/10/2026, chạy headless không đồng bộ dọc, với 150 nghìn vector), thời gian khung hình trung vị khi rê chuột là 2,5--2,7 mili giây ở cấp 1 và 2,5 mili giây ở cấp 3 khi không tách màu, nhưng tăng lên 4,3--4,6 mili giây khi bật tách màu 0,5 pixel. Số đo này là lý do nhóm tắt tách màu trong bản khúc xạ tự viết. Bản tích hợp thư viện hiện tại (bốn panel khúc xạ, tán sắc bật ở theme tối) chưa được đo lại theo cùng phương pháp, nên việc đo lại trên GPU thật là một hạng mục còn mở.
+Về hiệu năng, quy chuẩn đặt ra ngân sách trước khi bật cấp 3: thời gian khung hình trung vị không được tăng quá 10\% so với cấp 1, cùng lúc có tối đa bốn bề mặt lớn dùng bộ lọc nền, và nhãn ba chiều không bao giờ được khúc xạ vì số lượng lớn và di chuyển theo từng khung hình. Kết quả đo thực nghiệm theo từng cấp kính cùng phạm vi cần tiếp tục đo kiểm trên GPU thực được trình bày tại Mục~\ref{sec:danh-gia-tai-nguyen-chi-phi}.
 
 \section{Thiết kế cơ sở dữ liệu và Data Schema}
 \label{sec:thiet-ke-csdl}
@@ -480,9 +432,9 @@ Bảng~\ref{tab:vai-tro-kho-luu-tru} tóm tắt vai trò của từng kho lưu t
     \end{tabularx}
 \end{table}
 
-Ranh giới giữa kho khoa học và chỉ mục vector là điểm cần chú ý. Vector 768 chiều không được ghi vào cơ sở dữ liệu ứng dụng, mà chỉ tồn tại trong chỉ mục vector và có thể tái tạo bằng cách chạy lại quy trình nhúng trên nội dung đoạn văn bản. Chỉ mục vector do đó là một cấu trúc dẫn xuất (derived structure) có thể dựng lại, không phải nơi lưu nguồn dữ liệu chuẩn (source of truth). Cơ chế kiểm tra tính toàn vẹn bằng tổng kiểm tra (checksum) ở ba cấp đoạn, bài báo và tập dữ liệu được trình bày ở Mục~\ref{sec:chuan-hoa-luu-tru}.
+Ranh giới giữa kho khoa học và chỉ mục vector là điểm cần chú ý. Vector 768 chiều không được ghi vào cơ sở dữ liệu ứng dụng, mà chỉ tồn tại trong chỉ mục vector và có thể tái tạo bằng cách chạy lại quy trình nhúng trên nội dung đoạn văn bản. Chỉ mục vector do đó là một cấu trúc dẫn xuất (derived structure) có thể dựng lại, không phải nơi lưu nguồn dữ liệu chuẩn. Cơ chế kiểm tra tính toàn vẹn bằng tổng kiểm tra (checksum) ở ba cấp đoạn, bài báo và tập dữ liệu được trình bày ở Mục~\ref{sec:chuan-hoa-luu-tru}.
 
-Cơ sở dữ liệu ứng dụng trên MongoDB gồm sáu tập hợp (collection). Tập hợp người dùng giữ thông tin tài khoản và chuỗi băm mật khẩu. Tập hợp token làm mới giữ bản ghi mỗi token theo nhóm. Tập hợp phiên hội thoại giữ siêu dữ liệu của phiên. Tập hợp tin nhắn hội thoại giữ nội dung từng lượt hỏi đáp. Tập hợp khoá chống gửi lặp giữ khoá chống gửi lặp. Tập hợp nhật ký kiểm toán giữ dấu vết thao tác quản trị.
+Cơ sở dữ liệu ứng dụng trên MongoDB gồm sáu tập hợp (collection). Tập hợp người dùng giữ thông tin tài khoản và chuỗi băm mật khẩu. Tập hợp token làm mới giữ bản ghi mỗi token theo họ token. Tập hợp phiên hội thoại giữ siêu dữ liệu của phiên. Tập hợp tin nhắn hội thoại giữ nội dung từng lượt hỏi đáp. Tập hợp khoá chống gửi lặp giữ khoá chống gửi lặp. Tập hợp nhật ký kiểm toán giữ dấu vết thao tác quản trị.
 
 Bảng~\ref{tab:tap-hop-csdl-ung-dung} trình bày cấu trúc các tập hợp ứng dụng.
 
@@ -496,7 +448,7 @@ Bảng~\ref{tab:tap-hop-csdl-ung-dung} trình bày cấu trúc các tập hợp 
         \textbf{Tập hợp} & \textbf{Khoá chính} & \textbf{Vai trò} & \textbf{Chỉ mục và cơ chế dọn dữ liệu} \\
         \midrule
         \texttt{users} & ObjectId & Tài khoản người dùng và quyền & \texttt{email} duy nhất, \texttt{username} duy nhất, bỏ qua giá trị rỗng (sparse unique) \\
-        \texttt{refresh\_tokens} & ObjectId & Bản ghi token làm mới theo nhóm & \texttt{token\_hash} duy nhất, tự dọn theo thời hạn hết hạn \\
+        \texttt{refresh\_tokens} & ObjectId & Bản ghi token làm mới theo họ token & \texttt{token\_hash} duy nhất, tự dọn theo thời hạn hết hạn \\
         \texttt{chat\_sessions} & UUIDv7 & Siêu dữ liệu phiên hội thoại & Theo tài khoản và thời điểm tin nhắn cuối; tự dọn 3 ngày sau xoá mềm \\
         \texttt{chat\_messages} & UUIDv7 & Nội dung từng lượt hỏi đáp & Theo phiên và thời điểm tạo; tự dọn 3 ngày sau xoá mềm \\
         \texttt{chat\_requests} & Khoá ghép tài khoản và khoá yêu cầu & Bản ghi chống gửi lặp & Tự dọn sau 24 giờ, khoá tạm thời (lease lock) 5 phút \\
@@ -548,7 +500,7 @@ Bảng~\ref{tab:chi-muc-csdl-ung-dung} trình bày chi tiết các chỉ mục c
         \textbf{Tập hợp} & \textbf{Khoá chỉ mục} & \textbf{Loại chỉ mục} & \textbf{Mục đích} \\
         \midrule
         \texttt{users} & \texttt{email} & Đơn, duy nhất & Tra cứu tài khoản khi đăng nhập \\
-        \texttt{users} & \texttt{username} & Đơn, duy nhất, bỏ qua giá trị rỗng (sparse unique) & Cho phép đăng nhập bằng tên người dùng \\
+        \texttt{users} & \texttt{username} & Đơn, duy nhất, bỏ qua giá trị rỗng & Cho phép đăng nhập bằng tên người dùng \\
         \texttt{chat\_sessions} & \texttt{user\_id}, \texttt{deleted\_at}, \texttt{last\_message\_at} giảm dần, \texttt{\_id} giảm dần & Ghép & Phân trang bằng con trỏ các phiên chưa xoá, sắp theo tin nhắn gần nhất \\
         \texttt{chat\_sessions} & \texttt{deleted\_at} & Chỉ mục TTL, 259.200 giây & Tự dọn phiên đã xoá mềm sau 3 ngày \\
         \texttt{chat\_messages} & \texttt{session\_id}, \texttt{deleted\_at}, \texttt{created\_at}, \texttt{\_id} & Ghép & Tải tin nhắn của một phiên theo thứ tự thời gian \\
@@ -564,7 +516,7 @@ Bảng~\ref{tab:chi-muc-csdl-ung-dung} trình bày chi tiết các chỉ mục c
 
 Nguyên tắc áp dụng cho toàn bộ chỉ mục là mỗi chỉ mục phải có bằng chứng truy vấn đi kèm. Chỉ mục không có lượt truy vấn nào sau khi nạp phải bị gỡ bỏ, và không được giữ đồng thời một chỉ mục đơn và một chỉ mục ghép có tiền tố bao trùng nó.
 
-Vì cơ sở dữ liệu ứng dụng được truy cập qua kênh đường hầm mạng (tunnel), mỗi lượt khứ hồi tới cơ sở dữ liệu tốn khoảng 15 đến 25 mili giây. Hai hệ quả được rút ra và cài đặt thành quy tắc bắt buộc. Thứ nhất, mọi truy vấn độc lập phải chạy song song thay vì tuần tự, kể cả khi kết quả không phụ thuộc lẫn nhau. Thứ hai, mọi đường đọc phải trả về đối tượng thô (plain object) để bỏ qua bước dựng lại đối tượng từ tài liệu (document hydration), vì bước này tốn thời gian không nhỏ ở quy mô lớn.
+Vì cơ sở dữ liệu ứng dụng được truy cập qua kênh đường hầm mạng (tunnel), mỗi lượt khứ hồi tới cơ sở dữ liệu tốn khoảng 15 đến 25 ms. Hai hệ quả được rút ra và cài đặt thành quy tắc bắt buộc. Thứ nhất, mọi truy vấn độc lập phải chạy song song thay vì tuần tự, kể cả khi kết quả không phụ thuộc lẫn nhau. Thứ hai, mọi đường đọc phải trả về đối tượng thô (plain object) để bỏ qua bước dựng lại đối tượng từ tài liệu (document hydration), vì bước này tốn thời gian không nhỏ ở quy mô lớn.
 
 Bộ nhớ đệm trong bộ nhớ giảm áp lực lên kênh tunnel. Bộ nhớ đệm dùng thời hạn trượt (sliding TTL), tức mỗi lần đọc lại đẩy thời điểm hết hạn ra xa thêm, kết hợp với cơ chế singleflight để khi nhiều yêu cầu cùng chờ một tài nguyên chưa có trong bộ nhớ đệm thì chỉ một yêu cầu thực sự đi xuống cơ sở dữ liệu.
 
@@ -644,7 +596,7 @@ Bên cạnh tám nguyên tắc cơ sở trên, kiến trúc API của hệ thố
 \begin{itemize}
     \item[--] \textbf{Xác thực bằng cặp token}: Mọi đường dẫn bảo vệ yêu cầu tiêu đề \texttt{Authorization} mang JWT truy cập ngắn hạn (chứa phiên bản token), kết hợp token làm mới dài hạn xoay vòng một lần theo họ token.
     \item[--] \textbf{Đàm phán nhiều định dạng dữ liệu (Content Negotiation)}: Hỗ trợ cả JSON và XML thông qua hai tiêu đề \texttt{Content-Type} và \texttt{Accept}; bộ phân tích XML chặn \texttt{DOCTYPE} và \texttt{ENTITY} nhằm chống tấn công chèn thực thể XML ngoài (XXE) và tấn công phình thực thể (XML bomb).
-    \item[--] \textbf{Liên kết siêu dữ liệu (HATEOAS)}: Mỗi phản hồi đính kèm trường \texttt{\_links} mô tả các hành động hợp lệ kế tiếp theo ngữ cảnh trạng thái, với điểm vào gốc \texttt{GET /api/v1} liệt kê các tài nguyên cấp cao nhất.
+    \item[--] \textbf{Liên kết siêu dữ liệu}: Mỗi phản hồi đính kèm trường \texttt{\_links} mô tả các hành động hợp lệ kế tiếp theo ngữ cảnh trạng thái, với điểm vào gốc \texttt{GET /api/v1} liệt kê các tài nguyên cấp cao nhất.
     \item[--] \textbf{Truyền kết quả theo luồng sự kiện (Server-Sent Events)}: Cung cấp biến thể \texttt{POST /api/v1/rag/chat/stream} sử dụng \texttt{text/event-stream} để phát trực tiếp tiến trình định tuyến và từng mảnh văn bản sinh ra thay vì chờ hoàn tất toàn bộ lượt suy luận.
 \end{itemize}
 
@@ -658,7 +610,7 @@ Ngôn ngữ truy vấn dùng chung được đặc tả thống nhất cho mọi
     \item[--] \textbf{Lọc và tìm kiếm}: Cú pháp lọc dùng dạng \textit{trường}\texttt{=}\textit{toán tử}\texttt{:}\textit{giá trị}, nhiều điều kiện nối bằng dấu phẩy với tập toán tử chuẩn gồm bằng (\texttt{eq}), khác (\texttt{ne}), lớn hơn (\texttt{gt}), lớn hơn hoặc bằng (\texttt{gte}), nhỏ hơn (\texttt{lt}), nhỏ hơn hoặc bằng (\texttt{lte}) và khớp chuỗi con (\texttt{match}). Chỉ những cặp trường và toán tử nằm trong danh sách cho phép của từng đường dẫn mới được chuyển xuống cơ sở dữ liệu. Tham số \texttt{q} hỗ trợ tìm kiếm tự do trên các trường văn bản của tài nguyên tương ứng.
 \end{itemize}
 
-Quy ước định dạng dữ liệu cũng được cố định ở tầng HTTP: máy chủ chỉ chấp nhận thân yêu cầu ở định dạng JSON hoặc XML theo tiêu đề \texttt{Content-Type} (sai định dạng trả về mã 415), dung lượng tối đa 100 KB; phản hồi mặc định là JSON và tự chuyển sang XML nếu tiêu đề \texttt{Accept} yêu cầu (áp dụng cho cả phản hồi lỗi theo RFC 7807). Nếu phía trình duyệt gửi tiêu đề \texttt{Accept} không khớp cả JSON lẫn XML, máy chủ trả về mã 406.
+Quy ước định dạng dữ liệu cũng được cố định ở tầng HTTP: máy chủ chỉ chấp nhận thân yêu cầu dạng JSON hoặc XML theo tiêu đề \texttt{Content-Type} (sai định dạng trả mã 415) với dung lượng tối đa 100 KB. Ở chiều trả về, phản hồi mặc định là JSON và tự chuyển sang XML khi tiêu đề \texttt{Accept} yêu cầu (áp dụng cả cho lỗi RFC 7807), hoặc trả mã 406 nếu tiêu đề \texttt{Accept} không khớp định dạng nào.
 
 Bảng~\ref{tab:bang-dinh-tuyen-api} liệt kê toàn bộ 34 đường dẫn của hệ thống cùng mức độ xác thực và mã trạng thái trả về. Cột xác thực phân biệt bốn mức: công khai, tuỳ chọn, bắt buộc và quản trị.
 
@@ -706,7 +658,7 @@ Bảng~\ref{tab:bang-dinh-tuyen-api} liệt kê toàn bộ 34 đường dẫn c�
     GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}}} & Quản trị & Chi tiết một tài khoản & 200, 404, 403 \\
     PUT & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/roles}} & Quản trị & Thay toàn bộ vai trò của tài khoản & 200, 409, 403 \\
     PUT & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/status}} & Quản trị & Thay trạng thái hoạt động của tài khoản & 200, 409, 403 \\
-    GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/tokens}} & Quản trị & Liệt kê nhóm token của tài khoản & 200, 403 \\
+    GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/tokens}} & Quản trị & Liệt kê họ token của tài khoản & 200, 403 \\
     DELETE & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/tokens}} & Quản trị & Thu hồi toàn bộ token của tài khoản & 200, 403 \\
     GET & {\scriptsize\texttt{/api/v1/admin/users/\{id\}/chat-sessions}} & Quản trị & Liệt kê phiên của một tài khoản & 200, 400, 403 \\
     GET & {\scriptsize\texttt{/api/v1/admin/chat-sessions/\{id\}}} & Quản trị & Chi tiết phiên kèm tin nhắn gần nhất & 200, 404, 403 \\
@@ -718,11 +670,11 @@ Bảng~\ref{tab:bang-dinh-tuyen-api} liệt kê toàn bộ 34 đường dẫn c�
 \end{longtable}
 }
 
-Hợp đồng dữ liệu của yêu cầu hỏi đáp được định nghĩa như sau. Yêu cầu gồm câu hỏi bắt buộc trong khoảng 1 đến 2000 ký tự, số đoạn cần lấy mặc định là 5 và tối đa 20, số nhánh giữ lại mỗi tầng của cây mặc định là 2, danh mục lọc tuỳ chọn, cờ tăng điểm uy tín mặc định bật, cờ mở rộng truy vấn mặc định tắt, và mã định danh phiên tuỳ chọn.
+Hợp đồng dữ liệu của yêu cầu hỏi đáp được định nghĩa như sau. Yêu cầu gồm câu hỏi bắt buộc dài từ 1 đến 2.000 ký tự, số đoạn cần lấy mặc định 5 (tối đa 20) và số nhánh giữ lại mỗi tầng của cây mặc định 2. Ngoài ra, yêu cầu hỗ trợ danh mục lọc tuỳ chọn, cờ tăng điểm uy tín (mặc định bật), cờ mở rộng truy vấn (mặc định tắt) và mã định danh phiên tuỳ chọn.
 
-Phản hồi gồm nội dung câu trả lời, danh sách mã định danh bài báo được trích dẫn, tập đoạn văn bản có căn cứ kèm ba loại điểm là điểm tương đồng, điểm uy tín và điểm cuối cùng, các thuật ngữ đã mở rộng, và thống kê thời gian theo từng chặng.
+Phản hồi gồm nội dung câu trả lời, danh sách mã định danh bài báo được trích dẫn, tập đoạn văn bản có căn cứ kèm ba loại điểm (tương đồng, uy tín và điểm tổng hợp), các thuật ngữ đã mở rộng, và thống kê thời gian theo từng chặng.
 
-Vì chặng sinh văn bản chiếm phần lớn thời gian xử lý, đường dẫn hỏi đáp có một biến thể trả kết quả theo sự kiện máy chủ (Server-Sent Events). Phản hồi được đặt kiểu nội dung là \texttt{text/event-stream}, kèm các header chống đệm của reverse proxy.
+Vì chặng sinh văn bản chiếm phần lớn thời gian xử lý, đường dẫn hỏi đáp có một biến thể trả kết quả theo sự kiện máy chủ SSE. Phản hồi được đặt kiểu nội dung là \texttt{text/event-stream}, kèm các header chống đệm của reverse proxy.
 
 Bảng~\ref{tab:su-kien-sse} trình bày thứ tự các sự kiện trong một phiên truyền.
 
@@ -1020,12 +972,12 @@ Cơ chế bỏ qua có kiểm soát là điểm cần chú ý. Nếu một đo�
 
 Mỗi yêu cầu kết thúc ghi một dòng log có cấu trúc, kèm mã yêu cầu để đối chiếu với nhật ký kiểm toán, và phân loại theo mức độ thành công. Quy tắc bất biến là không ghi mật khẩu, token, token làm mới, cũng không ghi nội dung câu hỏi của người dùng, chỉ ghi độ dài câu hỏi. Các sự kiện nghiệp vụ đáng chú ý, ví dụ đăng nhập thành công, đăng nhập thất bại, xoay vòng token, phát hiện dùng lại token, đổi tên và xoá phiên, được ghi thành dòng riêng với mã sự kiện.
 
-Ngoài JSON, hệ thống hỗ trợ XML thông qua đàm phán bằng header \texttt{Accept}, kể cả với nội dung lỗi. Bộ phân tích XML chặn \texttt{DOCTYPE} và \texttt{ENTITY} để chống tấn công chèn thực thể XML ngoài và tấn công phình thực thể (XML bomb), và trả về lỗi kiểm tra dữ liệu với XML sai định dạng.
+Ngoài JSON, hệ thống hỗ trợ XML thông qua đàm phán bằng header \texttt{Accept}, kể cả với nội dung lỗi. Bộ phân tích XML chặn \texttt{DOCTYPE} và \texttt{ENTITY} để chống tấn công chèn thực thể XML ngoài và tấn công phình thực thể, và trả về lỗi kiểm tra dữ liệu với XML sai định dạng.
 
 \section{Thiết kế cơ chế quản lý trạng thái và dữ liệu trên Frontend}
 \label{sec:state-management}
 
-Trạng thái phía trình duyệt được tách thành bốn kho độc lập theo vòng đời và tần suất cập nhật (Bảng~\ref{tab:bon-nhom-trang-thai}), nhằm tránh truyền trạng thái qua cây thành phần và cô lập vùng kết xuất tốn tài nguyên. Toàn bộ các kho đều đăng ký theo dõi qua bộ chọn (\textit{selector}), đồng thời giữ hai ranh giới kiến trúc: vòng lặp WebGL đọc trực tiếp kho không gian thay vì đăng ký theo dõi qua React hook (reactive subscription), tránh làm giật cảnh 3D khi luồng token cập nhật kho truy hồi, và thao tác ghi xuống cơ sở dữ liệu cục bộ chỉ thực hiện sau khi kết thúc luồng sự kiện.
+Trạng thái phía trình duyệt được tách thành bốn kho độc lập theo vòng đời và tần suất cập nhật (Bảng~\ref{tab:bon-nhom-trang-thai}), nhằm tránh truyền trạng thái qua cây thành phần và cô lập vùng kết xuất tốn tài nguyên. Toàn bộ các kho đều đăng ký theo dõi qua bộ chọn (\textit{selector}) và tuân thủ hai ranh giới kiến trúc. Thứ nhất, vòng lặp WebGL đọc trực tiếp kho không gian thay vì đăng ký theo dõi qua React hook (reactive subscription), tránh làm giật cảnh 3D khi luồng token cập nhật kho truy hồi; thứ hai, thao tác ghi xuống cơ sở dữ liệu cục bộ chỉ thực hiện sau khi kết thúc luồng sự kiện.
 
 \begin{table}[htbp]
     \centering
@@ -1119,7 +1071,7 @@ Một lượt hỏi đáp đi qua bảy pha cố định. Mỗi pha phát ra m�
         \toprule
         \textbf{Pha} & \textbf{Nội dung thực hiện} & \textbf{Đầu ra} \\
         \midrule
-        Nhúng & Mở rộng câu hỏi bằng luật kết hợp rồi chuyển thành vector & Vectơ câu hỏi, danh sách từ khoá mở rộng \\
+        Nhúng & Mở rộng câu hỏi bằng luật kết hợp rồi chuyển thành vector & Vector câu hỏi, danh sách từ khoá mở rộng \\
         Bay & Định tuyến trên cây tri thức theo vector để chọn các nhánh và đoạn đáng xét & Danh sách nhánh đã chọn theo từng cấp \\
         So sánh & Truy vấn chỉ mục vector trong phạm vi đã định tuyến & Tập ứng viên kèm điểm tương đồng \\
         Tìm thấy & Xếp hạng lại bằng tín hiệu uy tín và chấm điểm mức độ liên quan & Tập đoạn văn bản có căn cứ kèm điểm \\
@@ -1257,7 +1209,7 @@ Bo góc được quản lý bằng một thang năm bậc, và mỗi bậc phụ
         Nhỏ & 6 pixel & Tooltip, khung chuyển động, điểm số ba chiều \\
         Trung bình & 10 pixel & Điều khiển: nút, trường nhập, dòng danh sách \\
         Lớn & 14 pixel & Bề mặt nổi: panel kính, bong bóng hội thoại (chat bubble), thẻ biểu tượng \\
-        Đầy đủ & 9999 pixel & Chip, thẻ nhãn, thanh chỉ báo \\
+        Đầy đủ & 9.999 pixel & Chip, thẻ nhãn, thanh chỉ báo \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -1309,9 +1261,9 @@ Ranh giới này không chỉ là quy ước hình thức. Nó quyết định t
     \end{tabularx}
 \end{table}
 
-Trong không gian ba chiều, mọi phép quay được biểu diễn bằng số phức hoặc dạng mở rộng của số phức (quaternion) thay vì bằng góc. Hàm lượng giác chỉ được gọi một lần để tạo bộ quay, không gọi lại trong vòng lặp kết xuất. Lý do là hợp nhiều phép quay chỉ là phép nhân, cách này không gây hiện tượng gimbal lock, và cho phép nội suy hướng bằng phương pháp nội suy cầu tuyến tính (SLERP). Sai lệch vị trí không được phép vượt quá một phần nghìn đơn vị thế giới so với công thức góc gốc.
+Trong không gian ba chiều, mọi phép quay được biểu diễn bằng quaternion thay vì bằng góc. Hàm lượng giác chỉ được gọi một lần để tạo bộ quay, không gọi lại trong vòng lặp kết xuất. Lý do là hợp nhiều phép quay chỉ là phép nhân, cách này không gây hiện tượng gimbal lock, và cho phép nội suy hướng bằng phương pháp nội suy cầu tuyến tính (SLERP). Sai lệch vị trí không được phép vượt quá một phần nghìn đơn vị thế giới so với công thức góc gốc.
 
-Bên cạnh đó, độ phân giải và hiệu ứng hậu kỳ của hình ảnh được điều chỉnh tự động theo thang chất lượng bốn bậc (Bảng~\ref{tab:bon-bac-chat-luong}) nhằm tránh rung khung hình trên các thiết bị khác nhau. Bộ theo dõi hiệu năng chỉ bắt đầu đo sau một khoảng nghỉ (bỏ qua giai đoạn biên dịch shader) để hạ hoặc nâng từng bậc chất lượng khi nhịp khung hình thay đổi, dừng ở bậc thấp nhất nếu xảy ra đảo chiều liên tục, và không bao giờ hạ độ phân giải khi camera đang di chuyển; người dùng cũng có thể chọn cố định bậc chất lượng hoặc bật chế độ giảm chuyển động để tắt hoạt ảnh tự động.
+Bên cạnh đó, độ phân giải và hiệu ứng hậu kỳ của hình ảnh được điều chỉnh tự động theo thang chất lượng bốn bậc (Bảng~\ref{tab:bon-bac-chat-luong}) nhằm tránh rung khung hình trên các thiết bị khác nhau. Bộ theo dõi hiệu năng chỉ bắt đầu đo sau một khoảng nghỉ (bỏ qua giai đoạn biên dịch shader) để hạ hoặc nâng từng bậc chất lượng khi nhịp khung hình thay đổi. Khi xảy ra đảo chiều liên tục, bộ theo dõi dừng ở bậc thấp nhất và không bao giờ hạ độ phân giải lúc camera đang di chuyển; người dùng cũng có thể cố định bậc chất lượng hoặc bật chế độ giảm chuyển động để tắt hoạt ảnh tự động.
 
 \begin{table}[htbp]
     \centering

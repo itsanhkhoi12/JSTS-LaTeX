@@ -35,14 +35,24 @@
     BoldItalicFont = * bold italic
 ]
 
-% Font đơn khoảng (monospace) cho code block (có fallback an toàn)
-\IfFontExistsTF{DejaVu Sans Mono}{%
-    \setmonofont{DejaVu Sans Mono}[Scale=0.9]%
+% Font đơn khoảng (monospace) từ thư mục fonts/ nội bộ của dự án (có fallback an toàn)
+\IfFileExists{fonts/dejavu-sans-mono.book.ttf}{%
+    \setmonofont{dejavu-sans-mono}[
+        Path           = fonts/,
+        Extension      = .ttf,
+        UprightFont    = *.book,
+        BoldFont       = *.bold,
+        ItalicFont     = *.oblique,
+        BoldItalicFont = *.bold-oblique,
+        Scale          = 0.9
+    ]%
 }{%
-    \IfFontExistsTF{Consolas}{%
-        \setmonofont{Consolas}[Scale=0.9]%
+    \IfFontExistsTF{DejaVu Sans Mono}{%
+        \setmonofont{DejaVu Sans Mono}[Scale=0.9]%
     }{%
-        % Mặc định font monospace của hệ thống TeX
+        \IfFontExistsTF{Consolas}{%
+            \setmonofont{Consolas}[Scale=0.9]%
+        }{}%
     }%
 }
 
@@ -133,6 +143,100 @@
 \definecolor{primaryBlue}{RGB}{0, 72, 144}
 \definecolor{codeBackground}{RGB}{247, 248, 250}
 \definecolor{codeBorder}{RGB}{220, 224, 230}
+
+% Bộ style TikZ chuẩn dùng chung toàn báo cáo (sơ đồ kiến trúc, luồng 26 bước & tuần tự)
+\tikzset{
+    ragbox/.style={
+        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!6,
+        thick, minimum height=0.82cm, align=center, font=\small, inner sep=5pt
+    },
+    ragdb/.style={
+        cylinder, shape border rotate=90, aspect=0.24, draw=primaryBlue!85!black, fill=primaryBlue!10,
+        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
+    },
+    ragdecision/.style={
+        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
+        thick, align=center, font=\small, inner sep=2pt
+    },
+    raggroup/.style={
+        rectangle, rounded corners=4pt, draw=primaryBlue!55, dashed, thick, fill=primaryBlue!3,
+        inner sep=8pt
+    },
+    ragarrow/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!85!black
+    },
+    ragdashed/.style={
+        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
+    },
+    ragbiarrow/.style={
+        {Stealth[length=2.0mm, width=1.5mm]}-{Stealth[length=2.0mm, width=1.5mm]},
+        thick, draw=primaryBlue!85!black
+    },
+    % Style cho Flowchart 26 bước (4 giai đoạn Request-Response)
+    ragstage/.style={
+        rectangle, rounded corners=4pt, draw=primaryBlue!65, dashed, line width=0.8pt,
+        fill=primaryBlue!3, inner sep=7pt
+    },
+    ragstagetitle/.style={
+        font=\footnotesize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt
+    },
+    ragstep/.style={
+        rectangle, rounded corners=2.5pt, draw=primaryBlue, fill=primaryBlue!5,
+        line width=0.65pt, text width=5.2cm, minimum height=0.92cm,
+        align=center, font=\scriptsize, inner sep=3.2pt
+    },
+    ragstepdb/.style={
+        cylinder, shape border rotate=90, aspect=0.11, draw=primaryBlue!85!black, fill=primaryBlue!12,
+        line width=0.7pt, text width=4.8cm, minimum height=0.82cm,
+        align=center, font=\scriptsize, inner sep=2.5pt
+    },
+    % Style cho Sequence Diagram đầu-cuối
+    ragseqactor/.style={
+        rectangle, rounded corners=2.5pt, draw=primaryBlue!90!black, fill=primaryBlue!16,
+        line width=0.8pt, minimum width=2.0cm, minimum height=0.82cm,
+        align=center, font=\scriptsize\bfseries, inner sep=3pt
+    },
+    ragseqhead/.style={
+        rectangle, rounded corners=2.5pt, draw=primaryBlue, fill=primaryBlue!8,
+        line width=0.7pt, minimum width=2.1cm, minimum height=0.82cm,
+        align=center, font=\scriptsize\bfseries, inner sep=3pt
+    },
+    raglifeline/.style={
+        draw=gray!65, dashed, line width=0.65pt
+    },
+    ragmsg/.style={
+        -{Stealth[length=2.0mm, width=1.5mm]}, line width=0.75pt, draw=primaryBlue!85!black
+    },
+    ragreply/.style={
+        -{Stealth[length=2.0mm, width=1.5mm]}, line width=0.7pt, dashed, draw=primaryBlue!75!black
+    },
+    ragasync/.style={
+        -{Straight Barb[length=2.0mm, width=1.8mm]}, line width=0.75pt, draw=primaryBlue!85!black
+    },
+    ragmsglbl/.style={
+        font=\scriptsize, fill=white, inner sep=1.2pt, align=center
+    },
+    ragaltbox/.style={
+        draw=primaryBlue!65, dashed, line width=0.65pt, rounded corners=2pt, fill=orange!4
+    },
+    ragparbox/.style={
+        draw=teal!70!black, dashed, line width=0.65pt, rounded corners=2pt, fill=teal!3
+    },
+    ragloopbox/.style={
+        draw=primaryBlue!75!black, dashed, line width=0.65pt, rounded corners=2pt, fill=primaryBlue!3
+    },
+    ragdivider/.style={
+        draw=primaryBlue!55, densely dotted, line width=0.7pt
+    },
+    ragtag/.style={
+        anchor=north west, font=\scriptsize\bfseries, text=primaryBlue!90!black,
+        fill=primaryBlue!12, rounded corners=1.5pt, inner sep=1.8pt
+    },
+    ragnote/.style={
+        rectangle, rounded corners=2pt, draw=orange!65!black, fill=yellow!10,
+        line width=0.6pt, font=\scriptsize, inner sep=3pt, align=center
+    }
+}
 
 % ------------------------------------------------------------------------------
 % 6. BẢNG BIỂU & CHÚ THÍCH HÌNH ẢNH

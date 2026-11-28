@@ -5,66 +5,6 @@
 \chapter{Kiểm thử và đánh giá hệ thống}
 \label{chap:kiem-thu-danh-gia}
 
-% Bộ style TikZ đồng bộ toàn báo cáo
-\tikzset{
-    ragbox/.style={
-        rectangle,
-        rounded corners=3pt,
-        minimum width=2.8cm,
-        minimum height=0.85cm,
-        text centered,
-        align=center,
-        draw=primaryBlue,
-        line width=0.8pt,
-        fill=primaryBlue!8,
-        font=\small\sffamily
-    },
-    ragdb/.style={
-        cylinder,
-        shape border rotate=90,
-        aspect=0.22,
-        minimum width=2.4cm,
-        minimum height=1.0cm,
-        text centered,
-        align=center,
-        draw=primaryBlue!85!black,
-        line width=0.8pt,
-        fill=primaryBlue!18,
-        font=\small\sffamily
-    },
-    ragdecision/.style={
-        diamond,
-        aspect=2.1,
-        inner sep=2pt,
-        text centered,
-        align=center,
-        draw=primaryBlue!90!black,
-        line width=0.8pt,
-        fill=primaryBlue!14,
-        font=\small\sffamily
-    },
-    raggroup/.style={
-        rectangle,
-        rounded corners=5pt,
-        draw=primaryBlue!60,
-        dashed,
-        line width=0.9pt,
-        fill=primaryBlue!3,
-        inner sep=8pt
-    },
-    ragarrow/.style={
-        -{Stealth[length=2.4mm, width=1.8mm]},
-        line width=0.85pt,
-        draw=primaryBlue!85!black
-    },
-    ragdashed/.style={
-        -{Stealth[length=2.2mm, width=1.6mm]},
-        line width=0.75pt,
-        dashed,
-        draw=primaryBlue!70!black
-    }
-}
-
 \section{Chiến lược và môi trường kiểm thử}
 \label{sec:chien-luoc-kiem-thu}
 
@@ -1022,6 +962,60 @@ Một bước tính toán chuyển động & 0,65~ms & 0,0002~ms & Nhanh hơn kh
 
 Thử nghiệm đối chiếu trên 40~tia ngẫu nhiên xác nhận thuật toán \texttt{3D DDA} trả về tập điểm trúng trùng khớp 100\% với phương pháp quét cũ, đồng thời giảm thời gian kết xuất khung hình trung vị 57\% ở chế độ tối và 65\% ở chế độ sáng.
 
+Để đo cận trên chi phí kết xuất toàn cảnh trong điều kiện vận hành thực tế, Bảng~\ref{tab:fe-hieu-nang-canh-ch6} tổng hợp kết quả đo trên bản dựng production với 150 nghìn điểm vector, thực hiện trên máy Apple M4 với GPU tích hợp 8~nhân, Chromium headless ở độ phân giải $1440 \times 900$ vào ngày 19/10/2026; thời gian khung hình được ghi ở chế độ đồng bộ (đọc lại một điểm ảnh mỗi khung hình để buộc GPU hoàn tất vẽ).
+
+\begin{table}[htbp]
+\centering
+\caption{Hiệu năng cảnh ba chiều trước và sau tối ưu (150 nghìn điểm vector)}
+\label{tab:fe-hieu-nang-canh-ch6}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{
+  >{\raggedright\arraybackslash}X
+  >{\raggedright\arraybackslash}p{1.4cm}
+  >{\raggedleft\arraybackslash}p{2.0cm}
+  >{\raggedleft\arraybackslash}p{2.0cm}
+  >{\raggedleft\arraybackslash}p{1.6cm}
+}
+\toprule
+\textbf{Hạng mục} & \textbf{Theme} & \textbf{Trước} & \textbf{Sau} & \textbf{Thay đổi} \\
+\midrule
+Thời gian khung hình trung vị & Tối & 12,7~ms & 8,0~ms & $-37\%$ \\
+Thời gian khung hình trung vị & Sáng & 13,3~ms & 8,9~ms & $-33\%$ \\
+Thời gian khung hình p95 & Tối & 17,3~ms & 13,7~ms & $-21\%$ \\
+Thời gian khung hình p95 & Sáng & 18,4~ms & 13,7~ms & $-26\%$ \\
+Chọn điểm khi rê chuột (trung bình) & Tối & 2,10~ms & 0,165~ms & $\div 12{,}7$ \\
+Chọn điểm khi rê chuột (trung bình) & Sáng & 5,95~ms & 0,34~ms & $\div 17{,}5$ \\
+Cập nhật trạng thái điểm khi đổi bộ lọc (trung bình) & Tối & 6,18~ms & 0,22~ms & $\div 28$ \\
+Cập nhật trạng thái điểm khi đổi bộ lọc (trung bình) & Sáng & 14,27~ms & 0,53~ms & $\div 27$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Bên cạnh hiệu năng WebGL, quá trình chuẩn hoá hệ thống thiết kế và vật liệu Liquid Glass (Mục~\ref{subsec:design-system} và Mục~\ref{subsec:liquid-glass}) cũng được kiểm chứng bằng hai đợt đo. Thứ nhất, Bảng~\ref{tab:ket-qua-chuan-hoa-ch6} đối chiếu các chỉ số đồng nhất giao diện trước và sau khi áp dụng bộ thang cố định cùng công cụ kiểm tra tự động \texttt{check:design}.
+
+\begin{table}[htbp]
+\centering
+\caption{Kết quả chuẩn hoá giao diện theo hệ thống thiết kế}
+\label{tab:ket-qua-chuan-hoa-ch6}
+\small
+\begin{tabularx}{\textwidth}{@{}X>{\raggedleft\arraybackslash}p{2.2cm}>{\raggedleft\arraybackslash}p{3.1cm}@{}}
+\toprule
+\textbf{Chỉ số} & \textbf{Trước} & \textbf{Sau} \\
+\midrule
+Số mức bo góc (không tính bậc đầy đủ) & 8 & 4 \\
+Số mức độ mờ nền (không tính 0~pixel) & 5 & 3 \\
+Số mức độ trong suốt của màu trắng & 12 & 6 \\
+Số cỡ chữ & 19 & 9 \\
+Số lớp làm mờ nền ở màn hình đăng nhập & 7 & 3 \\
+Số lớp làm mờ nền ở màn hình lịch sử & 5 & 3 \\
+Vi phạm quy tắc thiết kế theo \texttt{check:design} & Chưa đo & 0 trên 14 quy tắc \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Số cỡ chữ sau chuẩn hoá là chín vì ngoài bảy bậc của thang cố định còn hai cỡ tính theo đơn vị \texttt{em} dành riêng cho phần tử nội tuyến trong văn bản (mã nội tuyến và chip trích dẫn), giúp co giãn theo cỡ chữ của đoạn chứa chúng. Thứ hai, trên bản khúc xạ tự xây dựng (đo ngày 30/10/2026, chạy headless không đồng bộ dọc với 150 nghìn điểm vector), việc ghi biến hướng sáng theo từng bề mặt hạ thời gian khung hình trung vị khi rê chuột từ 2,9~ms xuống 2,5~ms; ở cùng cấu hình, cấp~1 đạt 2,5--2,7~ms và cấp~3 không tách màu giữ ở 2,5~ms, nhưng tăng lên 4,3--4,6~ms khi bật tách màu 0,5~pixel nên cơ chế tách màu được tắt trên bản tự xây dựng. Bản tích hợp \texttt{@samasante/liquid-glass} hiện tại (bốn panel khúc xạ, bật tán sắc ở theme tối) chưa được đo lại theo cùng kịch bản và là hạng mục cần tiếp tục đánh giá trên GPU thực.
+
 Về tài nguyên hạ tầng suy luận phục vụ đánh giá, Bảng~\ref{tab:cau-hinh-phan-cung-ai-ch6} tổng hợp cấu hình phần cứng thực tế và các giới hạn cấp phát sử dụng cho đợt đo.
 
 \begin{table}[htbp]
@@ -1044,7 +1038,7 @@ Mô hình ngôn ngữ & \texttt{Qwen2.5-\allowbreak{}7B-\allowbreak{}Instruct} (
 \midrule
 Cửa sổ ngữ cảnh & Tối đa & 8.192~token & Giới hạn chiều dài ngữ cảnh cho mỗi lượt hỏi đáp \\
 \midrule
-Nhiệt độ suy luận & Tham số cố định lúc đo & 0 & Cố định \texttt{temperature = 0} để tái lập kết quả (vận hành mặc định dùng \texttt{0,2}) \\
+Nhiệt độ suy luận & Tham số cố định lúc đo & 0 & Cố định \texttt{temperature = 0} để tái lập kết quả (vận hành mặc định dùng \texttt{0.2}) \\
 \midrule
 Hàng đợi mặc định & Chế độ chuẩn & 1~slot + 8~chờ & Điều tiết lưu lượng tránh tràn VRAM \\
 \midrule

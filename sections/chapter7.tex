@@ -5,32 +5,6 @@
 \chapter{Đóng gói, triển khai và vận hành}
 \label{chap:dong-goi-van-hanh}
 
-% Style dùng chung cho các sơ đồ TikZ trong Chương 7
-\tikzset{
-    ragbox/.style={
-        rectangle, rounded corners=3pt, draw=primaryBlue, fill=primaryBlue!5,
-        thick, minimum height=0.8cm, align=center, font=\small, inner sep=5pt
-    },
-    ragdb/.style={
-        cylinder, shape border rotate=90, aspect=0.25, draw=primaryBlue, fill=primaryBlue!8,
-        thick, minimum height=0.95cm, minimum width=2.2cm, align=center, font=\small, inner sep=4pt
-    },
-    ragdecision/.style={
-        diamond, aspect=2.1, draw=primaryBlue!85!black, fill=orange!8,
-        thick, align=center, font=\small, inner sep=2pt
-    },
-    raggroup/.style={
-        rectangle, rounded corners=4pt, draw=primaryBlue!50, dashed, fill=primaryBlue!2,
-        inner sep=8pt
-    },
-    ragarrow/.style={
-        -{Stealth[length=2.2mm, width=1.6mm]}, thick, draw=primaryBlue!80!black
-    },
-    ragdashed/.style={
-        -{Stealth[length=2.2mm, width=1.6mm]}, thick, dashed, draw=primaryBlue!70!black
-    }
-}
-
 Chương này trình bày giải pháp đóng gói, quản lý cấu hình, triển khai và vận hành hệ thống \texttt{RAG\_\allowbreak{}TS} theo mô hình tự lưu trữ (\texttt{on-premise}), bao gồm phân hệ máy chủ \texttt{backend\_\allowbreak{}rag} (NestJS~11, TypeScript~5.7) và phân hệ giao diện \texttt{frontend\_\allowbreak{}rag} (React~19, Vite~6, React Three Fiber).
 
 Do toàn bộ mô hình nhúng, chỉ mục vector và mô hình ngôn ngữ lớn (\texttt{LLM}) đều thực thi trên hạ tầng nội bộ thay vì gọi API bên ngoài, công tác triển khai đối mặt với hai ràng buộc trực tiếp: cân đối ngân sách bộ nhớ cho suy luận cục bộ và ngăn chặn sớm các lỗi cấu hình âm thầm (hệ thống vẫn trả HTTP~200 nhưng truy hồi sai không gian vector hoặc thiếu ngữ cảnh đồ thị). Các mục tiếp theo lần lượt phân tích yêu cầu hạ tầng, kiến trúc đóng gói container hai tầng, cơ chế kiểm soát biến môi trường, thiết lập reverse proxy cùng bảo mật \texttt{TLS}, và quy trình giám sát sự cố.

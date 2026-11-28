@@ -5,66 +5,6 @@
 \chapter{Triển khai hệ thống}
 \label{chap:trien-khai-he-thong}
 
-% Bộ style TikZ đồng bộ toàn báo cáo
-\tikzset{
-    ragbox/.style={
-        rectangle,
-        rounded corners=3pt,
-        minimum width=2.6cm,
-        minimum height=0.82cm,
-        text centered,
-        align=center,
-        draw=primaryBlue,
-        line width=0.8pt,
-        fill=primaryBlue!8,
-        font=\small\sffamily
-    },
-    ragdb/.style={
-        cylinder,
-        shape border rotate=90,
-        aspect=0.22,
-        minimum width=2.3cm,
-        minimum height=0.95cm,
-        text centered,
-        align=center,
-        draw=primaryBlue!85!black,
-        line width=0.8pt,
-        fill=primaryBlue!18,
-        font=\small\sffamily
-    },
-    ragdecision/.style={
-        diamond,
-        aspect=2.1,
-        inner sep=2pt,
-        text centered,
-        align=center,
-        draw=primaryBlue!90!black,
-        line width=0.8pt,
-        fill=primaryBlue!14,
-        font=\small\sffamily
-    },
-    raggroup/.style={
-        rectangle,
-        rounded corners=5pt,
-        draw=primaryBlue!60,
-        dashed,
-        line width=0.9pt,
-        fill=primaryBlue!3,
-        inner sep=8pt
-    },
-    ragarrow/.style={
-        -{Stealth[length=2.3mm, width=1.7mm]},
-        line width=0.85pt,
-        draw=primaryBlue!85!black
-    },
-    ragdashed/.style={
-        -{Stealth[length=2.1mm, width=1.5mm]},
-        line width=0.75pt,
-        dashed,
-        draw=primaryBlue!70!black
-    }
-}
-
 Chương~\ref{chap:thiet-ke-kien-truc} đã thiết kế kiến trúc tổng thể và Chương~\ref{chap:data-pipeline-ai} đã đặc tả chi tiết pipeline dữ liệu cùng phân hệ tích hợp AI. Chương này trình bày cách các thiết kế đó được hiện thực trong mã nguồn: từ thiết lập môi trường phát triển, tổ chức monorepo, triển khai phân hệ backend, triển khai phân hệ giao diện, hiện thực các engine AI cùng pipeline nạp kho, đến tích hợp toàn hệ thống và kiểm soát tình huống biên.
 
 % ==============================================================================
@@ -153,7 +93,7 @@ Kho đối tượng & \texttt{MINIO\_\allowbreak{}ENDPOINT}, \texttt{MINIO\_\all
 \end{longtable}
 \endgroup
 
-Ba ràng buộc trong lớp xác thực cấu hình quyết định trực tiếp độ an toàn khi vận hành: thứ nhất, các bộ kiểm tra chuỗi \texttt{placeholder} chỉ kích hoạt ở chế độ \texttt{production} để không cản trở quá trình kiểm thử cục bộ; thứ hai, \texttt{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET} và \texttt{JWT\_\allowbreak{}REFRESH\_\allowbreak{}SECRET} bắt buộc khác nhau nhằm ngăn việc dùng access token thay cho refresh token trong cơ chế xoay vòng; thứ ba, chuỗi kết nối \texttt{MONGO\_\allowbreak{}URI} ở chế độ \texttt{production} phải mang thông tin xác thực tài khoản. Đoạn trích cấu hình kho khoa học và chỉ mục vector trong \texttt{backend\_\allowbreak{}rag/\allowbreak{}src/\allowbreak{}config/\allowbreak{}env.\allowbreak{}schema.\allowbreak{}ts} minh hoạ cách khai báo kết nối chỉ đọc tuỳ chọn cho bước nạp nội dung đoạn:
+Ba ràng buộc trong lớp xác thực cấu hình quyết định trực tiếp độ an toàn khi vận hành. Thứ nhất, các bộ kiểm tra chuỗi \texttt{placeholder} chỉ kích hoạt ở chế độ \texttt{production} để không cản trở quá trình kiểm thử cục bộ. Thứ hai, \texttt{JWT\_\allowbreak{}ACCESS\_\allowbreak{}SECRET} và \texttt{JWT\_\allowbreak{}REFRESH\_\allowbreak{}SECRET} bắt buộc khác nhau nhằm ngăn việc dùng access token thay cho refresh token trong cơ chế xoay vòng. Thứ ba, chuỗi kết nối \texttt{MONGO\_\allowbreak{}URI} ở chế độ \texttt{production} phải mang thông tin xác thực tài khoản. Đoạn trích cấu hình kho khoa học và chỉ mục vector trong \texttt{backend\_\allowbreak{}rag/\allowbreak{}src/\allowbreak{}config/\allowbreak{}env.\allowbreak{}schema.\allowbreak{}ts} minh hoạ cách khai báo kết nối chỉ đọc tuỳ chọn cho bước nạp nội dung đoạn:
 
 \begin{tsbox}{Khai báo biến môi trường kết nối kho khoa học và Qdrant trong env.schema.ts}
 MONGO_CORPUS_URI: z.string().min(1).optional(),
@@ -191,7 +131,7 @@ Hình~\ref{fig:cay-thu-muc-monorepo} minh hoạ cây thư mục tổng thể c�
 
 Bên cạnh khối mã nguồn thực thi ở Hình~\ref{fig:cay-thu-muc-monorepo}, thư mục \texttt{docs/} chứa các đặc tả liên chương và \texttt{agents/} chứa quy chuẩn kỹ thuật biên soạn; việc tách biệt giúp cây mã nguồn chính chỉ tập trung vào ba khối được biên dịch, kiểm thử và đóng gói.
 
-Bên trong \texttt{backend\_rag/src}, mã nguồn được tổ chức thành bốn tầng theo ranh giới trách nhiệm (Hình~\ref{fig:cay-thu-muc-backend}): tầng \texttt{modules/} chứa các phân hệ nghiệp vụ HTTP (\texttt{controller}, \texttt{service}, \texttt{DTO}, \texttt{schema} Mongoose); tầng \texttt{engines/} chứa các thành phần truy hồi và suy luận đứng sau cổng giao diện \texttt{Symbol}; tầng \texttt{common/} chứa bộ lọc lỗi, phân trang theo \texttt{cursor}, giới hạn tần suất và ngữ cảnh nhật ký; tầng \texttt{config/} chịu trách nhiệm xác thực biến môi trường. Ở phía giao diện, \texttt{frontend\_rag/src} áp dụng kiến trúc chia theo tính năng (\textit{vertical slice}) (Hình~\ref{fig:cay-thu-muc-frontend}).
+Bên trong \texttt{backend\_rag/src}, mã nguồn được tổ chức thành bốn tầng theo ranh giới trách nhiệm (Hình~\ref{fig:cay-thu-muc-backend}). Tầng \texttt{modules/} chứa các phân hệ nghiệp vụ HTTP (\texttt{controller}, \texttt{service}, \texttt{DTO}, \texttt{schema} Mongoose), còn tầng \texttt{engines/} chứa các thành phần truy hồi và suy luận đứng sau cổng giao diện \texttt{Symbol}. Tầng \texttt{common/} chứa bộ lọc lỗi, phân trang theo \texttt{cursor}, giới hạn tần suất và ngữ cảnh nhật ký; tầng \texttt{config/} chịu trách nhiệm xác thực biến môi trường. Ở phía giao diện, \texttt{frontend\_rag/src} áp dụng kiến trúc chia theo tính năng (\textit{vertical slice}) (Hình~\ref{fig:cay-thu-muc-frontend}).
 
 \begin{figure}[htbp]
 \centering
@@ -857,7 +797,7 @@ Thuật toán băm mật khẩu & Argon2id & \texttt{memoryCost:\allowbreak{} 65
 \texttt{thread pool} Node.js & 4 & Gán \texttt{UV\_\allowbreak{}THREADPOOL\_\allowbreak{}SIZE = 4} đầu tệp \texttt{src/main.ts} & Khớp mức song song của Argon2id, cô lập tác vụ mật mã khỏi endpoint nhẹ (Mục~\ref{subsec:tang-3-crypto}) \\
 Giới hạn đăng nhập sai & 5~lần/chu kỳ & Đếm nhanh trong bộ nhớ đệm (\texttt{TTL} 15~phút) kèm ghi \texttt{login\_attempts} & Khoá tạm thời tức thời trong tiến trình đồng thời lưu dấu vết quản trị \\
 Chống dò email & Mật khẩu giả & Luôn thực thi \texttt{argon2.verify} với chuỗi băm giả khi không tìm thấy email & Thời gian phản hồi đồng đều giữa email đã đăng ký và chưa đăng ký \\
-Thời hạn access token & 15~phút & \texttt{ACCESS\_\allowbreak{}TTL\_\allowbreak{}SECONDS} & Rút ngắn cửa sổ rủi ro khi token truy cập bị rò rỉ \\
+Thời hạn access token & 15~phút & \texttt{ACCESS\_\allowbreak{}TTL\_\allowbreak{}SECONDS} & Rút ngắn cửa sổ rủi ro khi access token bị rò rỉ \\
 Thời hạn refresh token & 7~ngày & \texttt{REFRESH\_\allowbreak{}TTL\_\allowbreak{}SECONDS} & Cân bằng trải nghiệm phiên đăng nhập và giới hạn thời gian tồn tại \\
 Xoay vòng refresh token & Dùng 1~lần theo họ token & Cập nhật nguyên tử điều kiện \texttt{revoked\_\allowbreak{}at:\allowbreak{} null}; tái sử dụng $\implies$ thu hồi cả họ & Phát hiện và vô hiệu hoá ngay cả họ token khi bị đánh cắp \\
 Thu hồi token đang hoạt động & \texttt{token\_version} trong claim \texttt{ver} & Đối chiếu \texttt{user.token\_version} tại \texttt{JwtAuthGuard} & Thu hồi tức thời access token khi đổi vai trò hoặc khoá tài khoản \\
@@ -996,6 +936,428 @@ export const MAX_INFLIGHT_PER_USER = 2;
 /** Prevent a single shared IP from exhausting the 1-slot + 8-queue LLM budget. */
 export const MAX_INFLIGHT_PER_IP = 3;
 \end{tsbox}
+
+% ==============================================================================
+% LUỒNG 01: ĐĂNG KÝ TÀI KHOẢN & KIỂM ĐỊNH CHÍNH SÁCH MẬT KHẨU (POST /api/v1/users)
+% Chuyển đổi nguyên bản từ agents/markdown_content/01_user_registration_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.45cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Người dùng nhập biểu mẫu Đăng ký)};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{AuthOverlay.tsx: handleSubmit})};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{useAuthSession -> authStore.register})};
+    \node[ragstep] (s4) at (2, 1) {\textbf{4. FE Service}\\(\texttt{authService.ts: registerNewUser})};
+    \node[ragstep] (s5) at (1, 1) {\textbf{5. FE API}\\(\texttt{authApi.ts: registerAccount})};
+    \node[ragstep] (s6) at (0, 1) {\textbf{6. FE HTTP Client}\\(\texttt{http.ts: publicFetch -> POST /api/v1/users})};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 15) ---
+    \node[ragstep] (s7)  at (0, 2.35) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: UV\_THREADPOOL\_SIZE=4, keepAliveTimeout=65s})};
+    \node[ragstep] (s8)  at (1, 2.35) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{app.setup.ts: requestId, helmet, metrics, XML/JSON, /api/v1})};
+    \node[ragstep] (s9)  at (2, 2.35) {\textbf{9. BE Guard}\\(\texttt{ThrottlerGuard + @RateLimit register 5 req/60s})};
+    \node[ragstep] (s10) at (2, 3.45) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11) at (1, 3.45) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe whitelist/transform -> RegisterDto})};
+    \node[ragstep] (s12) at (0, 3.45) {\textbf{12. BE Controller}\\(\texttt{users.controller.ts: UsersController.register})};
+    \node[ragstep] (s13) at (0, 4.55) {\textbf{13. BE Service}\\(\texttt{auth.service.ts: AuthService.register + validatePassword + Argon2id + TokenService.issue})};
+    \node[ragstep] (s14) at (1, 4.55) {\textbf{14. BE Repository}\\(\texttt{users.repository.ts + refresh-tokens.repository.ts})};
+    \node[ragstepdb] (s15) at (2, 4.55) {\textbf{15. Database}\\(MongoDB: \texttt{users} \& \texttt{refresh\_tokens})};
+
+    \draw[ragarrow] (s6.south) -- node[right, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{HTTP POST /api/v1/users}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13) -- (s14);
+    \draw[ragarrow] (s14) -- (s15);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 5.95) {\textbf{16. Database $\to$ BE Repository}\\(\texttt{UserDocument} \& xác nhận insert \texttt{RefreshToken})};
+    \node[ragstep] (s17) at (1, 5.95) {\textbf{17. BE Service}\\(\texttt{cacheUser} 3 \texttt{LRUCache}, lọc \texttt{password\_hash} $\to$ \texttt{AuthResponseDto})};
+    \node[ragstep] (s18) at (0, 5.95) {\textbf{18. BE Controller}\\(\texttt{UsersController.register} trả \texttt{AuthResponseDto}, status \texttt{201})};
+    \node[ragstep] (s19) at (0, 7.05) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor +\_links -> ContentNegotiation JSON/XML})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 7.05) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{HTTP 201, X-Request-Id, metrics finalize, HttpExceptionFilter})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 8.4) {\textbf{21. FE HTTP Client}\\(\texttt{publicFetch} nhận Response \texttt{HTTP 201 / 4xx})};
+    \node[ragstep] (s22) at (1, 8.4) {\textbf{22. FE API}\\(\texttt{authApi.ts: readJsonOrThrow -> AuthTokenResponse} hoặc \texttt{AuthApiError})};
+    \node[ragstep] (s23) at (0, 8.4) {\textbf{23. FE Service}\\(\texttt{authService.ts}: trả \texttt{AuthTokenResponse} hoặc \texttt{mapAuthError} tiếng Việt)};
+    \node[ragstep] (s24) at (0, 9.5) {\textbf{24. FE Hook \& Store}\\(\texttt{authStore set + persist localStorage -> useAuthSession})};
+    \node[ragstep] (s25) at (1, 9.5) {\textbf{25. FE Component}\\(\texttt{AuthOverlay} tắt loading $\to$ \texttt{ChatPanel} mở \texttt{MessageList} \& \texttt{ChatInput})};
+    \node[ragstep] (s26) at (2, 9.5) {\textbf{26. Client}\\(Người dùng đã đăng nhập và sẵn sàng chat RAG)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[left, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{HTTP 201 Created}} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Client $\to$ HTTP Request)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP Response $\to$ Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước đăng ký tài khoản và kiểm định chính sách mật khẩu (\texttt{POST /api/v1/users})}
+\label{fig:flow01-arch-register}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{2.65}
+    \def\ybot{-27.7}
+
+    % Participants (0..11)
+    \node[ragseqactor] (P0) at (0*\dx, 0) {Client\\(Trình duyệt)};
+    \foreach \i/\name/\lbl in {
+        1/P1/{\texttt{AuthOverlay.tsx}},
+        2/P2/{\texttt{authStore.ts}\\(\texttt{useAuth})},
+        3/P3/{\texttt{authService.ts}},
+        4/P4/{\texttt{authApi.ts} /\\\texttt{publicFetch}},
+        5/P5/{Express MW \&\\\texttt{ThrottlerGuard}},
+        6/P6/{\texttt{ValidationPipe}\\(\texttt{RegisterDto})},
+        7/P7/{\texttt{UsersController}},
+        8/P8/{\texttt{AuthService} \&\\\texttt{common-passwords}},
+        9/P9/{\texttt{TokenService}},
+        10/P10/{\texttt{UsersRepo} /\\\texttt{RefreshTokensRepo}},
+        11/P11/{MongoDB}
+    }{
+        \node[ragseqhead] (\name) at (\i*\dx, 0) {\lbl};
+    }
+    \foreach \i in {0,...,11} {
+        \draw[raglifeline] (P\i.south) -- (\i*\dx, \ybot);
+    }
+
+    % Background alt / par boxes
+    \begin{scope}[on background layer]
+        % Outer alt: COMMON_PASSWORDS vs OWASP
+        \draw[ragaltbox] (-0.38*\dx, -8.55) rectangle (11.38*\dx, -27.35);
+        \draw[ragdivider] (-0.38*\dx, -12.95) -- (11.38*\dx, -12.95);
+        % Inner alt: Email taken vs available
+        \draw[ragaltbox, fill=orange!7] (-0.28*\dx, -15.35) rectangle (11.28*\dx, -27.15);
+        \draw[ragdivider] (-0.28*\dx, -19.75) -- (11.28*\dx, -19.75);
+        % Par: sign JWT & insert RefreshToken
+        \draw[ragparbox] (8.65*\dx, -22.75) rectangle (11.2*\dx, -24.75);
+        \draw[ragdivider] (8.65*\dx, -23.75) -- (11.2*\dx, -23.75);
+    \end{scope}
+
+    % Messages 1..11
+    \draw[ragmsg] (0*\dx, -0.95) -- node[ragmsglbl, above, pos=0.55] {\textbf{1.} Điền \texttt{name, email, password} \& nhấn Đăng ký} (1*\dx, -0.95);
+    \draw[ragmsg] (1*\dx, -1.55) -- ++(0.45,0) -- ++(0,-0.32) -- (1*\dx, -1.87);
+    \node[ragmsglbl, right] at (1*\dx+0.48, -1.71) {\textbf{2.} \texttt{handleSubmit()} kiểm tra HTML5 (\texttt{required, type=email, minLength=8})};
+
+    \draw[ragmsg] (1*\dx, -2.40) -- node[ragmsglbl, above] {\textbf{3.} \texttt{register(email, password, name)}} (2*\dx, -2.40);
+    \draw[ragmsg] (2*\dx, -3.00) -- node[ragmsglbl, above] {\textbf{4.} \texttt{registerNewUser(email, password, displayName)}} (3*\dx, -3.00);
+    \draw[ragmsg] (3*\dx, -3.60) -- node[ragmsglbl, above] {\textbf{5.} \texttt{registerAccount(payload) -> publicFetch('/users', POST)}} (4*\dx, -3.60);
+    \draw[ragmsg] (4*\dx, -4.20) -- node[ragmsglbl, above] {\textbf{6.} \texttt{HTTP POST /api/v1/users} (JSON)} (5*\dx, -4.20);
+
+    \draw[ragmsg] (5*\dx, -4.75) -- ++(0.45,0) -- ++(0,-0.32) -- (5*\dx, -5.07);
+    \node[ragmsglbl, right] at (5*\dx+0.48, -4.91) {\textbf{7.} \texttt{requestIdMiddleware + securityHeaders + ThrottlerGuard} (5 req/60s)};
+
+    \draw[ragmsg] (5*\dx, -5.60) -- node[ragmsglbl, above] {\textbf{8.} \texttt{ContentNegotiationInterceptor} (In) $\to$ \texttt{ValidationPipe}} (6*\dx, -5.60);
+    \draw[ragmsg] (6*\dx, -6.15) -- ++(0.45,0) -- ++(0,-0.32) -- (6*\dx, -6.47);
+    \node[ragmsglbl, right] at (6*\dx+0.48, -6.31) {\textbf{9.} Transform trim + kiểm tra \texttt{RegisterDto} (\texttt{email, 10..200 chars, display\_name})};
+
+    \draw[ragmsg] (6*\dx, -7.00) -- node[ragmsglbl, above] {\textbf{10.} \texttt{dto: RegisterDto}} (7*\dx, -7.00);
+    \draw[ragmsg] (7*\dx, -7.55) -- node[ragmsglbl, above] {\textbf{11.} \texttt{register(dto)}} (8*\dx, -7.55);
+    \draw[ragmsg] (8*\dx, -8.05) -- ++(0.45,0) -- ++(0,-0.32) -- (8*\dx, -8.37);
+    \node[ragmsglbl, left] at (8*\dx-0.05, -8.21) {\textbf{12.} \texttt{normalizeEmail(dto.email) + validatePassword(password, email)}};
+
+    % Alt branch 1: COMMON_PASSWORDS
+    \node[ragtag] at (-0.36*\dx, -8.58) {alt [Mật khẩu thuộc \texttt{COMMON\_PASSWORDS} hoặc chứa email local-part]};
+    \draw[ragreply] (8*\dx, -9.25) -- node[ragmsglbl, above, fill=orange!4] {\textbf{13.} Ném \texttt{BadRequestException (password too common / password contains email)}} (7*\dx, -9.25);
+    \draw[ragreply] (7*\dx, -9.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{14.} \texttt{HttpExceptionFilter -> HTTP 400 Bad Request}} (4*\dx, -9.85);
+    \draw[ragreply] (4*\dx, -10.45) -- node[ragmsglbl, above, fill=orange!4] {\textbf{15.} Ném \texttt{AuthApiError(400, serverMessage)}} (3*\dx, -10.45);
+    \draw[ragreply] (3*\dx, -11.05) -- node[ragmsglbl, above, fill=orange!4] {\textbf{16.} \texttt{mapAuthError() -> Error(serverMessage)}} (2*\dx, -11.05);
+    \draw[ragreply] (2*\dx, -11.65) -- node[ragmsglbl, above, fill=orange!4] {\textbf{17.} \texttt{catch(err) -> setError(message)}} (1*\dx, -11.65);
+    \draw[ragreply] (1*\dx, -12.35) -- node[ragmsglbl, above, pos=0.45, fill=orange!4] {\textbf{18.} Hiển thị banner lỗi \texttt{role=alert}} (0*\dx, -12.35);
+
+    % Else branch: OWASP valid
+    \node[ragtag] at (-0.36*\dx, -12.98) {else [Mật khẩu hợp lệ theo chính sách OWASP]};
+    \draw[ragmsg] (8*\dx, -13.65) -- node[ragmsglbl, above, fill=orange!4] {\textbf{19.} \texttt{existsByEmail(email)}} (10*\dx, -13.65);
+    \draw[ragmsg] (10*\dx, -14.25) -- node[ragmsglbl, above, fill=orange!4] {\textbf{20.} \texttt{users.exists(\{ email \})}} (11*\dx, -14.25);
+    \draw[ragreply] (11*\dx, -14.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{21.} \texttt{boolean}} (10*\dx, -14.85);
+
+    % Inner alt branch 1: Email taken
+    \node[ragtag] at (-0.26*\dx, -15.38) {alt [Email đã tồn tại (hoặc trúng unique index \texttt{E11000} khi race)]};
+    \draw[ragreply] (8*\dx, -16.05) -- node[ragmsglbl, above, fill=orange!7] {\textbf{22.} \texttt{emailTaken() -> ConflictException('email already exists')}} (7*\dx, -16.05);
+    \draw[ragreply] (7*\dx, -16.65) -- node[ragmsglbl, above, fill=orange!7] {\textbf{23.} \texttt{HttpExceptionFilter -> HTTP 409 Conflict}} (4*\dx, -16.65);
+    \draw[ragreply] (4*\dx, -17.25) -- node[ragmsglbl, above, fill=orange!7] {\textbf{24.} Ném \texttt{AuthApiError(409, 'email already exists')}} (3*\dx, -17.25);
+    \draw[ragreply] (3*\dx, -17.85) -- node[ragmsglbl, above, fill=orange!7] {\textbf{25.} \texttt{mapAuthError()} $\to$ ``Email này đã được đăng ký tài khoản.''} (2*\dx, -17.85);
+    \draw[ragreply] (2*\dx, -18.45) -- node[ragmsglbl, above, fill=orange!7] {\textbf{26.} \texttt{setError}(``Email này đã được đăng ký tài khoản.'')} (1*\dx, -18.45);
+    \draw[ragreply] (1*\dx, -19.15) -- node[ragmsglbl, above, pos=0.45, fill=orange!7] {\textbf{27.} Hiển thị cảnh báo trùng email} (0*\dx, -19.15);
+
+    % Inner else branch: Email available
+    \node[ragtag] at (-0.26*\dx, -19.78) {else [Email khả dụng]};
+    \draw[ragmsg] (8*\dx, -20.30) -- ++(0.45,0) -- ++(0,-0.28) -- (8*\dx, -20.58);
+    \node[ragmsglbl, left, fill=orange!7] at (8*\dx-0.05, -20.44) {\textbf{28.} \texttt{argon2.hash(password, ARGON2\_OPTIONS 64MB)}};
+
+    \draw[ragmsg] (8*\dx, -21.00) -- node[ragmsglbl, above, fill=orange!7] {\textbf{29.} \texttt{users.create(\{ roles: ['user'], is\_active: true, token\_version: 0 \})}} (10*\dx, -21.00);
+    \draw[ragmsg] (10*\dx, -21.48) -- node[ragmsglbl, above, fill=orange!7] {\textbf{30.} \texttt{insertOne} vào \texttt{users}} (11*\dx, -21.48);
+    \draw[ragreply] (11*\dx, -21.94) -- node[ragmsglbl, above, fill=orange!7] {\textbf{31.} \texttt{UserDocument (\_id, created\_at)}} (10*\dx, -21.94);
+
+    \draw[ragmsg] (8*\dx, -22.25) -- ++(-0.42,0) -- ++(0,-0.25) -- (8*\dx, -22.50);
+    \node[ragmsglbl, left, fill=orange!7] at (8*\dx-0.45, -22.37) {\textbf{32.} \texttt{logEvent('REGISTER\_OK') + cacheUser(user)}};
+    \draw[ragmsg] (8*\dx, -22.62) -- node[ragmsglbl, above, fill=orange!7] {\textbf{33.} \texttt{issue(\{ id, roles, tokenVersion: 0 \}, familyId)}} (9*\dx, -22.62);
+
+    % Par block
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (8.68*\dx, -22.78) {par [Ký Access Token \& Lưu Refresh Token song song]};
+    \draw[ragmsg] (9*\dx, -23.30) -- ++(0.42,0) -- ++(0,-0.28) -- (9*\dx, -23.58);
+    \node[ragmsglbl, right, fill=teal!3] at (9*\dx+0.45, -23.44) {\textbf{34.} \texttt{jwt.signAsync(AccessClaims, 900s)}};
+    \node[ragtag, fill=teal!10, text=teal!80!black] at (8.68*\dx, -23.78) {and};
+    \draw[ragmsg] (9*\dx, -24.22) -- node[ragmsglbl, above, fill=teal!3] {\textbf{35.} \texttt{refreshTokens.create(\{ token\_hash: HMAC-SHA256, +7d \})}} (10*\dx, -24.22);
+    \draw[ragmsg] (10*\dx, -24.62) -- node[ragmsglbl, above, fill=teal!3] {\textbf{36.} \texttt{insertOne refresh\_tokens}} (11*\dx, -24.62);
+
+    \draw[ragreply] (9*\dx, -25.10) -- node[ragmsglbl, above, fill=orange!7] {\textbf{37.} \texttt{IssuedTokens}} (8*\dx, -25.10);
+    \draw[ragreply] (8*\dx, -25.50) -- node[ragmsglbl, above, fill=orange!7] {\textbf{38.} \texttt{AuthResponseDto}} (7*\dx, -25.50);
+    \draw[ragreply] (7*\dx, -25.90) -- node[ragmsglbl, above, fill=orange!7] {\textbf{39.} \texttt{LinksInterceptor (\_links) -> HTTP 201 Created}} (4*\dx, -25.90);
+    \draw[ragreply] (4*\dx, -26.25) -- node[ragmsglbl, above, fill=orange!7] {\textbf{40.} \texttt{AuthTokenResponse} JSON $\to$ \textbf{41.} trả \texttt{AuthTokenResponse}} (2*\dx, -26.25);
+    \draw[ragmsg] (2*\dx, -26.58) -- ++(0.42,0) -- ++(0,-0.25) -- (2*\dx, -26.83);
+    \node[ragmsglbl, right, fill=orange!7] at (2*\dx+0.45, -26.70) {\textbf{42.} \texttt{set(\{ user, accessToken, refreshToken, isAuthenticated: true \})}};
+    \draw[ragreply] (2*\dx, -26.95) -- node[ragmsglbl, above, fill=orange!7] {\textbf{43.} persist \texttt{localStorage ('rag-auth-storage')}} (1*\dx, -26.95);
+    \draw[ragreply] (1*\dx, -27.08) -- node[ragmsglbl, below, pos=0.45, fill=orange!7] {\textbf{44.} \texttt{ChatPanel} chuyển sang \texttt{MessageList + ChatInput}} (0*\dx, -27.08);
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự đầu--cuối nghiệp vụ đăng ký tài khoản (\texttt{POST /api/v1/users})}
+\label{fig:flow01-seq-register}
+\end{figure}
+% ==============================================================================
+% LUỒNG 02: ĐĂNG NHẬP, CHỐNG BRUTE-FORCE & CẤP PHÁT CẶP TOKEN (POST /api/v1/auth/tokens)
+% Chuyển đổi nguyên bản từ agents/markdown_content/02_auth_login_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.68cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Người dùng nhập \texttt{email, password})};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{ChatPanel -> AuthOverlay.handleSubmit})};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{useAuthSession -> authStore.login})};
+    \node[ragstep] (s4) at (2, 0.95) {\textbf{4. FE Service}\\(\texttt{authService.ts: authenticate})};
+    \node[ragstep] (s5) at (1, 0.95) {\textbf{5. FE API}\\(\texttt{authApi.ts: loginWithPassword})};
+    \node[ragstep] (s6) at (0, 0.95) {\textbf{6. FE HTTP Client}\\(\texttt{http.ts: publicFetch -> POST /api/v1/auth/tokens})};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 15) ---
+    \node[ragstep] (s7)  at (0, 2.50) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: UV\_THREADPOOL\_SIZE=4, keepAliveTimeout=65s})};
+    \node[ragstep] (s8)  at (1, 2.50) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{app.setup.ts: trust proxy, requestId, helmet, metrics, XML/JSON})};
+    \node[ragstep] (s9)  at (2, 2.50) {\textbf{9. BE Guard}\\(\texttt{ThrottlerGuard + @RateLimit login 10 req/60s})};
+    \node[ragstep] (s10) at (2, 3.50) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11) at (1, 3.50) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe whitelist/transform -> LoginDto})};
+    \node[ragstep] (s12) at (0, 3.50) {\textbf{12. BE Controller}\\(\texttt{AuthController.login @Post tokens})};
+    \node[ragstep] (s13) at (0, 4.65) {\textbf{13. BE Service}\\(\texttt{AuthService.login LRUCache}, lockout, \texttt{Argon2id/dummyHash} \& \texttt{TokenService.issue})};
+    \node[ragstep] (s14) at (1, 4.65) {\textbf{14. BE Repository}\\(\texttt{LoginAttemptsRepository, UsersRepository, RefreshTokensRepository})};
+    \node[ragstepdb] (s15) at (2, 4.65) {\textbf{15. Database}\\(MongoDB: \texttt{login\_attempts, users, refresh\_tokens})};
+
+    \draw[ragarrow] (s6.south) -- node[right, pos=0.36, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.2pt] {\texttt{POST /api/v1/auth/tokens}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13) -- (s14);
+    \draw[ragarrow] (s14) -- (s15);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 6.25) {\textbf{16. Database $\to$ BE Repository}\\(\texttt{LeanUser, attemptCount}, insert \texttt{RefreshToken})};
+    \node[ragstep] (s17) at (1, 6.25) {\textbf{17. BE Service}\\(cập nhật cache, lọc \texttt{password\_hash} $\to$ \texttt{AuthResponseDto})};
+    \node[ragstep] (s18) at (0, 6.25) {\textbf{18. BE Controller}\\(\texttt{AuthController.login} trả \texttt{AuthResponseDto} status \texttt{201})};
+    \node[ragstep] (s19) at (0, 7.25) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor +\_links -> ContentNegotiation JSON/XML})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 7.25) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{HTTP 201 / HttpExceptionFilter + X-Request-Id + Metrics})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 8.80) {\textbf{21. FE HTTP Client}\\(\texttt{publicFetch} nhận Response \texttt{HTTP 201 / 401 / 429})};
+    \node[ragstep] (s22) at (1, 8.80) {\textbf{22. FE API}\\(\texttt{authApi.ts: readJsonOrThrow -> AuthTokenResponse} hoặc \texttt{AuthApiError})};
+    \node[ragstep] (s23) at (0, 8.80) {\textbf{23. FE Service}\\(\texttt{authService.ts}: trả \texttt{AuthTokenResponse} hoặc \texttt{mapAuthError} tiếng Việt)};
+    \node[ragstep] (s24) at (0, 9.80) {\textbf{24. FE Hook \& Store}\\(\texttt{authStore set + persist localStorage -> useAuthSession})};
+    \node[ragstep] (s25) at (1, 9.80) {\textbf{25. FE Component}\\(\texttt{AuthOverlay} tắt loading $\to$ \texttt{ChatPanel + MessageList + initSessions})};
+    \node[ragstep] (s26) at (2, 9.80) {\textbf{26. Client}\\(Người dùng đăng nhập thành công / thấy thông báo lỗi tiếng Việt)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[right, align=left, pos=0.45, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.2pt] {\texttt{HTTP 201 Created / 4xx}} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Client $\to$ HTTP Request)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt, xshift=-38pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP Response $\to$ Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước đăng nhập, chống brute-force và cấp phát cặp token (\texttt{POST /api/v1/auth/tokens})}
+\label{fig:flow02-arch-login}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{2.70}
+    \def\ybot{-29.9}
+
+    % Participants (0..10)
+    \node[ragseqactor] (P0)  at (0*\dx, 0)  {Client /\\Browser};
+    \node[ragseqhead]  (P1)  at (1*\dx, 0)  {\texttt{AuthOverlay} \&\\\texttt{ChatPanel}};
+    \node[ragseqhead]  (P2)  at (2*\dx, 0)  {\texttt{useAuth}\\(Zustand)};
+    \node[ragseqhead]  (P3)  at (3*\dx, 0)  {\texttt{authService} \&\\\texttt{authApi}};
+    \node[ragseqhead]  (P4)  at (4*\dx, 0)  {\texttt{publicFetch}};
+    \node[ragseqhead]  (P5)  at (5*\dx, 0)  {Express MW /\\\texttt{Throttler / Pipe}};
+    \node[ragseqhead]  (P6)  at (6*\dx, 0)  {\texttt{AuthController}\\.\texttt{login}};
+    \node[ragseqhead]  (P7)  at (7*\dx, 0)  {\texttt{AuthService}\\.\texttt{login}};
+    \node[ragseqhead]  (P8)  at (8*\dx, 0)  {\texttt{LRUCache}\\(\texttt{AuthService})};
+    \node[ragseqhead]  (P9)  at (9*\dx, 0)  {\texttt{TokenService}\\.\texttt{issue}};
+    \node[ragseqhead]  (P10) at (10*\dx, 0) {MongoDB\\(Repositories)};
+    \foreach \k in {0,...,10} {
+        \draw[raglifeline] (P\k.south) -- (\k*\dx, \ybot);
+    }
+
+    % Background alt / par frames
+    \begin{scope}[on background layer]
+        % Outer Edge alt (429 / 400-415 / Valid)
+        \draw[ragaltbox] (3.7*\dx, -3.55) rectangle (10.35*\dx, -24.75);
+        \draw[ragdivider] (3.7*\dx, -4.65) -- (10.35*\dx, -4.65);
+        \draw[ragdivider] (3.7*\dx, -5.75) -- (10.35*\dx, -5.75);
+        % Cache miss alt + par Promise.all
+        \draw[ragaltbox, fill=primaryBlue!4] (6.7*\dx, -8.35) rectangle (10.28*\dx, -11.75);
+        \draw[ragparbox] (6.8*\dx, -8.85) rectangle (10.2*\dx, -10.50);
+        % Lockout alt (attemptCount >= 5 vs < 5)
+        \draw[ragaltbox, fill=orange!6] (3.8*\dx, -11.95) rectangle (10.28*\dx, -24.75);
+        \draw[ragdivider] (3.8*\dx, -13.55) -- (10.28*\dx, -13.55);
+        % Verify result alt (!user || !ok / !is_active / OK)
+        \draw[ragaltbox, fill=orange!9] (3.9*\dx, -14.75) rectangle (10.2*\dx, -24.55);
+        \draw[ragdivider] (3.9*\dx, -17.35) -- (10.2*\dx, -17.35);
+        \draw[ragdivider] (3.9*\dx, -18.95) -- (10.2*\dx, -18.95);
+        % Par: issue tokens & clearByKey
+        \draw[ragparbox] (6.8*\dx, -20.55) rectangle (10.12*\dx, -23.10);
+        % Final FE alt (4xx vs 201)
+        \draw[ragaltbox] (0.7*\dx, -25.05) rectangle (4.3*\dx, -29.55);
+        \draw[ragdivider] (0.7*\dx, -27.15) -- (4.3*\dx, -27.15);
+    \end{scope}
+
+    % Messages 1..5
+    \draw[ragmsg] (0*\dx, -0.95) -- node[ragmsglbl, above, pos=0.55] {\textbf{1.} Nhập \texttt{email, password} \& submit} (1*\dx, -0.95);
+    \draw[ragmsg] (1*\dx, -1.50) -- node[ragmsglbl, above] {\textbf{2.} \texttt{login(email, password)}} (2*\dx, -1.50);
+    \draw[ragmsg] (2*\dx, -2.05) -- node[ragmsglbl, above] {\textbf{3.} \texttt{authenticate(email, password)}} (3*\dx, -2.05);
+    \draw[ragmsg] (3*\dx, -2.60) -- node[ragmsglbl, above] {\textbf{4.} \texttt{publicFetch('/auth/tokens', POST JSON)}} (4*\dx, -2.60);
+    \draw[ragmsg] (4*\dx, -3.15) -- node[ragmsglbl, above] {\textbf{5.} \texttt{POST /api/v1/auth/tokens}} (5*\dx, -3.15);
+
+    % Edge alt
+    \node[ragtag] at (3.73*\dx, -3.58) {alt [Vượt ngưỡng IP Rate Limit (10/min)]};
+    \draw[ragreply] (5*\dx, -4.25) -- node[ragmsglbl, above, fill=orange!4] {\textbf{6.} \texttt{429 Too Many Requests (Retry-After)}} (4*\dx, -4.25);
+
+    \node[ragtag] at (3.73*\dx, -4.68) {else [Body sai định dạng hoặc \texttt{Content-Type} không hợp lệ]};
+    \draw[ragreply] (5*\dx, -5.35) -- node[ragmsglbl, above, fill=orange!4] {\textbf{7.} \texttt{400 Bad Request / 415 Unsupported Media Type}} (4*\dx, -5.35);
+
+    \node[ragtag] at (3.73*\dx, -5.78) {else [Hợp lệ qua Middleware, Guard \& Pipe]};
+    \draw[ragmsg] (5*\dx, -6.35) -- node[ragmsglbl, above, fill=orange!4] {\textbf{8.} \texttt{login(LoginDto, ip)}} (6*\dx, -6.35);
+    \draw[ragmsg] (6*\dx, -6.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{9.} \texttt{login(dto, ip)}} (7*\dx, -6.85);
+    \draw[ragmsg] (7*\dx, -7.30) -- ++(-0.42,0) -- ++(0,-0.26) -- (7*\dx, -7.56);
+    \node[ragmsglbl, left, fill=orange!4] at (7*\dx-0.45, -7.43) {\textbf{10.} \texttt{normalizeEmail \& sha256(email|ip)}};
+    \draw[ragmsg] (7*\dx, -7.95) -- node[ragmsglbl, above, fill=orange!4] {\textbf{11.} Đọc \texttt{attemptCountCache.get(key)} \& \texttt{userByEmailCache.get(email)}} (8*\dx, -7.95);
+
+    % Cache miss alt + par
+    \node[ragtag] at (6.73*\dx, -8.38) {alt [Cache miss một hoặc cả hai giá trị]};
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (6.83*\dx, -8.86) {par [Truy vấn MongoDB song song (\texttt{Promise.all})]};
+    \draw[ragmsg] (7*\dx, -9.62) -- node[ragmsglbl, above, fill=teal!3] {\textbf{12.} \texttt{LoginAttemptsRepository.countByKey(key)}} (10*\dx, -9.62);
+    \draw[ragmsg] (7*\dx, -10.15) -- node[ragmsglbl, above, fill=teal!3] {\textbf{13.} \texttt{UsersRepository.findByEmailLean(email)}} (10*\dx, -10.15);
+    \draw[ragreply] (10*\dx, -10.80) -- node[ragmsglbl, above, fill=primaryBlue!4] {\textbf{14.} \texttt{dbAttempts, dbUser}} (7*\dx, -10.80);
+    \draw[ragmsg] (7*\dx, -11.35) -- node[ragmsglbl, above, fill=primaryBlue!4] {\textbf{15.} Nạp \texttt{attemptCountCache} \& \texttt{userByEmailCache}} (8*\dx, -11.35);
+
+    % Lockout alt
+    \node[ragtag] at (3.83*\dx, -11.98) {alt [\texttt{attemptCount >= MAX\_LOGIN\_FAILURES (5)}]};
+    \draw[ragreply] (7*\dx, -12.65) -- node[ragmsglbl, above, fill=orange!6] {\textbf{16.} \texttt{HttpException 429 ('too many login attempts')}} (5*\dx, -12.65);
+    \draw[ragreply] (5*\dx, -13.20) -- node[ragmsglbl, above, fill=orange!6] {\textbf{17.} \texttt{429 Too Many Requests (HttpExceptionFilter)}} (4*\dx, -13.20);
+
+    \node[ragtag] at (3.83*\dx, -13.58) {else [Chưa chạm ngưỡng khóa tài khoản]};
+    \draw[ragmsg] (7*\dx, -14.15) -- ++(0.42,0) -- ++(0,-0.28) -- (7*\dx, -14.43);
+    \node[ragmsglbl, left, fill=orange!6] at (7*\dx-0.05, -14.29) {\textbf{18.} \texttt{argon2.verify(user ? user.password\_hash : dummyHash(), dto.password)}};
+
+    % Verify result alt
+    \node[ragtag] at (3.93*\dx, -14.78) {alt [\texttt{!user || !ok} (Sai email hoặc sai mật khẩu)]};
+    \draw[ragmsg] (7*\dx, -15.40) -- node[ragmsglbl, above, fill=orange!9] {\textbf{19.} \texttt{attemptCountCache.set(key, attemptCount + 1)}} (8*\dx, -15.40);
+    \draw[ragmsg] (7*\dx, -15.90) -- node[ragmsglbl, above, fill=orange!9] {\textbf{20.} \texttt{LoginAttemptsRepository.record(key)}} (10*\dx, -15.90);
+    \draw[ragreply] (7*\dx, -16.45) -- node[ragmsglbl, above, fill=orange!9] {\textbf{21.} \texttt{UnauthorizedException 401 ('invalid credentials')}} (5*\dx, -16.45);
+    \draw[ragreply] (5*\dx, -17.00) -- node[ragmsglbl, above, fill=orange!9] {\textbf{22.} \texttt{401 Unauthorized (HttpExceptionFilter)}} (4*\dx, -17.00);
+
+    \node[ragtag] at (3.93*\dx, -17.38) {else [\texttt{!user.is\_active} (Tài khoản bị khóa bởi Admin)]};
+    \draw[ragreply] (7*\dx, -18.05) -- node[ragmsglbl, above, fill=orange!9] {\textbf{23.} \texttt{UnauthorizedException 401 ('invalid credentials')}} (5*\dx, -18.05);
+    \draw[ragreply] (5*\dx, -18.60) -- node[ragmsglbl, above, fill=orange!9] {\textbf{24.} \texttt{401 Unauthorized (HttpExceptionFilter)}} (4*\dx, -18.60);
+
+    \node[ragtag] at (3.93*\dx, -18.98) {else [Xác thực thành công \& \texttt{is\_active = true}]};
+    \draw[ragmsg] (7*\dx, -19.55) -- ++(-0.42,0) -- ++(0,-0.25) -- (7*\dx, -19.80);
+    \node[ragmsglbl, left, fill=orange!9] at (7*\dx-0.45, -19.67) {\textbf{25.} Reset \texttt{attemptCountCache} nếu \texttt{hadFailures}};
+    \draw[ragmsg] (7*\dx, -20.25) -- node[ragmsglbl, above, fill=orange!9] {\textbf{26.} \texttt{UsersRepository.updateLastLogin(user.\_id, now)}} (10*\dx, -20.25);
+
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (6.83*\dx, -20.66) {par [Cấp phát token \& dọn lịch sử lỗi song song]};
+    \draw[ragmsg] (7*\dx, -21.40) -- node[ragmsglbl, above, fill=teal!3] {\textbf{27.} \texttt{issue(user, familyId)}} (9*\dx, -21.40);
+    \draw[ragmsg] (9*\dx, -21.82) -- ++(0.38,0) -- ++(0,-0.24) -- (9*\dx, -22.06);
+    \node[ragmsglbl, left, fill=teal!3] at (9*\dx-0.05, -21.94) {\textbf{28.} \texttt{jwt.signAsync(sub, roles, ver)}};
+    \draw[ragmsg] (9*\dx, -22.38) -- node[ragmsglbl, above, fill=teal!3] {\textbf{29.} \texttt{RefreshTokensRepo.create(token\_hash, family\_id)}} (10*\dx, -22.38);
+    \draw[ragmsg] (7*\dx, -22.84) -- node[ragmsglbl, above, fill=teal!3] {\textbf{30.} \texttt{LoginAttemptsRepository.clearByKey(key)} (nếu \texttt{hadFailures})} (10*\dx, -22.84);
+
+    \draw[ragreply] (7*\dx, -23.32) -- node[ragmsglbl, above, fill=orange!9] {\textbf{31.} \texttt{AuthResponseDto (access\_token, refresh\_token, user)}} (6*\dx, -23.32);
+    \draw[ragreply] (6*\dx, -23.80) -- node[ragmsglbl, above, fill=orange!9] {\textbf{32.} \texttt{LinksInterceptor (+\_links)} \& \texttt{ContentNegotiationInterceptor}} (5*\dx, -23.80);
+    \draw[ragreply] (5*\dx, -24.22) -- node[ragmsglbl, above, fill=orange!9] {\textbf{33.} \texttt{201 Created} (JSON hoặc XML + \texttt{X-Request-Id})} (4*\dx, -24.22);
+
+    % Final FE alt
+    \node[ragtag] at (0.73*\dx, -25.08) {alt [Phản hồi lỗi \texttt{401 / 429 / 4xx}]};
+    \draw[ragreply] (4*\dx, -25.72) -- node[ragmsglbl, above, fill=orange!4] {\textbf{34.} Throw \texttt{AuthApiError -> mapAuthError()}} (3*\dx, -25.72);
+    \draw[ragreply] (3*\dx, -26.25) -- node[ragmsglbl, above, fill=orange!4] {\textbf{35.} Throw \texttt{Error}(Thông báo tiếng Việt)} (2*\dx, -26.25);
+    \draw[ragreply] (2*\dx, -26.80) -- node[ragmsglbl, above, fill=orange!4] {\textbf{36.} \texttt{setError(message)} hiển thị \texttt{AlertTriangle}} (1*\dx, -26.80);
+
+    \node[ragtag] at (0.73*\dx, -27.18) {else [Phản hồi \texttt{201 Created}]};
+    \draw[ragreply] (4*\dx, -27.80) -- node[ragmsglbl, above, fill=orange!4] {\textbf{37.} \texttt{AuthTokenResponse}} (3*\dx, -27.80);
+    \draw[ragreply] (3*\dx, -28.32) -- node[ragmsglbl, above, fill=orange!4] {\textbf{38.} \texttt{set(\{ user, accessToken, refreshToken, isAuthenticated: true \})}} (2*\dx, -28.32);
+    \draw[ragmsg] (2*\dx, -28.75) -- ++(0.42,0) -- ++(0,-0.25) -- (2*\dx, -29.00);
+    \node[ragmsglbl, right, fill=orange!4] at (2*\dx+0.45, -28.87) {\textbf{39.} Persist vào \texttt{localStorage ('rag-auth-storage')}};
+    \draw[ragreply] (2*\dx, -29.38) -- node[ragmsglbl, above, fill=orange!4] {\textbf{40.} \texttt{ChatPanel} chuyển sang \texttt{MessageList} \& gọi \texttt{initSessions()}} (1*\dx, -29.38);
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự đầu--cuối nghiệp vụ đăng nhập và chống brute-force (\texttt{POST /api/v1/auth/tokens})}
+\label{fig:flow02-seq-login}
+\end{figure}
 
 \subsection{Tích hợp cơ sở dữ liệu}
 \label{subsec:tich-hop-csdl}
@@ -1261,7 +1623,7 @@ Thứ tự khởi động được sắp xếp để phần chữ của giao di�
 \midrule
 Áp theme trước khi gắn React & \texttt{main.tsx} gọi \texttt{applyCssVars(\allowbreak{}themes[\allowbreak{}currentThemeName()])} trước \texttt{createRoot} & Không nháy màu tối sang sáng ở lần vẽ đầu \\
 \midrule
-Tải song song mã nguồn cảnh 3D & \texttt{AppShell.tsx} gọi \texttt{import('.../WorldCanvas')} ngay khi mô đun được nạp, rồi bọc kết quả bằng \texttt{lazy} & Gói mã WebGL được tải song song với lần vẽ đầu, không nằm trên đường găng \\
+Tải song song mã nguồn cảnh 3D & \texttt{AppShell.tsx} gọi \texttt{import('.../WorldCanvas')} ngay khi module được nạp, rồi bọc kết quả bằng \texttt{lazy} & Gói mã WebGL được tải song song với lần vẽ đầu, không nằm trên đường găng \\
 \midrule
 Trì hoãn nạp dữ liệu thế giới & \texttt{App.tsx} gọi \texttt{useWorld.getState().load()} bên trong \texttt{requestAnimationFrame} & Thanh trên cùng và khung hội thoại được vẽ trước, giữ \texttt{LCP} dưới 2,5~giây \\
 \midrule
@@ -1335,6 +1697,194 @@ export function rotateSessionTokens(staleAccessToken: string, hooks: TokenRotati
 }
 \end{tsbox}
 
+% ==============================================================================
+% LUỒNG 03: TỰ ĐỘNG XOAY VÒNG REFRESH TOKEN 1-RTT & PHÁT HIỆN REPLAY KHI GẶP 401
+% Chuyển đổi nguyên bản từ agents/markdown_content/03_auth_token_rotation_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.45cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Thao tác cần xác thực bị \texttt{401 token expired})};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{ChatPanel / HistoryDrawer} gọi action)};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{useChatPanelState -> useSessionStore -> useAuth.rotateTokens})};
+    \node[ragstep] (s4) at (2, 1) {\textbf{4. FE Service}\\(\texttt{authService.ts: rotateSessionTokens + withTabLock navigator.locks})};
+    \node[ragstep] (s5) at (1, 1) {\textbf{5. FE API}\\(\texttt{authApi.ts: refreshAuthTokens} payload \texttt{refresh\_token})};
+    \node[ragstep] (s6) at (0, 1) {\textbf{6. FE HTTP Client}\\(\texttt{apiFetch} gặp \texttt{401} $\to$ \texttt{publicFetch POST /auth/token-rotations})};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 15) ---
+    \node[ragstep] (s7)  at (0, 2.35) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: keepAliveTimeout=65s, headersTimeout=66s})};
+    \node[ragstep] (s8)  at (1, 2.35) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{app.setup.ts: trust proxy, requestId, helmet, metrics, XML/JSON})};
+    \node[ragstep] (s9)  at (2, 2.35) {\textbf{9. BE Guard}\\(\texttt{ThrottlerGuard + @RateLimit refresh 30 req/60s})};
+    \node[ragstep] (s10) at (2, 3.45) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11) at (1, 3.45) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe -> RefreshDto refresh\_token})};
+    \node[ragstep] (s12) at (0, 3.45) {\textbf{12. BE Controller}\\(\texttt{AuthController.refresh @Post token-rotations})};
+    \node[ragstep] (s13) at (0, 4.55) {\textbf{13. BE Service}\\(\texttt{AuthService.refresh + TokenService.consume HMAC-SHA256 \& issue})};
+    \node[ragstep] (s14) at (1, 4.55) {\textbf{14. BE Repository}\\(\texttt{RefreshTokensRepository.\allowbreak{}consumeActiveByHashLean / create + UsersRepository})};
+    \node[ragstepdb] (s15) at (2, 4.55) {\textbf{15. Database}\\(MongoDB: \texttt{refresh\_tokens} 1-RTT \texttt{findOneAndUpdate} \& \texttt{users})};
+
+    \draw[ragarrow] (s6.south) -- node[right, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{POST /api/v1/auth/token-rotations}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13) -- (s14);
+    \draw[ragarrow] (s14) -- (s15);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 5.95) {\textbf{16. Database $\to$ BE Repository}\\(\texttt{LeanRefreshToken, LeanUser, RefreshToken} mới)};
+    \node[ragstep] (s17) at (1, 5.95) {\textbf{17. BE Service}\\(Kiểm tra reuse/replay $\to$ \texttt{revokeFamily} hoặc trả \texttt{AuthResponseDto + cacheUser})};
+    \node[ragstep] (s18) at (0, 5.95) {\textbf{18. BE Controller}\\(\texttt{AuthController.refresh} trả \texttt{AuthResponseDto} status \texttt{201})};
+    \node[ragstep] (s19) at (0, 7.05) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor +\_links -> ContentNegotiation JSON/XML})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 7.05) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{HTTP 201 / 401 HttpExceptionFilter + X-Request-Id})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 8.4) {\textbf{21. FE HTTP Client}\\(\texttt{publicFetch} đọc Response $\to$ \texttt{apiFetch} replay request gốc khi \texttt{rotated=true})};
+    \node[ragstep] (s22) at (1, 8.4) {\textbf{22. FE API}\\(\texttt{authApi.ts: readJsonOrThrow -> AuthTokenResponse} hoặc \texttt{AuthApiError 401})};
+    \node[ragstep] (s23) at (0, 8.4) {\textbf{23. FE Service}\\(\texttt{authService.ts: onRotated} hoặc \texttt{onRevoked} nếu \texttt{401}, giữ phiên nếu lỗi mạng)};
+    \node[ragstep] (s24) at (0, 9.5) {\textbf{24. FE Hook \& Store}\\(\texttt{useAuth} cập nhật \texttt{localStorage rag-auth-storage} \& \texttt{isAuthenticated})};
+    \node[ragstep] (s25) at (1, 9.5) {\textbf{25. FE Component}\\(\texttt{ChatPanel} giữ phiên \& tải dữ liệu hoặc chuyển \texttt{AuthOverlay} khi \texttt{401})};
+    \node[ragstep] (s26) at (2, 9.5) {\textbf{26. Client}\\(Phiên làm việc nối tiếp liền mạch hoặc được yêu cầu đăng nhập lại)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[left, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{HTTP 201 Created / 401}} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Trigger 401 $\to$ HTTP Request Xoay vòng)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP Response $\to$ Retry \& Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước tự động xoay vòng refresh token 1-RTT (\texttt{POST /api/v1/auth/token-rotations})}
+\label{fig:flow03-arch-rotation}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{3.05}
+    \def\ybot{-26.0}
+
+    % Participants (0..7)
+    \node[ragseqhead] (P0) at (0*\dx, 0) {Feature API\\(\texttt{chatApi / authApi})};
+    \node[ragseqhead] (P1) at (1*\dx, 0) {\texttt{apiFetch}\\(\texttt{http.ts})};
+    \node[ragseqhead] (P2) at (2*\dx, 0) {\texttt{authService.ts}\\(\texttt{withTabLock})};
+    \node[ragseqhead] (P3) at (3*\dx, 0) {\texttt{useAuth}\\(\texttt{localStorage})};
+    \node[ragseqhead] (P4) at (4*\dx, 0) {NestJS Pipeline\\\& Guard};
+    \node[ragseqhead] (P5) at (5*\dx, 0) {\texttt{AuthController} /\\\texttt{AuthService}};
+    \node[ragseqhead] (P6) at (6*\dx, 0) {\texttt{TokenService}\\\& Repo};
+    \node[ragseqhead] (P7) at (7*\dx, 0) {MongoDB\\(\texttt{refresh\_tokens, users})};
+    \foreach \k in {0,...,7} {
+        \draw[raglifeline] (P\k.south) -- (\k*\dx, \ybot);
+    }
+
+    % Background alt blocks
+    \begin{scope}[on background layer]
+        % Outer alt: Another tab rotated vs Server rotation
+        \draw[ragaltbox] (-0.35*\dx, -4.95) rectangle (7.4*\dx, -25.65);
+        \draw[ragdivider] (-0.35*\dx, -7.25) -- (7.4*\dx, -7.25);
+        % Mid alt: 1-RTT consume succeeded vs null
+        \draw[ragaltbox, fill=orange!6] (-0.25*\dx, -10.35) rectangle (7.32*\dx, -25.45);
+        \draw[ragdivider] (-0.25*\dx, -19.25) -- (7.32*\dx, -19.25);
+        % Inner alt 1: User missing vs Active user verified
+        \draw[ragaltbox, fill=orange!9] (0.7*\dx, -11.95) rectangle (7.24*\dx, -18.95);
+        \draw[ragdivider] (0.7*\dx, -15.35) -- (7.24*\dx, -15.35);
+        % Inner alt 2: Replay vs Not found/expired
+        \draw[ragaltbox, fill=orange!9] (4.7*\dx, -20.35) rectangle (7.24*\dx, -23.35);
+        \draw[ragdivider] (4.7*\dx, -22.25) -- (7.24*\dx, -22.25);
+    \end{scope}
+
+    % Steps 1..6 + Note
+    \draw[ragmsg] (0*\dx, -0.90) -- node[ragmsglbl, above] {\textbf{1.} \texttt{apiFetch('/chat-sessions')}} (1*\dx, -0.90);
+    \draw[ragmsg] (1*\dx, -1.45) -- node[ragmsglbl, above] {\textbf{2.} \texttt{GET /api/v1/chat-sessions (Bearer staleToken)}} (4*\dx, -1.45);
+    \draw[ragreply] (4*\dx, -2.00) -- node[ragmsglbl, above] {\textbf{3.} \texttt{401 Unauthorized (token expired or ver mismatch)}} (1*\dx, -2.00);
+    \draw[ragmsg] (1*\dx, -2.55) -- node[ragmsglbl, above] {\textbf{4.} \texttt{rotateTokens(staleAccessToken)}} (3*\dx, -2.55);
+    \draw[ragmsg] (3*\dx, -3.10) -- node[ragmsglbl, above] {\textbf{5.} \texttt{rotateSessionTokens(staleAccessToken, hooks)}} (2*\dx, -3.10);
+    \node[ragnote] at (2*\dx, -3.72) {Single-flight promise (\texttt{rotation}) + \texttt{navigator.locks ('rag-token-rotation')}};
+    \draw[ragmsg] (2*\dx, -4.40) -- node[ragmsglbl, above] {\textbf{6.} \texttt{hooks.rehydrate() \& hooks.getTokens()}} (3*\dx, -4.40);
+
+    % Outer alt branch 1: Another tab already rotated
+    \node[ragtag] at (-0.32*\dx, -4.98) {alt [Tab khác đã xoay vòng \texttt{accessToken}]};
+    \draw[ragreply] (2*\dx, -5.62) -- node[ragmsglbl, above, fill=orange!4] {\textbf{7.} \texttt{return true} (bỏ qua HTTP refresh)} (1*\dx, -5.62);
+    \draw[ragmsg] (1*\dx, -6.18) -- node[ragmsglbl, above, fill=orange!4] {\textbf{8.} Retry \texttt{GET /api/v1/chat-sessions} (\texttt{accessToken} mới)} (4*\dx, -6.18);
+    \draw[ragreply] (4*\dx, -6.75) -- node[ragmsglbl, above, fill=orange!4] {\textbf{9.} \texttt{200 OK}} (0*\dx, -6.75);
+
+    % Outer alt branch 2: Needs server rotation
+    \node[ragtag] at (-0.32*\dx, -7.28) {else [Cần xoay vòng tại máy chủ]};
+    \draw[ragmsg] (2*\dx, -7.90) -- node[ragmsglbl, above, fill=orange!4] {\textbf{10.} \texttt{POST /api/v1/auth/token-rotations (\{ refresh\_token \})} qua \texttt{publicFetch}} (4*\dx, -7.90);
+    \draw[ragmsg] (4*\dx, -8.48) -- node[ragmsglbl, above, fill=orange!4] {\textbf{11.} \texttt{RateLimit('refresh') + ValidationPipe(RefreshDto)}} (5*\dx, -8.48);
+    \node[ragnote] at (5.5*\dx, -9.12) {\texttt{AuthService.refresh(raw) -> TokenService.consume(raw)}};
+    \draw[ragmsg] (6*\dx, -9.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{12.} \texttt{findOneAndUpdate(\{ token\_hash, revoked\_at: null, expires\_at > now \}, \{ \$set: \{ revoked\_at: now \} \})}} (7*\dx, -9.85);
+
+    % Mid alt branch 1: 1-RTT atomic consume succeeded
+    \node[ragtag] at (-0.22*\dx, -10.38) {alt [Tiêu thụ nguyên tử 1-RTT thành công]};
+    \draw[ragreply] (7*\dx, -11.00) -- node[ragmsglbl, above, fill=orange!6] {\textbf{13.} \texttt{LeanRefreshToken (user\_id, family\_id)}} (6*\dx, -11.00);
+    \draw[ragmsg] (5*\dx, -11.55) -- node[ragmsglbl, above, fill=orange!6] {\textbf{14.} \texttt{getActiveUser / findByIdLean(userId)}} (7*\dx, -11.55);
+
+    % Inner alt 1: User missing or inactive
+    \node[ragtag] at (0.73*\dx, -11.98) {alt [User không tồn tại hoặc \texttt{is\_active === false}]};
+    \draw[ragmsg] (5*\dx, -12.60) -- node[ragmsglbl, above, fill=orange!9] {\textbf{15.} \texttt{revokeFamily(familyId)}} (6*\dx, -12.60);
+    \draw[ragmsg] (6*\dx, -13.15) -- node[ragmsglbl, above, fill=orange!9] {\textbf{16.} \texttt{updateMany(\{ family\_id, revoked\_at: null \}, \{ \$set: \{ revoked\_at: now \} \})}} (7*\dx, -13.15);
+    \draw[ragreply] (5*\dx, -13.72) -- node[ragmsglbl, above, fill=orange!9] {\textbf{17.} \texttt{401 Unauthorized (refresh token invalid or expired)}} (1*\dx, -13.72);
+    \draw[ragmsg] (1*\dx, -14.28) -- node[ragmsglbl, above, fill=orange!9] {\textbf{18.} \texttt{hooks.onRevoked() -> isAuthenticated: false}} (3*\dx, -14.28);
+    \node[ragnote] at (3*\dx, -14.88) {\texttt{ChatPanel} hiển thị lại \texttt{AuthOverlay}};
+
+    % Inner else 1: Active user verified
+    \node[ragtag] at (0.73*\dx, -15.38) {else [Xác minh user đang hoạt động]};
+    \draw[ragmsg] (5*\dx, -15.98) -- node[ragmsglbl, above, fill=orange!9] {\textbf{19.} \texttt{issue(\{ id, roles, tokenVersion \}, familyId)}} (6*\dx, -15.98);
+    \draw[ragmsg] (6*\dx, -16.52) -- node[ragmsglbl, above, fill=orange!9] {\textbf{20.} insert \texttt{RefreshToken} mới (cùng \texttt{family\_id})} (7*\dx, -16.52);
+    \draw[ragreply] (5*\dx, -17.08) -- node[ragmsglbl, above, fill=orange!9] {\textbf{21.} \texttt{201 Created (\{ access\_token, refresh\_token, user, \_links \})}} (2*\dx, -17.08);
+    \draw[ragmsg] (2*\dx, -17.62) -- node[ragmsglbl, above, fill=orange!9] {\textbf{22.} \texttt{hooks.onRotated(data) -> persist rag-auth-storage}} (3*\dx, -17.62);
+    \draw[ragreply] (2*\dx, -18.12) -- node[ragmsglbl, above, fill=orange!9] {\textbf{23.} \texttt{return true}} (1*\dx, -18.12);
+    \draw[ragmsg] (1*\dx, -18.52) -- node[ragmsglbl, above, fill=orange!9] {\textbf{24.} Retry \texttt{GET /api/v1/chat-sessions} (\texttt{Bearer access\_token} mới)} (4*\dx, -18.52);
+    \draw[ragreply] (4*\dx, -18.88) -- node[ragmsglbl, below, fill=orange!9] {\textbf{25.} \texttt{200 OK}} (0*\dx, -18.88);
+
+    % Mid alt branch 2: Atomic consume returned null
+    \node[ragtag] at (-0.22*\dx, -19.28) {else [Tiêu thụ nguyên tử trả \texttt{null} (Replay / Hết hạn / Không hợp lệ)]};
+    \draw[ragmsg] (6*\dx, -19.90) -- node[ragmsglbl, above, fill=orange!6] {\textbf{26.} \texttt{findByHashLean(hash)}} (7*\dx, -19.90);
+
+    \node[ragtag] at (4.73*\dx, -20.38) {alt [Bản ghi tồn tại \& \texttt{revoked\_at !== null} (Token Reuse / Replay)]};
+    \draw[ragmsg] (6*\dx, -21.05) -- node[ragmsglbl, above, fill=orange!9] {\textbf{27.} \texttt{revokeFamily(rec.family\_id)}} (7*\dx, -21.05);
+    \node[ragnote] at (5.6*\dx, -21.75) {\texttt{logEvent('REFRESH\_REUSED')}};
+
+    \node[ragtag] at (4.73*\dx, -22.28) {else [Không tìm thấy hoặc hết hạn]};
+    \node[ragnote] at (5.6*\dx, -22.92) {\texttt{logEvent('REFRESH\_FAILED')}};
+
+    \draw[ragreply] (5*\dx, -23.82) -- node[ragmsglbl, above, fill=orange!6] {\textbf{28.} \texttt{401 Unauthorized (refresh token invalid or expired)}} (2*\dx, -23.82);
+    \draw[ragmsg] (2*\dx, -24.35) -- node[ragmsglbl, above, fill=orange!6] {\textbf{29.} \texttt{HttpError 401 -> hooks.onRevoked()}} (3*\dx, -24.35);
+    \draw[ragreply] (2*\dx, -24.85) -- node[ragmsglbl, above, fill=orange!6] {\textbf{30.} \texttt{return false}} (1*\dx, -24.85);
+    \draw[ragreply] (1*\dx, -25.30) -- node[ragmsglbl, above, fill=orange!6] {\textbf{31.} Trả nguyên \texttt{401 Response} ban đầu} (0*\dx, -25.30);
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự xoay vòng refresh token 1-RTT và phát hiện replay khi gặp mã \texttt{401} (\texttt{POST /api/v1/auth/token-rotations})}
+\label{fig:flow03-seq-rotation}
+\end{figure}
+
 Ba cơ chế bổ trợ khác của lớp API được trình bày ở Bảng~\ref{tab:fe-co-che-api}. Cả ba đều nhằm giảm số lượt đi--về qua \texttt{tunnel} tới máy chủ.
 
 \begin{table}[htbp]
@@ -1360,12 +1910,12 @@ Gom yêu cầu bài báo & Các yêu cầu chi tiết bài báo phát sinh trong
 \end{tabularx}
 \end{table}
 
-Tệp \texttt{vectors.bin} có phần đầu 16~byte gồm chữ ký \texttt{VTRE}, số phiên bản (hiện là 2), số bản ghi và độ dài mỗi bản ghi (32~byte). Mỗi bản ghi chứa toạ độ ba chiều, định danh cành và thùng tri thức, mã danh mục, năm xuất bản, điểm uy tín và cờ trạng thái. Hàm \texttt{parseVectors} kiểm tra chữ ký, phiên bản, độ dài bản ghi và kích thước tệp trước khi giải mã. Sau đó \texttt{loadWorld} đối chiếu số bản ghi với độ dài danh sách định danh. Nhờ vậy một tệp bị cắt cụt hoặc lệch phiên bản sẽ báo lỗi rõ ràng thay vì dựng ra một cảnh sai.
+Tệp \texttt{vectors.bin} có phần đầu 16~byte gồm chữ ký \texttt{VTRE}, số phiên bản (hiện là 2), số bản ghi và độ dài mỗi bản ghi (32~byte). Mỗi bản ghi chứa toạ độ ba chiều, định danh nhánh và phân vùng tri thức (\textit{bucket}), mã danh mục, năm xuất bản, điểm uy tín và cờ trạng thái. Hàm \texttt{parseVectors} kiểm tra chữ ký, phiên bản, độ dài bản ghi và kích thước tệp trước khi giải mã. Sau đó \texttt{loadWorld} đối chiếu số bản ghi với độ dài danh sách định danh. Nhờ vậy một tệp bị cắt cụt hoặc lệch phiên bản sẽ báo lỗi rõ ràng thay vì dựng ra một cảnh sai.
 
 \subsection{Truyền phát SSE và nối lại luồng bị mất}
 \label{subsec:fe-sse}
 
-API chuẩn \texttt{EventSource} của trình duyệt chỉ hỗ trợ phương thức \texttt{GET}, trong khi điểm cuối hỏi đáp \texttt{/rag/chat/stream} nhận câu hỏi qua thân yêu cầu \texttt{POST}. Vì vậy hàm \texttt{streamChat} trong \texttt{shared/\allowbreak{}api/\allowbreak{}client.ts} tự đọc luồng phản hồi bằng \texttt{ReadableStream}. Các byte nhận được đi qua \texttt{TextDecoder} ở chế độ \texttt{stream} để không cắt đôi ký tự tiếng Việt nhiều byte. Bộ đệm \texttt{SseBuffer} tách dữ liệu theo khối sự kiện, và mỗi khối được phân tích thành một sự kiện có kiểu. Hàm được viết dưới dạng \texttt{async generator}, nên tầng trên chỉ cần duyệt bằng \texttt{for await} và dừng được bất cứ lúc nào qua \texttt{AbortSignal}.
+API chuẩn \texttt{EventSource} của trình duyệt chỉ hỗ trợ phương thức \texttt{GET}, trong khi endpoint hỏi đáp \texttt{/rag/chat/stream} nhận câu hỏi qua thân yêu cầu \texttt{POST}. Vì vậy hàm \texttt{streamChat} trong \texttt{shared/\allowbreak{}api/\allowbreak{}client.ts} tự đọc luồng phản hồi bằng \texttt{ReadableStream}. Các byte nhận được đi qua \texttt{TextDecoder} ở chế độ \texttt{stream} để không cắt đôi ký tự tiếng Việt nhiều byte. Bộ đệm \texttt{SseBuffer} tách dữ liệu theo khối sự kiện, và mỗi khối được phân tích thành một sự kiện có kiểu. Hàm được viết dưới dạng \texttt{async generator}, nên tầng trên chỉ cần duyệt bằng \texttt{for await} và dừng được bất cứ lúc nào qua \texttt{AbortSignal}.
 
 Mỗi lượt hỏi gửi kèm tiêu đề \texttt{Idempotency-Key} có giá trị bằng định danh \texttt{UUIDv7} của tin nhắn người dùng. Với người dùng đã đăng nhập, máy chủ tiếp tục sinh câu trả lời khi kết nối bị đứt và lưu kết quả theo khoá này (Mục~\ref{subsec:van-chuyen-sse-idempotency}). Giao diện tận dụng điều đó để nối lại luồng: khi mất kết nối, hàm gửi lại đúng yêu cầu \texttt{POST} với cùng khoá, cách nhau 3~giây, trong cửa sổ tối đa 180~giây. Mã \texttt{409} (lượt đầu vẫn đang giữ khoá) và \texttt{429} (lượt đầu vẫn giữ suất chạy đồng thời của người dùng) được hiểu là ``đang bận'' nên hàm tiếp tục chờ, có tôn trọng tiêu đề \texttt{Retry-After}. Khi luồng mới bắt đầu, câu trả lời được phát lại từ đầu, nên giao diện phát sự kiện \texttt{answer\_\allowbreak{}replaced} rỗng để xoá phần chữ của luồng cũ. Yêu cầu ẩn danh không được nối lại, vì máy chủ không lưu câu trả lời cho chúng và gửi lại sẽ chạy toàn bộ pipeline thêm một lần.
 
@@ -1383,7 +1933,7 @@ try {
   throw new Error('stream closed before done');
 } catch (err) {
   if (signal.aborted) return; // only our own signal means "cancelled"
-  lost = `Mất kết nối stream: ${(err as Error).message}`;
+  lost = `Stream disconnected: ${(err as Error).message}`;
   if (resumable && Date.now() < deadline) {
     resuming = true;
     if (!(await pause(RESUME_DELAY_MS, signal))) return; // 3 000 ms
@@ -1430,7 +1980,7 @@ export function checkCitations(citations: readonly string[], chunks: readonly Gr
 
 Kho tách \emph{pha dữ liệu} (\texttt{phase}) khỏi \emph{pha hình ảnh} (\texttt{visualPhase}). Pha dữ liệu đi theo sự kiện của máy chủ. Pha hình ảnh do hoạt cảnh bay qua cây tri thức đẩy lên từng bước bằng \texttt{advanceVisual} và không bao giờ vượt pha dữ liệu. Nhờ vậy hoạt cảnh không hiển thị một kết quả chưa có. Ngược lại, khi máy chủ trả lời nhanh hơn hoạt cảnh, người dùng có thể bỏ qua phần còn lại bằng \texttt{skipAnimation}. Khi bật chế độ giảm chuyển động, hoạt cảnh được bỏ qua ngay từ đầu.
 
-Với sự kiện \texttt{token}, phần chữ mới của câu trả lời và trạng thái của lượt được cập nhật trong cùng một lời gọi \texttt{set} của Zustand. Nhờ vậy mỗi token chỉ gây một lượt vẽ lại thay vì hai. Phần tốn kém nhất là phân tích Markdown và công thức KaTeX. Thành phần \texttt{Markdown} xử lý phần này bằng \texttt{useDeferredValue} của React~19 khi đang truyền phát: React được phép trì hoãn lượt phân tích sang mức ưu tiên thấp, nhường chỗ cho thao tác của người dùng và khung hình của cảnh ba chiều. Khi câu trả lời đã xong, văn bản được hiển thị trực tiếp không qua trì hoãn. Thanh cuộn tự động bám theo câu trả lời được gom vào \texttt{requestAnimationFrame} để tránh ép trình duyệt tính lại bố cục đồng bộ.
+Với sự kiện \texttt{token}, phần chữ mới của câu trả lời và trạng thái của lượt được cập nhật trong cùng một lời gọi \texttt{set} của Zustand. Nhờ vậy mỗi token chỉ gây một lần re-render thay vì hai. Phần tốn kém nhất là phân tích Markdown và công thức KaTeX. Thành phần \texttt{Markdown} xử lý phần này bằng \texttt{useDeferredValue} của React~19 khi đang truyền phát: React được phép trì hoãn lượt phân tích sang mức ưu tiên thấp, nhường chỗ cho thao tác của người dùng và khung hình của cảnh ba chiều. Khi câu trả lời đã xong, văn bản được hiển thị trực tiếp không qua trì hoãn. Thanh cuộn tự động bám theo câu trả lời được gom vào \texttt{requestAnimationFrame} để tránh ép trình duyệt tính lại bố cục đồng bộ.
 
 Trước khi phân tích, hàm \texttt{normalizeDisplayMath} chuyển các ký hiệu công thức mà mô hình ngôn ngữ hay sinh ra (\texttt{\textbackslash[\dots\textbackslash]} và \texttt{\textbackslash(\dots\textbackslash)}) về cú pháp \texttt{\$\$\dots\$\$} và \texttt{\$\dots\$} mà \texttt{remark-math} hiểu được. Plugin tự viết \texttt{remarkCitations} chuyển các mẫu \texttt{[Paper: \dots]} trong nút văn bản thành phần tử \texttt{<cite>}, và bỏ qua nội dung bên trong công thức và khối mã. Mỗi phần tử \texttt{<cite>} được hiển thị thành một chip trích dẫn có ba trạng thái: đã kiểm chứng, chưa kiểm chứng (viền đứt màu cảnh báo) và đang chờ (khi câu trả lời còn đang truyền). Bấm vào chip sẽ đưa camera tới đúng điểm của bài báo đó trong cây tri thức.
 
@@ -1488,6 +2038,420 @@ Xoá phiên & Xoá phiên và toàn bộ tin nhắn của phiên & Gửi \texttt
 
 Mỗi lượt đồng bộ đều có giới hạn an toàn: danh sách phiên được tải 50 mục mỗi trang, tối đa 10 trang (500 phiên); tin nhắn được tải 100 mục mỗi trang, tối đa 20 trang (2.000 tin nhắn); mỗi yêu cầu bị huỷ sau 4~giây bằng \texttt{AbortSignal.timeout}. Khi máy chủ không phản hồi, kho \texttt{useSessionStore} bật cờ \texttt{isOffline} và giao diện hiển thị nhãn ``Ngoại tuyến'', nhưng mọi phiên cũ vẫn đọc được. Hàm \texttt{init} ghi nhớ danh tính mà nó đã chạy cho, nên khi bố cục chuyển giữa cột hội thoại và ngăn kéo di động, thành phần hội thoại được gắn lại mà không nạp lại phiên và không huỷ câu trả lời đang truyền.
 
+% ==============================================================================
+% LUỒNG 05: ĐỒNG BỘ LỊCH SỬ HỘI THOẠI OFFLINE-FIRST & PHÂN TRANG UUIDv7 CURSOR
+% Chuyển đổi nguyên bản từ agents/markdown_content/05_chat_history_sync_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.68cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6 + DEXIE) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Mở app / đổi đăng nhập / bấm chọn phiên trong \texttt{HistoryDrawer})};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{ChatPanel / HistoryDrawer})};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{useChatPanelState / useHistoryDrawerState -> useSessionStore})};
+    \node[ragstep] (s4) at (2, 1.15) {\textbf{4. FE Service}\\(\texttt{chatSessionService}: Cache-First Dexie check + timeout 4s)};
+    \node[ragstep] (s5) at (1, 1.15) {\textbf{5. FE API}\\(\texttt{chatApi.fetchAllRemoteSessions / fetchAllRemoteMessages})};
+    \node[ragstep] (s6) at (0, 1.15) {\textbf{6. FE HTTP Client}\\(\texttt{http.ts: fetchAllPages + apiFetch GET /chat-sessions})};
+    \node[ragstepdb] (dexie) at (2, 2.40) {IndexedDB: \texttt{RagChatDB}\\(\texttt{sessions, messages})};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+    \draw[ragbiarrow] (s4) -- (dexie);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 15) ---
+    \node[ragstep] (s7)  at (0, 4.15) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: keepAliveTimeout=65s, headersTimeout=66s})};
+    \node[ragstep] (s8)  at (1, 4.15) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{configureApp: trust proxy, requestId, helmet, metrics, XML/JSON})};
+    \node[ragstep] (s9)  at (2, 4.15) {\textbf{9. BE Guard}\\(\texttt{ThrottlerGuard} 120/min + \texttt{JwtAuthGuard token\_version})};
+    \node[ragstep] (s10) at (2, 5.35) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11) at (1, 5.35) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe -> ListSessionsQueryDto / ListMessagesQueryDto})};
+    \node[ragstep] (s12) at (0, 5.35) {\textbf{12. BE Controller}\\(\texttt{ChatSessionsController: list, listMessages, get})};
+    \node[ragstep] (s13) at (0, 6.60) {\textbf{13. BE Service}\\(\texttt{ChatSessionsService: listCache userGen, Singleflight, Promise.all})};
+    \node[ragstep] (s14) at (1, 6.60) {\textbf{14. BE Repository}\\(\texttt{ChatSessionsRepository \& ChatMessagesRepository .lean()})};
+    \node[ragstepdb] (s15) at (2, 6.60) {\textbf{15. Database}\\(MongoDB: \texttt{chat\_sessions} \& \texttt{chat\_messages})};
+
+    \draw[ragarrow] (s6.south) -- node[right, pos=0.55, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{GET /api/v1/chat-sessions \& :id/messages}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13) -- (s14);
+    \draw[ragarrow] (s14) -- (s15);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 8.40) {\textbf{16. Database $\to$ BE Repository}\\(\texttt{LeanChatSession[]} \& \texttt{LeanChatMessage[]})};
+    \node[ragstep] (s17) at (1, 8.40) {\textbf{17. BE Service}\\(\texttt{assertOwned 404, toCursorPage}, nạp \texttt{listCache})};
+    \node[ragstep] (s18) at (0, 8.40) {\textbf{18. BE Controller}\\(\texttt{ChatSessionsController} trả \texttt{SessionPageDto / MessagePageDto})};
+    \node[ragstep] (s19) at (0, 9.60) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor +\_links} bản sao nông $\to$ \texttt{ContentNegotiation JSON/XML})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 9.60) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{HTTP 200 OK, X-Request-Id, metrics finalize})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 11.40) {\textbf{21. FE HTTP Client}\\(\texttt{apiFetch 401} retry + \texttt{fetchAllPages} kiểm tra \texttt{res.ok} \& gom trang)};
+    \node[ragstep] (s22) at (1, 11.40) {\textbf{22. FE API}\\(\texttt{chatApi} trả \texttt{SessionSummary[] / RemoteMessage[]} phẳng)};
+    \node[ragstep] (s23) at (0, 11.40) {\textbf{23. FE Service}\\(\texttt{chatSessionService} hợp nhất LWW / \texttt{remoteToLocalMessage} $\to$ lưu \texttt{RagChatDB})};
+    \node[ragstep] (s24) at (0, 12.60) {\textbf{24. FE Hook \& Store}\\(\texttt{useSessionStore + useRag.loadMessages} $\to$ Selector Hooks)};
+    \node[ragstep] (s25) at (1, 12.60) {\textbf{25. FE Component}\\(\texttt{ChatPanel} tiêu đề + \texttt{HistoryDrawer + MessageList} re-render)};
+    \node[ragstep] (s26) at (2, 12.60) {\textbf{26. Client}\\(Người dùng xem lịch sử chat tức thì online lẫn offline)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[right, align=left, pos=0.48, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{HTTP 200 CursorPage}\\(JSON/XML)} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6)(dexie), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Client $\to$ HTTP Request)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt, xshift=-38pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP Response $\to$ Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước đồng bộ lịch sử hội thoại offline-first và phân trang \texttt{UUIDv7} cursor (\texttt{GET /api/v1/chat-sessions})}
+\label{fig:flow05-arch-sync}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{2.68}
+    \def\ybot{-31.1}
+
+    % Participants (0..11)
+    \node[ragseqactor] (P0) at (0*\dx, 0) {Người dùng};
+    \foreach \i/\name/\lbl in {
+        1/P1/{\texttt{ChatPanel} /\\\texttt{HistoryDrawer}},
+        2/P2/{\texttt{useSessionStore}},
+        3/P3/{\texttt{chatSessionService}},
+        4/P4/{IndexedDB\\(\texttt{RagChatDB})},
+        5/P5/{\texttt{http.ts}\\(\texttt{fetchAllPages})},
+        6/P6/{\texttt{JwtAuthGuard}},
+        7/P7/{\texttt{ChatSessions}\\Controller},
+        8/P8/{\texttt{ChatSessionsSvc}\\(\texttt{listCache})},
+        9/P9/{Repositories\\(\texttt{.lean})},
+        10/P10/{MongoDB},
+        11/P11/{\texttt{useRag}}
+    }{
+        \node[ragseqhead] (\name) at (\i*\dx, 0) {\lbl};
+    }
+    \foreach \i in {0,...,11} {
+        \draw[raglifeline] (P\i.south) -- (\i*\dx, \ybot);
+    }
+
+    % Background frames
+    \begin{scope}[on background layer]
+        % Mount sync alt: Backend Online vs Offline
+        \draw[ragaltbox] (1.7*\dx, -5.05) rectangle (10.35*\dx, -17.35);
+        \draw[ragdivider] (1.7*\dx, -15.85) -- (10.35*\dx, -15.85);
+        % Loop fetchAllPages
+        \draw[ragloopbox] (4.7*\dx, -6.75) rectangle (10.28*\dx, -14.35);
+        % Inner alt: listCache Hit vs Miss
+        \draw[ragaltbox, fill=orange!7] (6.7*\dx, -9.25) rectangle (10.2*\dx, -13.65);
+        \draw[ragdivider] (6.7*\dx, -10.45) -- (10.2*\dx, -10.45);
+
+        % Switch session alt: Dexie has msgs / Online lazy-fetch / Offline empty
+        \draw[ragaltbox] (1.7*\dx, -19.85) rectangle (10.35*\dx, -30.15);
+        \draw[ragdivider] (1.7*\dx, -21.65) -- (10.35*\dx, -21.65);
+        \draw[ragdivider] (1.7*\dx, -28.85) -- (10.35*\dx, -28.85);
+        % Par 1 RTT Promise.all
+        \draw[ragparbox] (7.7*\dx, -24.15) rectangle (10.2*\dx, -26.25);
+        \draw[ragdivider] (7.7*\dx, -25.20) -- (10.2*\dx, -25.20);
+    \end{scope}
+
+    % Steps 1..7
+    \draw[ragmsg] (0*\dx, -0.90) -- node[ragmsglbl, above, pos=0.55] {\textbf{1.} Mở app hoặc thay đổi auth} (1*\dx, -0.90);
+    \draw[ragmsg] (1*\dx, -1.45) -- node[ragmsglbl, above] {\textbf{2.} \texttt{initSessions() [useEffect]}} (2*\dx, -1.45);
+    \draw[ragmsg] (2*\dx, -1.95) -- ++(0.40,0) -- ++(0,-0.25) -- (2*\dx, -2.20);
+    \node[ragmsglbl, right] at (2*\dx+0.43, -2.07) {\textbf{3.} Kiểm tra guard \texttt{initializedFor === identity}};
+    \draw[ragmsg] (2*\dx, -2.68) -- node[ragmsglbl, above] {\textbf{4.} \texttt{listLocalChatSessions()}} (3*\dx, -2.68);
+    \draw[ragmsg] (3*\dx, -3.22) -- node[ragmsglbl, above] {\textbf{5.} \texttt{chatDb.sessions.orderBy('last\_message\_at').reverse().toArray()}} (4*\dx, -3.22);
+    \draw[ragreply] (4*\dx, -3.78) -- node[ragmsglbl, above] {\textbf{6.} \texttt{LocalChatSession[]} (hiển thị tức thì)} (2*\dx, -3.78);
+    \draw[ragmsg] (2*\dx, -4.45) -- node[ragmsglbl, above] {\textbf{7.} \texttt{checkHealth() -> publicFetch('/health', timeout 2000ms)}} (3*\dx, -4.45);
+
+    % Alt Online
+    \node[ragtag] at (1.73*\dx, -5.08) {alt [Backend Online \& Đã đăng nhập (\texttt{!USE\_MOCK})]};
+    \draw[ragmsg] (2*\dx, -5.72) -- node[ragmsglbl, above, fill=orange!4] {\textbf{8.} \texttt{syncRemoteSessions(userId)}} (3*\dx, -5.72);
+    \draw[ragmsg] (3*\dx, -6.28) -- node[ragmsglbl, above, fill=orange!4] {\textbf{9.} \texttt{fetchAllPages('/chat-sessions', limit=50, maxPages=10)}} (5*\dx, -6.28);
+
+    \node[ragtag] at (4.73*\dx, -6.78) {loop [Cho tới khi \texttt{next\_cursor === null} hoặc đủ 10 trang]};
+    \draw[ragmsg] (5*\dx, -7.45) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{10.} \texttt{GET /api/v1/chat-sessions?limit=50\&cursor=...}} (6*\dx, -7.45);
+    \draw[ragmsg] (6*\dx, -8.02) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{11.} Xác thực Bearer JWT \& \texttt{token\_version -> req.user}} (7*\dx, -8.02);
+    \draw[ragmsg] (7*\dx, -8.62) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{12.} \texttt{list(me.id, query)}} (8*\dx, -8.62);
+
+    \node[ragtag] at (6.73*\dx, -9.28) {alt [\texttt{listCache} Hit (khóa \texttt{userId:userGen:query})]};
+    \draw[ragreply] (8*\dx, -9.98) -- node[ragmsglbl, above, fill=orange!7] {\textbf{13.} \texttt{SessionPageDto} từ \texttt{LRUCache}} (7*\dx, -9.98);
+
+    \node[ragtag] at (6.73*\dx, -10.48) {else [\texttt{listCache} Miss]};
+    \draw[ragmsg] (8*\dx, -11.08) -- node[ragmsglbl, above, fill=orange!7] {\textbf{14.} \texttt{findPageLean(filter, mongoSort, limit + 1)}} (9*\dx, -11.08);
+    \draw[ragmsg] (9*\dx, -11.60) -- node[ragmsglbl, above, fill=orange!7] {\textbf{15.} \texttt{find(deleted\_at: null, message\_count > 0).limit(51).lean()}} (10*\dx, -11.60);
+    \draw[ragreply] (10*\dx, -12.12) -- node[ragmsglbl, above, fill=orange!7] {\textbf{16.} \texttt{LeanChatSession[]}} (9*\dx, -12.12);
+    \draw[ragreply] (9*\dx, -12.58) -- node[ragmsglbl, above, fill=orange!7] {\textbf{17.} \texttt{rows}} (8*\dx, -12.58);
+    \draw[ragmsg] (8*\dx, -12.92) -- ++(0.38,0) -- ++(0,-0.22) -- (8*\dx, -13.14);
+    \node[ragmsglbl, right, fill=orange!7] at (8*\dx+0.42, -13.03) {\textbf{18.} \texttt{toCursorPage() \& listCache.set(cacheKey, result)}};
+    \draw[ragreply] (8*\dx, -13.45) -- node[ragmsglbl, above, fill=orange!7] {\textbf{19.} \texttt{SessionPageDto}} (7*\dx, -13.45);
+
+    \draw[ragreply] (7*\dx, -14.05) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{20.} \texttt{200 OK CursorPage + \_links}} (5*\dx, -14.05);
+
+    \draw[ragmsg] (3*\dx, -14.82) -- node[ragmsglbl, above, fill=orange!4] {\textbf{21.} So sánh \texttt{updated\_at} $\to$ \texttt{chatDb.sessions.put(...)} nếu mới hơn} (4*\dx, -14.82);
+    \draw[ragreply] (3*\dx, -15.40) -- node[ragmsglbl, above, fill=orange!4] {\textbf{22.} \texttt{listLocalSessions()} đã hợp nhất} (2*\dx, -15.40);
+
+    \node[ragtag] at (1.73*\dx, -15.88) {else [Backend Offline hoặc Mạng lỗi]};
+    \draw[ragmsg] (2*\dx, -16.55) -- ++(0.42,0) -- ++(0,-0.28) -- (2*\dx, -16.83);
+    \node[ragmsglbl, right, fill=orange!4] at (2*\dx+0.45, -16.69) {\textbf{23.} \texttt{isOffline = true}, giữ nguyên \texttt{sessions} từ Dexie};
+
+    % Switch session
+    \draw[ragmsg] (0*\dx, -17.95) -- node[ragmsglbl, above, pos=0.55] {\textbf{24.} Chọn 1 phiên trong \texttt{HistoryDrawer} / auto-rehydrate} (1*\dx, -17.95);
+    \draw[ragmsg] (1*\dx, -18.48) -- node[ragmsglbl, above] {\textbf{25.} \texttt{switchSession(sessionId)}} (2*\dx, -18.48);
+    \draw[ragmsg] (2*\dx, -19.00) -- node[ragmsglbl, above] {\textbf{26.} \texttt{loadSessionMessages(sessionId, isOffline, hasToken)}} (3*\dx, -19.00);
+    \draw[ragmsg] (3*\dx, -19.50) -- node[ragmsglbl, above] {\textbf{27.} \texttt{chatDb.messages.where('sessionId').equals(sessionId).sortBy('created\_at')}} (4*\dx, -19.50);
+
+    \node[ragtag] at (1.73*\dx, -19.88) {alt [Dexie đã có tin nhắn (\texttt{localMsgs.length > 0})]};
+    \draw[ragreply] (4*\dx, -20.55) -- node[ragmsglbl, above, fill=orange!4] {\textbf{28.} \texttt{LocalChatMessage[]}} (3*\dx, -20.55);
+    \draw[ragreply] (3*\dx, -21.18) -- node[ragmsglbl, above, fill=orange!4] {\textbf{29.} \texttt{localToChatMessage[]}} (2*\dx, -21.18);
+
+    \node[ragtag] at (1.73*\dx, -21.68) {else [Dexie rỗng \& Online \& Có Token]};
+    \draw[ragmsg] (3*\dx, -22.30) -- node[ragmsglbl, above, fill=orange!4] {\textbf{30.} \texttt{fetchAllPages('/chat-sessions/:id/messages', limit=100, maxPages=20)}} (5*\dx, -22.30);
+    \draw[ragmsg] (5*\dx, -22.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{31.} \texttt{GET /api/v1/chat-sessions/:id/messages?limit=100}} (6*\dx, -22.85);
+    \draw[ragmsg] (6*\dx, -23.38) -- node[ragmsglbl, above, fill=orange!4] {\textbf{32.} \texttt{listMessages(me.id, id, query)}} (7*\dx, -23.38);
+    \draw[ragmsg] (7*\dx, -23.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{33.} \texttt{listMessages(me.id, id, query)}} (8*\dx, -23.85);
+
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (7.73*\dx, -24.18) {par [1 RTT song song qua Cloudflare Tunnel]};
+    \draw[ragmsg] (8*\dx, -24.85) -- node[ragmsglbl, above, fill=teal!3] {\textbf{34.} \texttt{findOwnedLean(userId, id)}} (9*\dx, -24.85);
+    \node[ragtag, fill=teal!10, text=teal!80!black] at (7.73*\dx, -25.23) {and};
+    \draw[ragmsg] (8*\dx, -25.92) -- node[ragmsglbl, above, fill=teal!3] {\textbf{35.} \texttt{findPageLean(\{session\_id: id, deleted\_at: null\}, sort, limit+1)}} (9*\dx, -25.92);
+
+    \draw[ragmsg] (9*\dx, -26.68) -- node[ragmsglbl, above, fill=orange!4] {\textbf{36.} 2 truy vấn song song \texttt{.lean()}} (10*\dx, -26.68);
+    \draw[ragreply] (10*\dx, -27.20) -- node[ragmsglbl, above, fill=orange!4] {\textbf{37.} \texttt{[session | null, rows]}} (8*\dx, -27.20);
+    \draw[ragreply] (8*\dx, -27.72) -- node[ragmsglbl, above, fill=orange!4] {\textbf{38.} \texttt{200 OK MessagePageDto} (hoặc \texttt{404 Not Found})} (5*\dx, -27.72);
+    \draw[ragmsg] (3*\dx, -28.20) -- node[ragmsglbl, above, fill=orange!4] {\textbf{39.} \texttt{remoteToLocalMessage() -> chatDb.messages.put()}} (4*\dx, -28.20);
+    \draw[ragreply] (3*\dx, -28.62) -- node[ragmsglbl, above, fill=orange!4] {\textbf{40.} \texttt{ChatMessage[]}} (2*\dx, -28.62);
+
+    \node[ragtag] at (1.73*\dx, -28.88) {else [Dexie rỗng \& Offline]};
+    \draw[ragreply] (3*\dx, -29.68) -- node[ragmsglbl, above, fill=orange!4] {\textbf{41.} \texttt{[]} (mảng rỗng an toàn)} (2*\dx, -29.68);
+
+    \draw[ragmsg] (2*\dx, -30.65) -- node[ragmsglbl, above] {\textbf{42.} \texttt{loadMessages(messages)} (hoặc \texttt{clearMessages} nếu rỗng)} (11*\dx, -30.65);
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự đồng bộ phiên khi khởi chạy, đối chiếu \texttt{listCache} và chuyển phiên hội thoại (\texttt{GET /api/v1/chat-sessions})}
+\label{fig:flow05-seq-sync}
+\end{figure}
+% ==============================================================================
+% LUỒNG 06: QUẢN LÝ PHIÊN CHAT — ĐỔI TÊN & XÓA MỀM IDEMPOTENT (DELETE & PATCH)
+% Chuyển đổi nguyên bản từ agents/markdown_content/06_chat_session_mutation_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.40cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6 + DEXIE) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Bấm \texttt{Trash2 -> Check} trên \texttt{HistoryDrawer} / SSE \texttt{done -> confirmBackendSession})};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{HistoryDrawer} 2-step confirm / \texttt{ChatPanel})};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{useHistoryDrawerState -> useSessionStore.deleteSession / confirmBackendSession})};
+    \node[ragstep] (s4) at (2, 1) {\textbf{4. FE Service}\\(\texttt{chatSessionService}: xóa/di trú Dexie \texttt{chatDb} trước 0~ms $\to$ quyết định gọi mạng)};
+    \node[ragstep] (s5) at (1, 1) {\textbf{5. FE API}\\(\texttt{chatApi: deleteRemoteSession / renameRemoteSession})};
+    \node[ragstep] (s6) at (0, 1) {\textbf{6. FE HTTP Client}\\(\texttt{http.ts: apiFetch DELETE / PATCH + Bearer})};
+    \node[ragstepdb] (dexie) at (2, 2.0) {IndexedDB \texttt{chatDb}:\\\texttt{sessions} \& \texttt{messages} (Offline-First)};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+    \draw[ragbiarrow] (s4) -- (dexie);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 15) ---
+    \node[ragstep] (s7)  at (0, 3.30) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: keepAliveTimeout=65s, headersTimeout=66s})};
+    \node[ragstep] (s8)  at (1, 3.30) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{app.setup.ts: requestId, helmet, metrics, XML/JSON})};
+    \node[ragstep] (s9)  at (2, 3.30) {\textbf{9. BE Guard}\\(\texttt{ThrottlerGuard} 120/min + \texttt{JwtAuthGuard token\_version})};
+    \node[ragstep] (s10) at (2, 4.40) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11) at (1, 4.40) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe -> RenameSessionDto} cho \texttt{PATCH})};
+    \node[ragstep] (s12) at (0, 4.40) {\textbf{12. BE Controller}\\(\texttt{ChatSessionsController: DELETE :id / PATCH :id})};
+    \node[ragstep] (s13) at (0, 5.50) {\textbf{13. BE Service}\\(\texttt{ChatSessionsService: remove / rename, validTitle, invalidate} $O(1)$ \texttt{userGen})};
+    \node[ragstep] (s14) at (1, 5.50) {\textbf{14. BE Repository}\\(\texttt{ChatSessionsRepo.\allowbreak{}softDeleteOwned/\allowbreak{}renameOwnedLean + ChatMessagesRepo})};
+    \node[ragstepdb] (s15) at (2, 5.50) {\textbf{15. Database}\\(MongoDB: \texttt{chat\_sessions} \& \texttt{chat\_messages} TTL 3 ngày \texttt{deleted\_at})};
+
+    \draw[ragarrow] (s6.south) -- node[right, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{DELETE / PATCH /api/v1/chat-sessions/:id}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13) -- (s14);
+    \draw[ragarrow] (s14) -- (s15);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 6.85) {\textbf{16. Database $\to$ BE Repository}\\(\texttt{modifiedCount 0/1} hoặc \texttt{LeanChatSession})};
+    \node[ragstep] (s17) at (1, 6.85) {\textbf{17. BE Service}\\(\texttt{DELETE} im lặng \texttt{void} / \texttt{PATCH 404} nếu \texttt{null} hoặc \texttt{toSummary + invalidate})};
+    \node[ragstep] (s18) at (0, 6.85) {\textbf{18. BE Controller}\\(trả \texttt{204 No Content} hoặc \texttt{200 SessionSummaryDto})};
+    \node[ragstep] (s19) at (0, 7.95) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor +\_links} cho \texttt{PATCH} $\to$ \texttt{ContentNegotiation JSON/XML})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 7.95) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{HTTP 204 / 200 / HttpExceptionFilter + X-Request-Id})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 9.25) {\textbf{21. FE HTTP Client}\\(\texttt{apiFetch} kiểm tra \texttt{401} auto-rotate $\to$ trả \texttt{Response})};
+    \node[ragstep] (s22) at (1, 9.25) {\textbf{22. FE API}\\(\texttt{chatApi: res.ok void} hoặc \texttt{parseJson RemoteSessionSummary / HttpError})};
+    \node[ragstep] (s23) at (0, 9.25) {\textbf{23. FE Service}\\(\texttt{chatSessionService} xác nhận đồng bộ nền không rollback Dexie)};
+    \node[ragstep] (s24) at (0, 10.35) {\textbf{24. FE Hook \& Store}\\(\texttt{useSessionStore} cập nhật \texttt{remaining[0] / backendId -> useHistoryDrawerState})};
+    \node[ragstep] (s25) at (1, 10.35) {\textbf{25. FE Component}\\(\texttt{HistoryDrawer} gỡ bỏ phiên / \texttt{ChatPanel} cập nhật tiêu đề mới)};
+    \node[ragstep] (s26) at (2, 10.35) {\textbf{26. Client}\\(Giao diện phản hồi 0~ms nhất quán cả online lẫn offline)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[left, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{HTTP 204 No Content / 200 OK}} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6)(dexie), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Client $\to$ HTTP Request)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP Response $\to$ Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước đổi tên và xóa mềm idempotent phiên chat (\texttt{DELETE} \& \texttt{PATCH /api/v1/chat-sessions/:id})}
+\label{fig:flow06-arch-mutation}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{2.68}
+    \def\ybot{-29.7}
+
+    % Participants (0..10)
+    \node[ragseqactor] (P0)  at (0*\dx, 0)  {Người dùng};
+    \node[ragseqhead]  (P1)  at (1*\dx, 0)  {\texttt{HistoryDrawer} /\\\texttt{useRag}};
+    \node[ragseqhead]  (P2)  at (2*\dx, 0)  {\texttt{useSessionStore}};
+    \node[ragseqhead]  (P3)  at (3*\dx, 0)  {\texttt{chatSession}\\Service};
+    \node[ragseqhead]  (P4)  at (4*\dx, 0)  {Dexie\\\texttt{chatDb}};
+    \node[ragseqhead]  (P5)  at (5*\dx, 0)  {\texttt{chatApi} +\\\texttt{apiFetch}};
+    \node[ragseqhead]  (P6)  at (6*\dx, 0)  {NestJS Pipeline\\\& Guard};
+    \node[ragseqhead]  (P7)  at (7*\dx, 0)  {\texttt{ChatSessions}\\Controller};
+    \node[ragseqhead]  (P8)  at (8*\dx, 0)  {\texttt{ChatSessions}\\Service};
+    \node[ragseqhead]  (P9)  at (9*\dx, 0)  {Sessions \&\\Messages Repo};
+    \node[ragseqhead]  (P10) at (10*\dx, 0) {MongoDB\\(TTL 3d)};
+    \foreach \k in {0,...,10} {
+        \draw[raglifeline] (P\k.south) -- (\k*\dx, \ybot);
+    }
+
+    % Background rects & alt/opt frames
+    \begin{scope}[on background layer]
+        % Rect A: Soft Delete
+        \draw[draw=primaryBlue!55, rounded corners=3pt, fill=primaryBlue!3] (-0.38*\dx, -0.75) rectangle (10.38*\dx, -16.85);
+        \draw[ragaltbox] (1.7*\dx, -5.45) rectangle (10.3*\dx, -16.65);
+        \draw[ragdivider] (1.7*\dx, -15.45) -- (10.3*\dx, -15.45);
+        \draw[ragaltbox, fill=orange!7] (6.7*\dx, -8.35) rectangle (10.22*\dx, -14.75);
+        \draw[ragdivider] (6.7*\dx, -9.65) -- (10.22*\dx, -9.65);
+        \draw[ragparbox] (7.7*\dx, -12.15) rectangle (10.15*\dx, -13.85);
+
+        % Rect B: Background Rename
+        \draw[draw=teal!65!black, rounded corners=3pt, fill=teal!3] (0.65*\dx, -17.25) rectangle (10.38*\dx, -29.35);
+        \draw[ragaltbox] (4.7*\dx, -22.25) rectangle (10.3*\dx, -29.15);
+        \draw[ragdivider] (4.7*\dx, -23.55) -- (10.3*\dx, -23.55);
+        \draw[ragaltbox, fill=orange!8] (4.85*\dx, -25.15) rectangle (10.2*\dx, -28.95);
+        \draw[ragdivider] (4.85*\dx, -26.75) -- (10.2*\dx, -26.75);
+    \end{scope}
+
+    % --- Nhánh A: DELETE ---
+    \node[ragnote, fill=primaryBlue!12, draw=primaryBlue!70] at (5.0*\dx, -1.12) {\textbf{Nhánh A -- Xóa mềm tương tác 2 bước (\texttt{DELETE /api/v1/chat-sessions/:id})}};
+    \draw[ragmsg] (0*\dx, -1.78) -- node[ragmsglbl, above, pos=0.55, fill=primaryBlue!3] {Bấm \texttt{Trash2} $\to$ mở \texttt{confirmDeleteId} (``Xóa?'')} (1*\dx, -1.78);
+    \draw[ragmsg] (0*\dx, -2.32) -- node[ragmsglbl, above, pos=0.55, fill=primaryBlue!3] {Bấm \texttt{Check} (Xác nhận xóa)} (1*\dx, -2.32);
+    \draw[ragmsg] (1*\dx, -2.85) -- node[ragmsglbl, above, fill=primaryBlue!3] {\texttt{deleteSession(sessionId)}} (2*\dx, -2.85);
+    \draw[ragmsg] (2*\dx, -3.38) -- node[ragmsglbl, above, fill=primaryBlue!3] {\texttt{deleteSessionLocallyAndRemotely(sessionId, \{isOffline, hasToken\})}} (3*\dx, -3.38);
+    \draw[ragmsg] (3*\dx, -3.90) -- node[ragmsglbl, above, fill=primaryBlue!3] {Xóa \texttt{messages} và \texttt{session} trong IndexedDB} (4*\dx, -3.90);
+    \draw[ragreply] (3*\dx, -4.42) -- node[ragmsglbl, above, fill=primaryBlue!3] {Trả về danh sách \texttt{remaining} từ \texttt{listLocalSessions()}} (2*\dx, -4.42);
+    \draw[ragmsg] (2*\dx, -4.85) -- ++(0.40,0) -- ++(0,-0.25) -- (2*\dx, -5.10);
+    \node[ragmsglbl, right, fill=primaryBlue!3] at (2*\dx+0.43, -4.97) {Cập nhật \texttt{sessions} \& chuyển active sang \texttt{remaining[0]} hoặc \texttt{startNewChat()}};
+
+    \node[ragtag] at (1.73*\dx, -5.48) {alt [Online và đã đăng nhập (\texttt{!isOffline \&\& hasToken \&\& !USE\_MOCK})]};
+    \draw[ragasync] (3*\dx, -6.18) -- node[ragmsglbl, above, fill=orange!4] {Fire-and-forget: \texttt{deleteRemoteSession(sessionId)}} (5*\dx, -6.18);
+    \draw[ragmsg] (5*\dx, -6.72) -- node[ragmsglbl, above, fill=orange!4] {\texttt{DELETE /api/v1/chat-sessions/:id (Authorization: Bearer)}} (6*\dx, -6.72);
+    \draw[ragmsg] (6*\dx, -7.28) -- node[ragmsglbl, above, fill=orange!4] {\texttt{JwtAuthGuard -> remove(id, me)}} (7*\dx, -7.28);
+    \draw[ragmsg] (7*\dx, -7.82) -- node[ragmsglbl, above, fill=orange!4] {\texttt{remove(me.id, id)}} (8*\dx, -7.82);
+
+    \node[ragtag] at (6.73*\dx, -8.38) {alt [Không phải \texttt{UUIDv7 (!isUuid(id))}]};
+    \draw[ragreply] (8*\dx, -9.15) -- node[ragmsglbl, above, fill=orange!7] {Return sớm (\texttt{void})} (7*\dx, -9.15);
+
+    \node[ragtag] at (6.73*\dx, -9.68) {else [\texttt{UUIDv7} hợp lệ]};
+    \draw[ragmsg] (8*\dx, -10.22) -- ++(-0.40,0) -- ++(0,-0.25) -- (8*\dx, -10.47);
+    \node[ragmsglbl, left, fill=orange!7] at (8*\dx-0.43, -10.34) {\texttt{invalidate(userId, id): bumpUserGen + delete detailCache}};
+    \draw[ragmsg] (8*\dx, -10.92) -- node[ragmsglbl, above, fill=orange!7] {\texttt{softDeleteOwned(userId, id, now)}} (9*\dx, -10.92);
+    \draw[ragmsg] (9*\dx, -11.42) -- node[ragmsglbl, above, fill=orange!7] {\texttt{updateOne(\{\_id, user\_id, deleted\_at: null\}, \{\$set: \{deleted\_at: now\}\})}} (10*\dx, -11.42);
+    \draw[ragreply] (10*\dx, -11.88) -- node[ragmsglbl, above, fill=orange!7] {\texttt{modifiedCount} (1 hoặc 0)} (9*\dx, -11.88);
+
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (7.73*\dx, -12.18) {opt [\texttt{modifiedCount > 0}]};
+    \draw[ragmsg] (8*\dx, -12.88) -- node[ragmsglbl, above, fill=teal!3] {\texttt{softDeleteBySession(id, now)}} (9*\dx, -12.88);
+    \draw[ragmsg] (9*\dx, -13.48) -- node[ragmsglbl, above, fill=teal!3] {\texttt{updateMany(\{session\_id, deleted\_at: null\}, \{\$set: \{deleted\_at: now\}\})}} (10*\dx, -13.48);
+
+    \draw[ragreply] (8*\dx, -14.40) -- node[ragmsglbl, above, fill=orange!7] {Return \texttt{void} (kể cả khi \texttt{id} là của người khác hoặc đã xóa)} (7*\dx, -14.40);
+    \draw[ragreply] (7*\dx, -15.12) -- node[ragmsglbl, above, fill=orange!4] {\texttt{204 No Content} (không body)} (5*\dx, -15.12);
+
+    \node[ragtag] at (1.73*\dx, -15.48) {else [Offline hoặc chưa đăng nhập]};
+    \draw[ragreply] (3*\dx, -16.25) -- node[ragmsglbl, above, fill=orange!4] {Bỏ qua gọi mạng, UI vẫn giữ trạng thái đã xóa} (2*\dx, -16.25);
+
+    % --- Nhánh B: PATCH ---
+    \node[ragnote, fill=teal!12, draw=teal!70!black] at (5.3*\dx, -17.65) {\textbf{Nhánh B -- Tự động đồng bộ tiêu đề nền (\texttt{PATCH /api/v1/chat-sessions/:id})}};
+    \draw[ragmsg] (1*\dx, -18.30) -- node[ragmsglbl, above, fill=teal!3] {SSE \texttt{done(ev.session\_id) -> confirmBackendSession(localId, backendId)}} (2*\dx, -18.30);
+    \draw[ragmsg] (2*\dx, -18.85) -- node[ragmsglbl, above, fill=teal!3] {\texttt{reconcileBackendSession(localId, backendId, \{userId, hasToken\})}} (3*\dx, -18.85);
+    \draw[ragmsg] (3*\dx, -19.40) -- node[ragmsglbl, above, fill=teal!3] {Di trú \texttt{localId -> backendId} \& đặt \texttt{synced=true}} (4*\dx, -19.40);
+    \draw[ragasync] (3*\dx, -19.95) -- node[ragmsglbl, above, fill=teal!3] {Background: \texttt{renameRemoteSession(backendId, session.title)}} (5*\dx, -19.95);
+    \draw[ragmsg] (5*\dx, -20.50) -- node[ragmsglbl, above, fill=teal!3] {\texttt{PATCH /api/v1/chat-sessions/:id \{ title \}}} (6*\dx, -20.50);
+    \draw[ragmsg] (6*\dx, -21.05) -- node[ragmsglbl, above, fill=teal!3] {\texttt{JwtAuthGuard + ValidationPipe -> rename(id, dto, me)}} (7*\dx, -21.05);
+    \draw[ragmsg] (7*\dx, -21.55) -- node[ragmsglbl, above, fill=teal!3] {\texttt{rename(me.id, id, dto.title)}} (8*\dx, -21.55);
+    \draw[ragmsg] (8*\dx, -21.85) -- ++(-0.40,0) -- ++(0,-0.25) -- (8*\dx, -22.10);
+    \node[ragmsglbl, left, fill=teal!3] at (8*\dx-0.43, -21.97) {\texttt{validTitle(title)}: trim + kiểm tra \texttt{1..120} codepoints};
+
+    \node[ragtag] at (4.73*\dx, -22.28) {alt [Tiêu đề không hợp lệ hoặc thiếu]};
+    \draw[ragreply] (8*\dx, -23.08) -- node[ragmsglbl, above, fill=orange!4] {\texttt{400 Bad Request ('invalid title')}} (5*\dx, -23.08);
+
+    \node[ragtag] at (4.73*\dx, -23.58) {else [Tiêu đề hợp lệ]};
+    \draw[ragmsg] (8*\dx, -24.20) -- node[ragmsglbl, above, fill=orange!4] {\texttt{renameOwnedLean(userId, id, t)}} (9*\dx, -24.20);
+    \draw[ragmsg] (9*\dx, -24.75) -- node[ragmsglbl, above, fill=orange!4] {\texttt{findOneAndUpdate(\{\_id, user\_id, deleted\_at: null\}, \{\$set: \{title: t\}\})}} (10*\dx, -24.75);
+
+    \node[ragtag] at (4.88*\dx, -25.18) {alt [Không tìm thấy / đã xóa / khác chủ sở hữu]};
+    \draw[ragreply] (10*\dx, -25.82) -- node[ragmsglbl, above, fill=orange!8] {\texttt{null}} (9*\dx, -25.82);
+    \draw[ragreply] (8*\dx, -26.35) -- node[ragmsglbl, above, fill=orange!8] {\texttt{404 Not Found ('session not found')}} (5*\dx, -26.35);
+
+    \node[ragtag] at (4.88*\dx, -26.78) {else [Tìm thấy \& đã cập nhật]};
+    \draw[ragreply] (10*\dx, -27.40) -- node[ragmsglbl, above, fill=orange!8] {\texttt{LeanChatSession} mới} (9*\dx, -27.40);
+    \draw[ragmsg] (8*\dx, -27.80) -- ++(-0.40,0) -- ++(0,-0.24) -- (8*\dx, -28.04);
+    \node[ragmsglbl, left, fill=orange!8] at (8*\dx-0.43, -27.92) {\texttt{logEvent('SESSION\_RENAMED') + invalidate(userId, id)}};
+    \draw[ragreply] (8*\dx, -28.42) -- node[ragmsglbl, above, fill=orange!8] {\texttt{SessionSummaryDto (toSummary)}} (7*\dx, -28.42);
+    \draw[ragreply] (7*\dx, -28.82) -- node[ragmsglbl, above, fill=orange!8] {\texttt{200 OK} + HATEOAS \texttt{\_links (LinksInterceptor)}} (5*\dx, -28.82);
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự xóa mềm hai bước và tự động đồng bộ tiêu đề nền (\texttt{DELETE} \& \texttt{PATCH /api/v1/chat-sessions/:id})}
+\label{fig:flow06-seq-mutation}
+\end{figure}
+
 \subsection{Hiện thực cảnh ba chiều}
 \label{subsec:fe-canh-3d}
 
@@ -1514,7 +2478,7 @@ Theo ràng buộc ranh giới điều phối của R3F, bên trong canvas chỉ 
 {SHOW_PERF && <PerfHUD />}         {/* HTML overlay: sibling of the canvas */}
 \end{tsbox}
 
-\paragraph{Tán vector.} Khoảng 150 nghìn bài báo được vẽ bằng một đối tượng \texttt{THREE.Points} duy nhất với shader tự viết, tức chỉ tốn một lệnh vẽ. Shader đỉnh loại sớm các điểm không nhìn thấy theo hai điều kiện. Điểm nằm sau mặt phẳng camera ($z \geq -0{,}1$ trong hệ toạ độ quan sát) bị loại. Điểm có tâm nằm ngoài vùng đệm 1,25 lần khung hình cũng bị loại. Mỗi điểm bị loại được đẩy ra ngoài không gian cắt với kích thước 0, nên GPU không phải tô điểm ảnh nào cho nó.
+\paragraph{Tán vector.} Khoảng 150 nghìn điểm vector đại diện được vẽ bằng một đối tượng \texttt{THREE.\allowbreak{}Points} duy nhất với shader tự viết, tức chỉ tốn một lệnh vẽ. Shader đỉnh loại sớm các điểm không nhìn thấy theo hai điều kiện. Điểm nằm sau mặt phẳng camera ($z \geq -0{,}1$ trong hệ toạ độ quan sát) bị loại. Điểm có tâm nằm ngoài vùng đệm 1,25 lần khung hình cũng bị loại. Mỗi điểm bị loại được đẩy ra ngoài không gian cắt với kích thước 0, nên GPU không phải tô điểm ảnh nào cho nó.
 
 \begin{tsbox}{Loại sớm điểm sau camera và ngoài vùng đệm trong canopyShader.ts}
 vec4 mv = modelViewMatrix * vec4(position, 1.0);
@@ -1560,37 +2524,7 @@ Bộ chọn điểm lắng nghe trực tiếp sự kiện con trỏ trên canvas
 
 \paragraph{Camera.} Thành phần \texttt{CameraDirector} đưa camera tới một trong năm góc nhìn định sẵn (tổng quan, tán cây, mặt đất, bay theo và tiêu điểm), sau đó người dùng vẫn xoay tự do được. Khi cột hội thoại trượt vào hoặc trượt ra, tâm khung nhìn được dịch theo cùng thời lượng với hoạt cảnh trượt (hằng số \texttt{CHAT\_\allowbreak{}SLIDE\_\allowbreak{}S}, khớp với bậc thời gian 1.500~ms của hệ thống thiết kế), nên cây tri thức luôn nằm giữa phần màn hình còn trống.
 
-Bảng~\ref{tab:fe-hieu-nang-canh} trình bày kết quả đo trước và sau khi áp dụng các tối ưu ở trên. Số đo được lấy trên bản build production, 150 nghìn vector, máy Apple M4 với GPU tích hợp 8~nhân, Chromium headless ở độ phân giải $1440 \times 900$, ngày 19/10/2026. Thời gian khung hình được đo ở chế độ đồng bộ: mỗi khung hình đọc lại một điểm ảnh để buộc GPU vẽ xong, nên đây là cận trên của chi phí thật.
-
-\begin{table}[htbp]
-\centering
-\caption{Hiệu năng cảnh ba chiều trước và sau tối ưu (150 nghìn vector)}
-\label{tab:fe-hieu-nang-canh}
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\textwidth}{
-  >{\raggedright\arraybackslash}X
-  >{\raggedright\arraybackslash}p{1.4cm}
-  >{\raggedleft\arraybackslash}p{2.0cm}
-  >{\raggedleft\arraybackslash}p{2.0cm}
-  >{\raggedleft\arraybackslash}p{1.6cm}
-}
-\toprule
-\textbf{Hạng mục} & \textbf{Theme} & \textbf{Trước} & \textbf{Sau} & \textbf{Thay đổi} \\
-\midrule
-Thời gian khung hình trung vị & Tối & 12,7~ms & 8,0~ms & $-37\%$ \\
-Thời gian khung hình trung vị & Sáng & 13,3~ms & 8,9~ms & $-33\%$ \\
-Thời gian khung hình p95 & Tối & 17,3~ms & 13,7~ms & $-21\%$ \\
-Thời gian khung hình p95 & Sáng & 18,4~ms & 13,7~ms & $-26\%$ \\
-Chọn điểm khi rê chuột (trung bình) & Tối & 2,10~ms & 0,165~ms & $\div 12{,}7$ \\
-Chọn điểm khi rê chuột (trung bình) & Sáng & 5,95~ms & 0,34~ms & $\div 17{,}5$ \\
-Cập nhật trạng thái điểm khi đổi bộ lọc (trung bình) & Tối & 6,18~ms & 0,22~ms & $\div 28$ \\
-Cập nhật trạng thái điểm khi đổi bộ lọc (trung bình) & Sáng & 14,27~ms & 0,53~ms & $\div 27$ \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-Đo riêng trên CPU bằng Vitest bench với 150 nghìn vector, một lần bắn tia giảm từ 1,20~ms (\texttt{THREE.Points.raycast}) xuống 0,022~ms trên lưới không gian, tức nhanh hơn khoảng 56 lần.
+Kết quả đo hiệu năng cảnh ba chiều và phép chiếu tia 3D DDA trên bản dựng production được trình bày tại Bảng~\ref{tab:toi-uu-3d-dda-ch6} và Bảng~\ref{tab:fe-hieu-nang-canh-ch6} ở Mục~\ref{sec:danh-gia-tai-nguyen-chi-phi}.
 
 \subsection{Hiện thực hệ thống thiết kế và Liquid Glass}
 \label{subsec:fe-design-system}
@@ -1602,7 +2536,7 @@ Toàn bộ token màu của hai theme nằm trong \texttt{shared/\allowbreak{}th
 \end{sloppypar}
 
 \begin{sloppypar}
-Mọi bề mặt kính được tạo bằng component \texttt{Glass} trong \texttt{shared/\allowbreak{}ui/\allowbreak{}Glass.tsx}. Component này chỉ xuất ra các thuộc tính dữ liệu \texttt{data-material}, \texttt{data-shape}, \texttt{data-nested} và \texttt{data-refract}, còn toàn bộ phần vẽ do CSS đảm nhận theo cấp kính ghi trên \texttt{<html data-lg-level>}. Panel có thuộc tính \texttt{refract} tự đăng ký với \texttt{LiquidFilters}. Từ cấp 2, \texttt{LiquidFilters} nướng ánh sáng vát cạnh theo kích thước panel thành ảnh và ghi vào biến \texttt{--lg-light-map}. Hook \texttt{useLiquidLight} theo dõi con trỏ, nội suy hướng sáng dạng rotor bằng \texttt{nlerp} với hệ số 0,25 mỗi khung hình, và chỉ ghi hai biến \texttt{--lg-light-x}, \texttt{--lg-light-y} lên các bề mặt có viền sáng. Vòng \texttt{requestAnimationFrame} tự dừng khi hướng sáng đã gần đích (sai lệch dưới $10^{-3}$), nên khi chuột đứng yên không có công việc nào chạy.
+Mọi bề mặt kính được tạo bằng component \texttt{Glass} trong \texttt{shared/\allowbreak{}ui/\allowbreak{}Glass.tsx}. Component này chỉ xuất ra các thuộc tính dữ liệu \texttt{data-material}, \texttt{data-shape}, \texttt{data-nested} và \texttt{data-refract}, còn toàn bộ phần vẽ do CSS đảm nhận theo cấp kính ghi trên \texttt{<html data-lg-level>}. Panel có thuộc tính \texttt{refract} tự đăng ký với \texttt{LiquidFilters}. Từ cấp 2, \texttt{LiquidFilters} tính sẵn ánh sáng vát cạnh theo kích thước panel thành ảnh và ghi vào biến \texttt{--lg-light-map}. Hook \texttt{useLiquidLight} theo dõi con trỏ, nội suy hướng sáng dạng rotor bằng \texttt{nlerp} với hệ số 0,25 mỗi khung hình, và chỉ ghi hai biến \texttt{--lg-light-x}, \texttt{--lg-light-y} lên các bề mặt có viền sáng. Vòng \texttt{requestAnimationFrame} tự dừng khi hướng sáng đã gần đích (sai lệch dưới $10^{-3}$), nên khi chuột đứng yên không có công việc nào chạy.
 \end{sloppypar}
 
 Ở cấp 3, bốn panel nổi được bọc bởi thư viện \texttt{@samasante/\allowbreak{}liquid-glass} thông qua \texttt{LiquidShell}. Dưới cấp 3, \texttt{LiquidShell} trả về panel nguyên trạng, nên cùng một cây component chạy ở mọi cấp.
@@ -1668,7 +2602,7 @@ Phân hệ AI được hiện thực thành bảy module engine trong \texttt{ba
 \midrule
 \texttt{judge} & Bộ chấm điểm ONNX Laya & Hàng đợi tối đa 8~tác vụ chờ; 30~giây; cắt 900/1.100~ký tự & Tệp ONNX trên đĩa & Thời gian thực, suy giảm mềm \\
 \midrule
-\texttt{llm} & \texttt{Qwen2.5-\allowbreak{}7B-\allowbreak{}Instruct-\allowbreak{}Q4\_\allowbreak{}K\_\allowbreak{}M} & Ngữ cảnh 8.192~token; \texttt{temperature = 0,2}; tối đa 1.024~token; 1~slot + 8~chờ & Tệp GGUF khoảng 4,68~GB & Thời gian thực, thời hạn 60~giây \\
+\texttt{llm} & \texttt{Qwen2.5-\allowbreak{}7B-\allowbreak{}Instruct-\allowbreak{}Q4\_\allowbreak{}K\_\allowbreak{}M} & Ngữ cảnh 8.192~token; \texttt{temperature = 0.2}; tối đa 1.024~token; 1~slot + 8~chờ & Tệp GGUF khoảng 4,68~GB & Thời gian thực, thời hạn 60~giây \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -2202,7 +3136,9 @@ Vì ứng dụng chỉ đọc trên kho khoa học, toàn bộ dữ liệu trên
 
 Như trình bày ở Hình~\ref{fig:sau-pha-nap-kho}, pha~\texttt{0b} tạo chỉ mục và pha~\texttt{0c} cài đặt bộ kiểm tra \texttt{\$jsonSchema} được thực thi ngay trước pha~\texttt{1} để ràng buộc chặt toàn bộ bản ghi từ pha~\texttt{1} trở đi phải thoả mãn lược đồ hợp lệ tại biên CSDL. Pha~\texttt{5} chỉ đóng vai trò kiểm định và báo cáo sai lệch, tuyệt đối không tự ý ghi sửa ngược lên Qdrant nhằm tránh che giấu lỗi pipeline thượng nguồn.
 
-Hai hàm trọng tâm bảo đảm tính toàn vẹn gồm bộ tính \texttt{checksum} SHA-256 ba cấp lồng nhau trong \texttt{checksum.ts} (đoạn mã sắp xếp các khoá bài báo và số lượng \texttt{collection} trước khi băm ở cấp tập dữ liệu) và hàm phân tách (\texttt{parser}) \texttt{parseChunkPosition} dùng biểu thức chính quy neo cuối chuỗi (\texttt{\$}) trong \texttt{chunk-order.ts} (giải quyết nghịch đảo thứ tự từ điển trong Parquet trên 100\% đoạn thử nghiệm tại Mục~\ref{sec:chunking-retrieval}):
+\begin{sloppypar}
+Hai hàm trọng tâm bảo đảm tính toàn vẹn gồm bộ tính \texttt{checksum} SHA-256 ba cấp lồng nhau trong \texttt{checksum.ts} và hàm phân tích (\texttt{parser}) \texttt{parseChunkPosition} trong \texttt{chunk-order.ts}. Bộ tính \texttt{checksum} sắp xếp các khoá bài báo và số lượng \texttt{collection} trước khi băm ở cấp tập dữ liệu, còn \texttt{parseChunkPosition} dùng biểu thức chính quy neo cuối chuỗi (\texttt{\$}) để giải quyết nghịch đảo thứ tự từ điển trong Parquet trên 100\% đoạn thử nghiệm tại Mục~\ref{sec:chunking-retrieval}:
+\end{sloppypar}
 
 \begin{tsbox}{Tính checksum SHA-256 ba cấp và suy xuất thứ tự đọc từ chunk\_id}
 export function paperContentSha256(chunks: ChunkDigestInput[]): string {
@@ -2354,7 +3290,7 @@ Cổng sau sinh & \texttt{answer\_\allowbreak{}replaced} (nếu không đạt ng
 \end{tabularx}
 \end{table}
 
-Đoạn mã điều phối tại \texttt{rag.\allowbreak{}service.\allowbreak{}ts} minh hoạ quy tắc ghi nhận bộ đo thời gian \texttt{timings} chính xác theo từng pha cùng nhánh ngắt sớm (\texttt{short-circuit}) của hai cổng kiểm soát chất lượng: cổng trước sinh (\texttt{applyEvidenceGate}) chỉ cho phép viết lại câu hỏi tối đa \textbf{đúng một lần} khi điểm dưới 0,6 trước khi gán \texttt{abstained = true} trả trực tiếp thông báo \texttt{NO\_\allowbreak{}CONTEXT\_\allowbreak{}ANSWER} mà không gọi mô hình sinh (\texttt{streamAnswer}), trong khi cổng sau sinh phát sự kiện \texttt{answer\_\allowbreak{}replaced} nếu điểm căn cứ trên 3~đoạn đầu thấp hơn 0,3:
+Đoạn mã điều phối tại \texttt{rag.\allowbreak{}service.\allowbreak{}ts} minh hoạ quy tắc ghi nhận bộ đo thời gian \texttt{timings} chính xác theo từng pha cùng nhánh ngắt sớm (\texttt{short-circuit}) của hai cổng kiểm soát chất lượng. Cổng trước sinh (\texttt{applyEvidenceGate}) chỉ cho phép viết lại câu hỏi tối đa \textbf{đúng một lần} khi điểm dưới 0,6 trước khi gán \texttt{abstained = true} và trả trực tiếp thông báo \texttt{NO\_\allowbreak{}CONTEXT\_\allowbreak{}ANSWER} mà không gọi \texttt{streamAnswer}. Ở chiều ra, cổng sau sinh phát sự kiện \texttt{answer\_\allowbreak{}replaced} nếu điểm căn cứ trên 3~đoạn đầu thấp hơn 0,3:
 
 \begin{tsbox}{Điều phối bảy pha và hai cổng kiểm soát chất lượng trong rag.service.ts}
 yield { type: 'phase', phase: 'embedding' };
@@ -2470,6 +3406,199 @@ export function extractCitations(answer: string): string[] {
 }
 \end{tsbox}
 
+% ==============================================================================
+% LUỒNG 07: ĐỐI CHIẾU TRÍCH DẪN & TRA CỨU BÀI BÁO KHOA HỌC (GET /api/v1/papers)
+% Chuyển đổi nguyên bản từ agents/markdown_content/07_paper_citation_inspection_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.45cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Click chip \texttt{[Paper: id]}, vector 3D, \texttt{TopKBadge} hoặc \texttt{ResultCard})};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{CitationChip / VectorCanopy / TopKBadges / ResultCard})};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{uiStore.focusPaper -> usePaperPanel / usePaper})};
+    \node[ragstep] (s4) at (2, 1) {\textbf{4. FE Service}\\(\texttt{resultService: loadPaperDetail / loadPapersBatch \& inspectPaperContext})};
+    \node[ragstep] (s5) at (1, 1) {\textbf{5. FE API}\\(\texttt{resultApi + client.getPaper: paperCache} + 10~ms Batch Coalescer $\le 20$ IDs)};
+    \node[ragstep] (s6) at (0, 1) {\textbf{6. FE HTTP Client}\\(\texttt{http.ts: apiFetch GET /papers/:paper\_id} or \texttt{?ids=...})};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 15) ---
+    \node[ragstep] (s7)  at (0, 2.35) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: keepAliveTimeout=65s, headersTimeout=66s})};
+    \node[ragstep] (s8)  at (1, 2.35) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{app.setup.ts: trust proxy, requestId, helmet, metrics})};
+    \node[ragstep] (s9)  at (2, 2.35) {\textbf{9. BE Guard}\\(\texttt{ThrottlerGuard: papersBatch} 30/min hoặc \texttt{default} 120/min)};
+    \node[ragstep] (s10) at (2, 3.45) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11) at (1, 3.45) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe BatchIdsQueryDto + parseIds} max 20)};
+    \node[ragstep] (s12) at (0, 3.45) {\textbf{12. BE Controller}\\(\texttt{PapersController: GET :paper\_id} or \texttt{GET ?ids=...})};
+    \node[ragstep] (s13) at (0, 4.55) {\textbf{13. BE Service}\\(\texttt{PapersService}: trim, \texttt{LRUCache} 10m miss, \texttt{Promise.all getMany})};
+    \node[ragstep] (s14) at (1, 4.55) {\textbf{14. BE Repository [Vector \& Corpus]}\\(\texttt{VectorStoreService.scrollByPaper -> CorpusService.hydrate})};
+    \node[ragstepdb] (s15) at (2, 4.55) {\textbf{15. Database}\\(Qdrant \texttt{scientific\_papers\_gold} \& MongoDB \texttt{rag\_ts\_corpus} read-only)};
+
+    \draw[ragarrow] (s6.south) -- node[right, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{GET /api/v1/papers/:id or ?ids=}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13) -- (s14);
+    \draw[ragarrow] (s14) -- (s15);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 5.95) {\textbf{16. Database $\to$ BE Repository}\\(\texttt{ChunkPayload[]} sau merge \& \texttt{retryStaleSocket})};
+    \node[ragstep] (s17) at (1, 5.95) {\textbf{17. BE Service}\\(\texttt{orderChunks, categoryIndex, buildPaperDetail, not\_found[], LRUCache.set})};
+    \node[ragstep] (s18) at (0, 5.95) {\textbf{18. BE Controller}\\(\texttt{PapersController} trả \texttt{PaperDetailDto / PaperBatchDto 200})};
+    \node[ragstep] (s19) at (0, 7.05) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor +\_links} bản sao nông $\to$ \texttt{ContentNegotiation JSON/XML})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 7.05) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{HTTP 200 OK / HttpExceptionFilter + X-Request-Id})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 8.4) {\textbf{21. FE HTTP Client}\\(\texttt{apiFetch} kiểm tra \texttt{401/res.ok} \& đọc body JSON)};
+    \node[ragstep] (s22) at (1, 8.4) {\textbf{22. FE API}\\(\texttt{client.ts fetchPaperBatch} fan-out \texttt{Map} \& \texttt{paperCache.delete} nếu lỗi)};
+    \node[ragstep] (s23) at (0, 8.4) {\textbf{23. FE Service}\\(\texttt{resultService.inspectPaperContext} phân loại \texttt{grounded/browse/unverified} + \texttt{toArxivUrl})};
+    \node[ragstep] (s24) at (0, 9.5) {\textbf{24. FE Hook}\\(\texttt{usePaper} alive-guard state \texttt{ready/error} + \texttt{usePaperPanel useMemo})};
+    \node[ragstep] (s25) at (1, 9.5) {\textbf{25. FE Component}\\(\texttt{PaperPanel / ChunkList} tô màu \texttt{used-band} / \texttt{ResultCard})};
+    \node[ragstep] (s26) at (2, 9.5) {\textbf{26. Client}\\(Người dùng đối chiếu trích dẫn và đoạn văn gốc hoàn chỉnh)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[left, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{HTTP 200 OK / 404}} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Client $\to$ HTTP Request)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP Response $\to$ Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước đối chiếu trích dẫn và tra cứu bài báo khoa học (\texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}papers/\allowbreak{}:paper\_id} \& \texttt{?ids=...})}
+\label{fig:flow07-arch-papers}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{2.90}
+    \def\ybot{-26.2}
+
+    % Participants (0..8)
+    \node[ragseqactor] (P0) at (0*\dx, 0) {User};
+    \node[ragseqhead]  (P1) at (1*\dx, 0) {\texttt{CitationChip} /\\\texttt{Markdown}};
+    \node[ragseqhead]  (P2) at (2*\dx, 0) {\texttt{useUi}\\Store};
+    \node[ragseqhead]  (P3) at (3*\dx, 0) {\texttt{PaperPanel} \&\\\texttt{usePaperPanel}};
+    \node[ragseqhead]  (P4) at (4*\dx, 0) {\texttt{client.ts}\\(\texttt{paperCache} \& 10ms)};
+    \node[ragseqhead]  (P5) at (5*\dx, 0) {\texttt{PapersController}\\\& Guard/Pipe};
+    \node[ragseqhead]  (P6) at (6*\dx, 0) {\texttt{PapersService}\\(\texttt{LRUCache} 10m)};
+    \node[ragseqhead]  (P7) at (7*\dx, 0) {\texttt{VectorStoreSvc}\\(Qdrant)};
+    \node[ragseqhead]  (P8) at (8*\dx, 0) {\texttt{CorpusService}\\(\texttt{rag\_ts\_corpus})};
+    \foreach \k in {0,...,8} {
+        \draw[raglifeline] (P\k.south) -- (\k*\dx, \ybot);
+    }
+
+    % Background frames
+    \begin{scope}[on background layer]
+        % Outer alt: paperCache HIT vs MISS
+        \draw[ragaltbox] (2.7*\dx, -4.55) rectangle (8.4*\dx, -25.85);
+        \draw[ragdivider] (2.7*\dx, -5.85) -- (8.4*\dx, -5.85);
+        % Batch length alt (1 vs 2..20)
+        \draw[ragaltbox, fill=primaryBlue!4] (3.7*\dx, -7.05) rectangle (5.4*\dx, -9.65);
+        \draw[ragdivider] (3.7*\dx, -8.35) -- (5.4*\dx, -8.35);
+        % Backend LRUCache HIT vs MISS
+        \draw[ragaltbox, fill=orange!6] (2.8*\dx, -11.05) rectangle (8.32*\dx, -25.65);
+        \draw[ragdivider] (2.8*\dx, -12.35) -- (8.32*\dx, -12.35);
+        % Opt hydrate
+        \draw[ragparbox] (6.7*\dx, -14.15) rectangle (8.25*\dx, -16.25);
+        % Alt chunks.length == 0 vs > 0
+        \draw[ragaltbox, fill=orange!9] (2.9*\dx, -17.15) rectangle (7.3*\dx, -25.45);
+        \draw[ragdivider] (2.9*\dx, -21.25) -- (7.3*\dx, -21.25);
+    \end{scope}
+
+    % Steps 1..6
+    \draw[ragmsg] (0*\dx, -0.90) -- node[ragmsglbl, above, pos=0.55] {Click \texttt{[Paper: 2106.09685]} hoặc vector 3D} (1*\dx, -0.90);
+    \draw[ragmsg] (1*\dx, -1.48) -- node[ragmsglbl, above] {\texttt{focusPaper(paperId, \{ context \})}} (2*\dx, -1.48);
+    \draw[ragmsg] (2*\dx, -1.95) -- ++(0.42,0) -- ++(0,-0.25) -- (2*\dx, -2.20);
+    \node[ragmsglbl, right] at (2*\dx+0.45, -2.07) {\texttt{resolveResultCase -> kind}; cập nhật \texttt{panelPaperId} và \texttt{focusContext}};
+    \draw[ragreply] (2*\dx, -2.75) -- node[ragmsglbl, above] {Mở \texttt{PaperPanel} \& mount \texttt{PaperPanelBody(paperId)}} (3*\dx, -2.75);
+    \draw[ragmsg] (3*\dx, -3.25) -- ++(0.42,0) -- ++(0,-0.25) -- (3*\dx, -3.50);
+    \node[ragmsglbl, right] at (3*\dx+0.45, -3.37) {\texttt{inspectPaperContext(paperId, focusContext)}};
+    \draw[ragmsg] (3*\dx, -4.05) -- node[ragmsglbl, above] {\texttt{usePaper -> loadPaperDetail -> getPaper(paperId)}} (4*\dx, -4.05);
+
+    % paperCache HIT vs MISS
+    \node[ragtag] at (2.73*\dx, -4.58) {alt [\texttt{paperCache} HIT trên Frontend]};
+    \draw[ragreply] (4*\dx, -5.35) -- node[ragmsglbl, above, fill=orange!4] {Trả ngay \texttt{Promise PaperDetail} từ \texttt{paperCache}} (3*\dx, -5.35);
+
+    \node[ragtag] at (2.73*\dx, -5.88) {else [\texttt{paperCache} MISS]};
+    \draw[ragmsg] (4*\dx, -6.42) -- ++(0.42,0) -- ++(0,-0.25) -- (4*\dx, -6.67);
+    \node[ragmsglbl, right, fill=orange!4] at (4*\dx+0.45, -6.54) {Đẩy vào \texttt{pendingPapers}, đợi cửa sổ 10~ms};
+
+    \node[ragtag] at (3.73*\dx, -7.08) {alt [1 paper trong hàng đợi (\texttt{batch.length == 1})]};
+    \draw[ragmsg] (4*\dx, -7.85) -- node[ragmsglbl, above, fill=primaryBlue!4] {\texttt{GET /api/v1/papers/openalex\%3AW2594538354}} (5*\dx, -7.85);
+
+    \node[ragtag] at (3.73*\dx, -8.38) {else [Nhiều paper (\texttt{batch.length 2..20})]};
+    \draw[ragmsg] (4*\dx, -9.15) -- node[ragmsglbl, above, fill=primaryBlue!4] {\texttt{GET /api/v1/papers?ids=id1,id2,...}} (5*\dx, -9.15);
+
+    \draw[ragmsg] (5*\dx, -10.02) -- ++(0.42,0) -- ++(0,-0.25) -- (5*\dx, -10.27);
+    \node[ragmsglbl, right, fill=orange!4] at (5*\dx+0.45, -10.14) {\texttt{ThrottlerGuard + ValidationPipe + parseIds(max 20)}};
+    \draw[ragmsg] (5*\dx, -10.72) -- node[ragmsglbl, above, fill=orange!4] {\texttt{get(paperId)} hoặc \texttt{getMany(ids)}} (6*\dx, -10.72);
+
+    % Backend LRUCache HIT vs MISS
+    \node[ragtag] at (2.83*\dx, -11.08) {alt [\texttt{LRUCache} HIT trên Backend]};
+    \draw[ragreply] (6*\dx, -11.85) -- node[ragmsglbl, above, fill=orange!6] {Trả ngay \texttt{PaperDetail} từ \texttt{LRUCache}} (5*\dx, -11.85);
+
+    \node[ragtag] at (2.83*\dx, -12.38) {else [\texttt{LRUCache} MISS]};
+    \draw[ragmsg] (6*\dx, -13.02) -- node[ragmsglbl, above, fill=orange!6] {\texttt{scrollByPaper(id)} filter \texttt{paper\_id, limit<=256, max 500}} (7*\dx, -13.02);
+    \draw[ragmsg] (7*\dx, -13.52) -- ++(-0.42,0) -- ++(0,-0.25) -- (7*\dx, -13.77);
+    \node[ragmsglbl, left, fill=orange!6] at (7*\dx-0.45, -13.64) {Qdrant scroll + \texttt{retryStaleSocket} (timeout 15s)};
+
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (6.73*\dx, -14.18) {opt [Point không chứa sẵn field \texttt{text (toChunkRef)}]};
+    \draw[ragmsg] (7*\dx, -14.98) -- node[ragmsglbl, above, fill=teal!3] {\texttt{hydrate(refs) -> find paper\_chunks \& papers} (5s)} (8*\dx, -14.98);
+    \draw[ragreply] (8*\dx, -15.72) -- node[ragmsglbl, above, fill=teal!3] {\texttt{Map ChunkContent (text, title, authors)}} (7*\dx, -15.72);
+
+    \draw[ragreply] (7*\dx, -16.68) -- node[ragmsglbl, above, fill=orange!6] {\texttt{ChunkPayload[]}} (6*\dx, -16.68);
+
+    % chunks.length == 0 vs > 0
+    \node[ragtag] at (2.93*\dx, -17.18) {alt [\texttt{chunks.length == 0}]};
+    \draw[ragreply] (6*\dx, -17.85) -- node[ragmsglbl, above, fill=orange!9] {Throw \texttt{NotFoundException('paper not found')}} (5*\dx, -17.85);
+    \draw[ragreply] (5*\dx, -18.42) -- node[ragmsglbl, above, fill=orange!9] {\texttt{404 Not Found} (đơn) hoặc \texttt{not\_found[]} (batch)} (4*\dx, -18.42);
+    \draw[ragmsg] (4*\dx, -18.92) -- ++(0.42,0) -- ++(0,-0.25) -- (4*\dx, -19.17);
+    \node[ragmsglbl, right, fill=orange!9] at (4*\dx+0.45, -19.04) {Xóa \texttt{paperId} khỏi \texttt{paperCache (p.catch)}};
+    \draw[ragreply] (4*\dx, -19.75) -- node[ragmsglbl, above, fill=orange!9] {\texttt{HttpError(404) -> status='error'}} (3*\dx, -19.75);
+    \node[ragnote] at (4.5*\dx, -20.55) {Nếu \texttt{kind=='unverified'}: hiện cảnh báo \texttt{UNVERIFIED\_WARNING} kèm lỗi \texttt{404}};
+
+    \node[ragtag] at (2.93*\dx, -21.28) {else [\texttt{chunks.length > 0}]};
+    \draw[ragmsg] (6*\dx, -21.85) -- ++(-0.42,0) -- ++(0,-0.25) -- (6*\dx, -22.10);
+    \node[ragmsglbl, left, fill=orange!9] at (6*\dx-0.45, -21.97) {\texttt{orderChunks} (abstract trước, \texttt{chunk\_index}/natural) + \texttt{categoryIndex}};
+    \draw[ragmsg] (6*\dx, -22.52) -- ++(-0.42,0) -- ++(0,-0.25) -- (6*\dx, -22.77);
+    \node[ragmsglbl, left, fill=orange!9] at (6*\dx-0.45, -22.64) {Lưu \texttt{PaperDetail} vào \texttt{LRUCache} (TTL 10m)};
+    \draw[ragreply] (6*\dx, -23.32) -- node[ragmsglbl, above, fill=orange!9] {\texttt{PaperDetailDto / PaperBatchDto}} (5*\dx, -23.32);
+    \draw[ragreply] (5*\dx, -23.88) -- node[ragmsglbl, above, fill=orange!9] {\texttt{200 OK} JSON/XML + HATEOAS \texttt{\_links} (bản sao \texttt{addLinks})} (4*\dx, -23.88);
+    \draw[ragreply] (4*\dx, -24.42) -- node[ragmsglbl, above, fill=orange!9] {\texttt{PaperDetail -> status='ready'}} (3*\dx, -24.42);
+    \draw[ragmsg] (3*\dx, -24.88) -- ++(0.42,0) -- ++(0,-0.25) -- (3*\dx, -25.13);
+    \node[ragmsglbl, right, fill=orange!9] at (3*\dx+0.45, -25.00) {Render Abstract, \texttt{ChunkList} (tô màu đoạn \texttt{grounded}) \& arXiv link};
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự đối chiếu trích dẫn và gom lô tra cứu bài báo (\texttt{GET /\allowbreak{}api/\allowbreak{}v1/\allowbreak{}papers/\allowbreak{}:paper\_id} \& \texttt{?ids=...})}
+\label{fig:flow07-seq-papers}
+\end{figure}
+
 \subsection{Truyền phát luồng SSE và chống gửi lặp}
 \label{subsec:van-chuyen-sse-idempotency}
 
@@ -2498,6 +3627,216 @@ Chưa tồn tại bản ghi & \texttt{200} & Yêu cầu hỏi đáp mới đư�
 \bottomrule
 \end{tabularx}
 \end{table}
+
+% ==============================================================================
+% LUỒNG 04: HỎI ĐÁP KHOA HỌC RAG & STREAMING LLM QUA SSE (POST /api/v1/rag/chat/stream)
+% Chuyển đổi nguyên bản từ agents/markdown_content/04_rag_llm_streaming_flow.md
+% ==============================================================================
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=6.1cm, y=-1.42cm
+]
+    % --- Giai đoạn 1: FE_IN (1 -> 6) ---
+    \node[ragstep] (s1) at (0, 0) {\textbf{1. Client}\\(Người dùng nhập câu hỏi / bấm \texttt{SAMPLES})};
+    \node[ragstep] (s2) at (1, 0) {\textbf{2. FE Component}\\(\texttt{ChatInput.tsx / MessageList.tsx})};
+    \node[ragstep] (s3) at (2, 0) {\textbf{3. FE Hook \& Store}\\(\texttt{useChatInputState -> ragStore.send + sessionStore})};
+    \node[ragstep] (s4) at (2, 1) {\textbf{4. FE Service}\\(\texttt{ragChatService.buildRagRequest \& chatSessionService})};
+    \node[ragstep] (s5) at (1, 1) {\textbf{5. FE API}\\(\texttt{chatApi.streamChat -> client.ts streamChat})};
+    \node[ragstep] (s6) at (0, 1) {\textbf{6. FE HTTP Client}\\(\texttt{http.ts: apiFetch POST /api/v1/rag/chat/stream})};
+
+    \draw[ragarrow] (s1) -- (s2);
+    \draw[ragarrow] (s2) -- (s3);
+    \draw[ragarrow] (s3) -- (s4);
+    \draw[ragarrow] (s4) -- (s5);
+    \draw[ragarrow] (s5) -- (s6);
+
+    % --- Giai đoạn 2: BE_IN (7 -> 13 -> 14 & 14b -> 15) ---
+    \node[ragstep] (s7)   at (0, 2.35) {\textbf{7. BE Node.js HTTP Server}\\(\texttt{main.ts: keepAliveTimeout=65s, socket.setNoDelay})};
+    \node[ragstep] (s8)   at (1, 2.35) {\textbf{8. BE NestJS/Express Middleware}\\(\texttt{app.setup.ts: requestId, helmet, metrics, XML/JSON})};
+    \node[ragstep] (s9)   at (2, 2.35) {\textbf{9. BE Guard}\\(\texttt{RateLimitChat} 20/10 req/min $\to$ \texttt{OptionalJwtAuthGuard})};
+    \node[ragstep] (s10)  at (2, 3.45) {\textbf{10. BE Interceptor chiều vào}\\(\texttt{ContentNegotiation Accept 406 + LinksInterceptor metadata})};
+    \node[ragstep] (s11)  at (1, 3.45) {\textbf{11. BE Pipe}\\(\texttt{ValidationPipe -> ChatRequestDto})};
+    \node[ragstep] (s12)  at (0, 3.45) {\textbf{12. BE Controller}\\(\texttt{RagController.stream / chat + ClientSlots + abortOnClientClose})};
+    \node[ragstep] (s13)  at (0, 4.90) {\textbf{13. BE Service}\\(\texttt{RagService}: Ownership, Idempotency + 6 AI/Vector Engines)};
+    \node[ragstep] (s14)  at (1, 4.42) {\textbf{14. BE Repository}\\(\texttt{ChatSessionsRepo, ChatMessagesRepo, ChatRequestsRepo})};
+    \node[ragstep] (s14b) at (1, 5.42) {\textbf{14b. AI \& Vector Engines}\\(Mining, Embed, TreeRouter, VectorStore, Corpus, Laya, Qwen2.5-7B)};
+    \node[ragstepdb] (s15) at (2, 4.90) {\textbf{15. Database}\\(MongoDB \texttt{rag\_ts}, Qdrant \texttt{scientific\_papers\_gold}, \texttt{rag\_ts\_corpus}, GGUF/ONNX)};
+
+    \draw[ragarrow] (s6.south) -- node[right, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{POST /api/v1/rag/chat/stream + Bearer + Idempotency-Key}} (s7.north);
+    \draw[ragarrow] (s7) -- (s8);
+    \draw[ragarrow] (s8) -- (s9);
+    \draw[ragarrow] (s9) -- (s10);
+    \draw[ragarrow] (s10) -- (s11);
+    \draw[ragarrow] (s11) -- (s12);
+    \draw[ragarrow] (s12) -- (s13);
+    \draw[ragarrow] (s13.east) -- (s14.west);
+    \draw[ragarrow] (s13.east) -- (s14b.west);
+    \draw[ragarrow] (s14.east) -- (s15.west);
+    \draw[ragarrow] (s14b.east) -- (s15.west);
+
+    % --- Giai đoạn 3: BE_OUT (16 -> 20) ---
+    \node[ragstep] (s16) at (2, 6.75) {\textbf{16. Database $\to$ BE Repository \& AI Engines}\\(tokens, grounded chunks, saved IDs)};
+    \node[ragstep] (s17) at (1, 6.75) {\textbf{17. BE Service}\\(\texttt{yield PipelineEvent / timings / total\_ms / releaseRequest} on abort)};
+    \node[ragstep] (s18) at (0, 6.75) {\textbf{18. BE Controller}\\(\texttt{RagController} stream loop gắn \texttt{\_links} trên \texttt{done} hoặc \texttt{RagController.chat})};
+    \node[ragstep] (s19) at (0, 7.85) {\textbf{19. BE Interceptor chiều ra}\\(\texttt{LinksInterceptor + ContentNegotiation} cho \texttt{/rag/chat}; \texttt{SseWriter} cho \texttt{/stream})};
+    \node[ragstep, text width=8.2cm] (s20) at (1.5, 7.85) {\textbf{20. BE NestJS/Express gửi response}\\(\texttt{SseWriter text/event-stream + :ping 5s} hoặc \texttt{HTTP 200})};
+
+    \draw[ragarrow] (s15) -- (s16);
+    \draw[ragarrow] (s16) -- (s17);
+    \draw[ragarrow] (s17) -- (s18);
+    \draw[ragarrow] (s18) -- (s19);
+    \draw[ragarrow] (s19) -- (s20);
+
+    % --- Giai đoạn 4: FE_OUT (21 -> 26) ---
+    \node[ragstep] (s21) at (2, 9.20) {\textbf{21. FE HTTP Client}\\(\texttt{apiFetch} nhận \texttt{ReadableStream} / \texttt{401} retry)};
+    \node[ragstep] (s22) at (1, 9.20) {\textbf{22. FE API}\\(\texttt{readSse + SseBuffer} + auto-resume 180s $\to$ \texttt{RagStreamEvent})};
+    \node[ragstep] (s23) at (0, 9.20) {\textbf{23. FE Service}\\(\texttt{reconcileBackendSession + saveExchangeLocally} Dexie.js)};
+    \node[ragstep] (s24) at (0, 10.30) {\textbf{24. FE Hook \& Store}\\(\texttt{ragStore.dispatch + sessionStore + useChatWorkspace} selectors)};
+    \node[ragstep] (s25) at (1, 10.30) {\textbf{25. FE Component}\\(\texttt{Markdown useDeferredValue} KaTeX + \texttt{PipelineStatus} + 3D \texttt{QueryFlight})};
+    \node[ragstep] (s26) at (2, 10.30) {\textbf{26. Client}\\(Người dùng đọc câu trả lời streaming mượt 60 FPS \& trích dẫn verified)};
+
+    \draw[ragarrow] (s20.south -| s21.north) -- node[left, font=\scriptsize\bfseries, text=primaryBlue!90!black, fill=white, inner sep=1.5pt] {\texttt{text/event-stream} (hoặc JSON/XML)} (s21.north);
+    \draw[ragarrow] (s21) -- (s22);
+    \draw[ragarrow] (s22) -- (s23);
+    \draw[ragarrow] (s23) -- (s24);
+    \draw[ragarrow] (s24) -- (s25);
+    \draw[ragarrow] (s25) -- (s26);
+
+    \begin{scope}[on background layer]
+        \node[ragstage, fit=(s1)(s3)(s6), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 1 -- Frontend Chiều đi (Client $\to$ HTTP Request)}] {};
+        \node[ragstage, fit=(s7)(s9)(s13)(s14b)(s15), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 2 -- Backend Chiều vào (HTTP Request $\to$ Repositories \& AI Engines $\to$ Database)}] {};
+        \node[ragstage, fit=(s16)(s18)(s19)(s20), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 3 -- Backend Chiều về (Database $\to$ HTTP SSE / Response)}] {};
+        \node[ragstage, fit=(s21)(s23)(s24)(s26), label={[ragstagetitle, yshift=2pt]above:Giai đoạn 4 -- Frontend Chiều về (HTTP SSE $\to$ Client)}] {};
+    \end{scope}
+\end{tikzpicture}%
+}
+\caption{Sơ đồ kiến trúc luồng 26 bước hỏi đáp khoa học RAG và truyền phát LLM qua SSE (\texttt{POST /api/v1/rag/chat/stream})}
+\label{fig:flow04-arch-rag-sse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\scriptsize]
+    \def\dx{2.75}
+    \def\ybot{-30.7}
+
+    % Participants (0..9)
+    \node[ragseqactor] (P0) at (0*\dx, 0) {Client\\(Browser)};
+    \foreach \i/\name/\lbl in {
+        1/P1/{\texttt{ChatInput} \&\\\texttt{useRag}},
+        2/P2/{\texttt{streamChat} /\\\texttt{apiFetch}},
+        3/P3/{\texttt{RagController} \&\\\texttt{ClientSlots}},
+        4/P4/{\texttt{RagService}},
+        5/P5/{\texttt{ChatSessions}\\\& MongoDB},
+        6/P6/{Mining + Embed +\\Router + Qdrant},
+        7/P7/{\texttt{JudgeService}\\(Laya)},
+        8/P8/{\texttt{LlmService}\\(\texttt{Queue + Llama})},
+        9/P9/{\texttt{SseWriter}}
+    }{
+        \node[ragseqhead] (\name) at (\i*\dx, 0) {\lbl};
+    }
+    \foreach \i in {0,...,9} {
+        \draw[raglifeline] (P\i.south) -- (\i*\dx, \ybot);
+    }
+
+    % Background frames
+    \begin{scope}[on background layer]
+        % Outer alt: Idempotency Replay vs Execute
+        \draw[ragaltbox] (0.7*\dx, -5.65) rectangle (9.35*\dx, -30.35);
+        \draw[ragdivider] (0.7*\dx, -7.85) -- (9.35*\dx, -7.85);
+        % Alt 1: Laya Evidence Gate (< 0.6)
+        \draw[ragaltbox, fill=orange!7] (3.7*\dx, -14.15) rectangle (8.3*\dx, -17.05);
+        % Alt 2: grounded.length == 0 vs valid context + loop
+        \draw[ragaltbox, fill=orange!7] (1.7*\dx, -18.45) rectangle (9.28*\dx, -23.75);
+        \draw[ragdivider] (1.7*\dx, -19.75) -- (9.28*\dx, -19.75);
+        % Loop inside valid context
+        \draw[ragloopbox] (1.8*\dx, -21.45) rectangle (9.2*\dx, -23.55);
+        % Opt 1: Laya Groundedness Gate
+        \draw[ragaltbox, fill=primaryBlue!4] (3.7*\dx, -24.05) rectangle (9.28*\dx, -26.75);
+        \draw[ragaltbox, fill=orange!8] (3.85*\dx, -25.15) rectangle (9.2*\dx, -26.55);
+        % Opt 2: Authenticated saveExchange
+        \draw[ragaltbox, fill=teal!4] (3.7*\dx, -27.05) rectangle (5.45*\dx, -28.25);
+    \end{scope}
+
+    % Steps 1..8
+    \draw[ragmsg] (0*\dx, -0.90) -- node[ragmsglbl, above, pos=0.55] {\textbf{1.} Nhập câu hỏi và nhấn Enter} (1*\dx, -0.90);
+    \draw[ragmsg] (1*\dx, -1.42) -- ++(0.42,0) -- ++(0,-0.26) -- (1*\dx, -1.68);
+    \node[ragmsglbl, right] at (1*\dx+0.45, -1.55) {\textbf{2.} Tạo \texttt{userMsgId (UUIDv7), createOrGetSession} (Dexie)};
+    \draw[ragmsg] (1*\dx, -2.15) -- node[ragmsglbl, above] {\textbf{3.} \texttt{openRagStream(req, signal, userMsgId)}} (2*\dx, -2.15);
+    \draw[ragmsg] (2*\dx, -2.68) -- node[ragmsglbl, above] {\textbf{4.} \texttt{POST /api/v1/rag/chat/stream (Idempotency-Key, Bearer JWT)}} (3*\dx, -2.68);
+    \draw[ragmsg] (3*\dx, -3.18) -- ++(0.42,0) -- ++(0,-0.25) -- (3*\dx, -3.43);
+    \node[ragmsglbl, right] at (3*\dx+0.45, -3.30) {\textbf{5.} \texttt{RateLimitChat + OptionalJwtAuthGuard + ValidationPipe}};
+    \draw[ragmsg] (3*\dx, -3.78) -- ++(0.42,0) -- ++(0,-0.25) -- (3*\dx, -4.03);
+    \node[ragmsglbl, right] at (3*\dx+0.45, -3.90) {\textbf{6.} \texttt{acquireSlot(ip, userId)}};
+    \draw[ragmsg] (3*\dx, -4.52) -- node[ragmsglbl, above] {\textbf{7.} \texttt{events = rag.run(...)} và gọi \texttt{events.next()} (pre-stream check)} (4*\dx, -4.52);
+    \draw[ragmsg] (4*\dx, -5.12) -- node[ragmsglbl, above] {\textbf{8.} \texttt{assertOwned(sessionId) + beginRequest(userId, key, fingerprint)}} (5*\dx, -5.12);
+
+    % Replay branch
+    \node[ragtag] at (0.73*\dx, -5.68) {alt [\texttt{Idempotency-Key} đã hoàn tất (Replay)]};
+    \draw[ragmsg] (4*\dx, -6.30) -- node[ragmsglbl, above, fill=orange!4] {\textbf{9.} \texttt{getExchange(userId, sessionId, messageId)}} (5*\dx, -6.30);
+    \draw[ragmsg] (3*\dx, -6.85) -- node[ragmsglbl, above, fill=orange!4] {\textbf{10.} \texttt{open()} với header \texttt{Idempotent-Replayed: true}} (9*\dx, -6.85);
+    \draw[ragreply] (9*\dx, -7.40) -- node[ragmsglbl, above, fill=orange!4] {\textbf{11.} \texttt{retrieval -> phase(generating) -> token(full) -> done}} (2*\dx, -7.40);
+
+    % Execute branch
+    \node[ragtag] at (0.73*\dx, -7.88) {else [Luồng thực thi mới (Execute)]};
+    \draw[ragreply] (4*\dx, -8.50) -- node[ragmsglbl, above, fill=orange!4] {\textbf{12.} \texttt{yield phase(embedding)} (event đầu tiên OK)} (3*\dx, -8.50);
+    \draw[ragmsg] (3*\dx, -9.02) -- node[ragmsglbl, above, fill=orange!4] {\textbf{13.} \texttt{open() (HTTP 200 text/event-stream + ': ok')}} (9*\dx, -9.02);
+    \draw[ragreply] (9*\dx, -9.55) -- node[ragmsglbl, above, fill=orange!4] {\textbf{14.} \texttt{data: \{\textquotedbl{}type\textquotedbl:\textquotedbl{}phase\textquotedbl,\textquotedbl{}phase\textquotedbl:\textquotedbl{}embedding\textquotedbl\}}} (2*\dx, -9.55);
+
+    \draw[ragmsg] (4*\dx, -10.10) -- node[ragmsglbl, above, fill=orange!4] {\textbf{15.} \texttt{expandQueryTerms() + embedQuery(768d)}} (6*\dx, -10.10);
+    \draw[ragmsg] (4*\dx, -10.62) -- node[ragmsglbl, above, fill=orange!4] {\textbf{16.} \texttt{phase(flying) + route(L1, L2 steps)}} (9*\dx, -10.62);
+    \draw[ragmsg] (4*\dx, -11.15) -- node[ragmsglbl, above, fill=orange!4] {\textbf{17.} \texttt{route()} $\to$ Qdrant search (\texttt{twig\_id}) $\to$ Corpus hydrate} (6*\dx, -11.15);
+    \draw[ragmsg] (4*\dx, -11.68) -- node[ragmsglbl, above, fill=orange!4] {\textbf{18.} \texttt{phase(comparing) + compare(topPapers)}} (9*\dx, -11.68);
+    \draw[ragmsg] (4*\dx, -12.20) -- node[ragmsglbl, above, fill=orange!4] {\textbf{19.} \texttt{phase(found)}} (9*\dx, -12.20);
+    \draw[ragmsg] (4*\dx, -12.75) -- node[ragmsglbl, above, fill=orange!4] {\textbf{20.} \texttt{mining.rerank(0.85*sim + 0.15*authority)}} (6*\dx, -12.75);
+    \draw[ragmsg] (4*\dx, -13.30) -- node[ragmsglbl, above, fill=orange!4] {\textbf{21.} \texttt{relevance(question, pool) -> RRF fuseRanks}} (7*\dx, -13.30);
+
+    % Evidence Gate alt
+    \node[ragtag] at (3.73*\dx, -14.18) {alt [Laya Evidence Gate: \texttt{evidence < LAYA\_EVIDENCE\_THRESHOLD (0.6)}]};
+    \draw[ragmsg] (4*\dx, -14.85) -- node[ragmsglbl, above, fill=orange!7] {\textbf{22.} \texttt{generate(REWRITE\_SYSTEM\_PROMPT, question)}} (8*\dx, -14.85);
+    \draw[ragreply] (8*\dx, -15.38) -- node[ragmsglbl, above, fill=orange!7] {\textbf{23.} \texttt{refinedQuery}} (4*\dx, -15.38);
+    \draw[ragmsg] (4*\dx, -15.92) -- node[ragmsglbl, above, fill=orange!7] {\textbf{24.} \texttt{embedQuery -> route -> search -> rank(question, hits)}} (6*\dx, -15.92);
+    \node[ragnote] at (5.8*\dx, -16.58) {Nếu vẫn $<$ ngưỡng thì từ chối trả lời (\texttt{grounded = []})};
+
+    \draw[ragmsg] (4*\dx, -17.45) -- node[ragmsglbl, above, fill=orange!4] {\textbf{25.} \texttt{retrieval(grounded\_chunks, expanded\_terms)}} (9*\dx, -17.45);
+    \draw[ragmsg] (4*\dx, -17.98) -- node[ragmsglbl, above, fill=orange!4] {\textbf{26.} \texttt{phase(generating)}} (9*\dx, -17.98);
+
+    % Generation alt + loop
+    \node[ragtag] at (1.73*\dx, -18.48) {alt [\texttt{grounded.length == 0}]};
+    \draw[ragmsg] (4*\dx, -19.22) -- node[ragmsglbl, above, fill=orange!7] {\textbf{27.} \texttt{token(NO\_CONTEXT\_ANSWER)}} (9*\dx, -19.22);
+
+    \node[ragtag] at (1.73*\dx, -19.78) {else [Có ngữ cảnh hợp lệ]};
+    \draw[ragmsg] (4*\dx, -20.38) -- node[ragmsglbl, above, fill=orange!7] {\textbf{28.} \texttt{generate(SYSTEM\_PROMPT, userPrompt, signal)}} (8*\dx, -20.38);
+    \draw[ragmsg] (8*\dx, -20.85) -- ++(-0.42,0) -- ++(0,-0.25) -- (8*\dx, -21.10);
+    \node[ragmsglbl, left, fill=orange!7] at (8*\dx-0.45, -20.97) {\textbf{29.} \texttt{queue.acquire() -> NodeLlamaEngine -> TokenChannel}};
+
+    \node[ragtag] at (1.83*\dx, -21.48) {loop [Mỗi token sinh ra từ Qwen2.5-7B]};
+    \draw[ragreply] (8*\dx, -22.10) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{30.} token chunk} (4*\dx, -22.10);
+    \draw[ragmsg] (4*\dx, -22.62) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{31.} \texttt{data: \{\textquotedbl{}type\textquotedbl:\textquotedbl{}token\textquotedbl,\textquotedbl{}text\textquotedbl:\textquotedbl...\textquotedbl\}}} (9*\dx, -22.62);
+    \draw[ragreply] (9*\dx, -23.22) -- node[ragmsglbl, above, fill=primaryBlue!3] {\textbf{32.} \texttt{readSse -> dispatch -> ragStore.set() -> Markdown (useDeferredValue)}} (2*\dx, -23.22);
+
+    % Groundedness Gate opt
+    \node[ragtag] at (3.73*\dx, -24.08) {opt [Laya Groundedness Gate (\texttt{evidence != null \&\& !aborted})]};
+    \draw[ragmsg] (4*\dx, -24.75) -- node[ragmsglbl, above, fill=primaryBlue!4] {\textbf{33.} \texttt{groundedness(question, answer, top 3 passages)}} (7*\dx, -24.75);
+    \node[ragtag] at (3.88*\dx, -25.18) {alt [\texttt{groundedScore < LAYA\_GROUNDED\_THRESHOLD (0.3)}]};
+    \draw[ragmsg] (4*\dx, -26.05) -- node[ragmsglbl, above, fill=orange!8] {\textbf{34.} \texttt{answer\_replaced(NO\_CONTEXT\_ANSWER)}} (9*\dx, -26.05);
+
+    % Authenticated saveExchange opt
+    \node[ragtag, fill=teal!15, text=teal!80!black] at (3.73*\dx, -27.08) {opt [Có JWT (Authenticated)]};
+    \draw[ragmsg] (4*\dx, -27.85) -- node[ragmsglbl, above, fill=teal!4] {\textbf{35.} \texttt{saveExchange()} (Mongo Transaction: 2 messages + session + \texttt{chat\_requests})} (5*\dx, -27.85);
+
+    \draw[ragmsg] (4*\dx, -28.75) -- node[ragmsglbl, above, fill=orange!4] {\textbf{36.} \texttt{done(citations, timings, quality, session\_id, message\_id, \_links)}} (9*\dx, -28.75);
+    \draw[ragreply] (9*\dx, -29.35) -- node[ragmsglbl, above, fill=orange!4] {\textbf{37.} \texttt{confirmBackendSession() + persistExchange()} vào Dexie} (2*\dx, -29.35);
+    \draw[ragreply] (2*\dx, -29.95) -- node[ragmsglbl, above, fill=orange!4] {\textbf{38.} \texttt{PipelineStatus = done}, \texttt{QueryFlight} hạ cánh} (1*\dx, -29.95);
+\end{tikzpicture}%
+}
+\caption{Biểu đồ tuần tự truyền phát SSE và hai cổng kiểm soát chất lượng Laya (\texttt{POST /api/v1/rag/chat/stream})}
+\label{fig:flow04-seq-rag-sse}
+\end{figure}
 
 \subsection{Giám sát tình trạng và danh mục endpoint API}
 \label{subsec:giam-sat-be-mat-api}
@@ -2621,4 +3960,4 @@ Lịch sử hội thoại đọc được khi ngoại tuyến & Ghi \texttt{Inde
 \end{tabularx}
 \end{table}
 
-Trong số các bất biến tại Bảng~\ref{tab:chin-bat-bien-an-toan}, bất biến thứ tám (loại bỏ truy vấn N+1 qua nạp lô và \texttt{Promise.all}) tác động trực tiếp nhất tới độ trễ thực thi: do mỗi \texttt{round-trip} tới cơ sở dữ liệu từ xa qua \texttt{tunnel} tiêu tốn 15--25~ms, việc đọc tuần tự từng đoạn sẽ cộng dồn hàng trăm mili giây, trong khi gom lô giữ chi phí truy xuất cố định ở đúng một lượt \texttt{round-trip} độc lập với số lượng đoạn truy hồi.
+Trong số các bất biến tại Bảng~\ref{tab:chin-bat-bien-an-toan}, bất biến thứ tám (loại bỏ truy vấn N+1 qua nạp lô và \texttt{Promise.all}) tác động trực tiếp nhất tới độ trễ thực thi. Do mỗi \texttt{round-trip} tới cơ sở dữ liệu từ xa qua \texttt{tunnel} tiêu tốn 15--25~ms, việc đọc tuần tự từng đoạn sẽ cộng dồn hàng trăm ms, còn gom lô giữ chi phí truy xuất cố định ở đúng một lượt \texttt{round-trip} độc lập với số đoạn truy hồi.
