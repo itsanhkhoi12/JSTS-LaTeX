@@ -1,0 +1,185 @@
+% ==============================================================================
+% PHỤ LỤC A: MINH CHỨNG PHÂN TÍCH CHÉP TAY CÁC LUỒNG XỬ LÝ HỆ THỐNG
+% ==============================================================================
+% Hướng dẫn cập nhật cho các thành viên:
+% 1. Sử dụng macro tên thành viên đã khai báo trong metadata.tex:
+%      \memberOneName  
+%      \memberTwoName   
+%      \memberThreeName 
+%      \memberFourName  
+%      \memberFiveName  
+% 2. Khi đã chép ảnh vào thư mục assets/hand-written/<TenThanhVien>/,
+%    thay \handwrittenplaceholder{...} bằng các lệnh \handwrittenpair{...}
+%    (cho từng cặp 2 trang cạnh nhau) và \handwrittensingle{...} (nếu tổng số
+%    trang của luồng là số lẻ), đồng thời cập nhật bảng tổng hợp bên dưới
+%    và bỏ ghi chú "% \clearpage" trước mỗi mục để ảnh không trôi sang mục khác.
+% ==============================================================================
+
+\begingroup
+\captionsetup[figure]{list=no, skip=3pt}
+\captionsetup[subfigure]{skip=2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+
+% Lệnh chèn một cặp 2 ảnh chép tay cạnh nhau trên cùng figure
+\newcommand{\handwrittenpair}[5]{%
+    \begin{figure}[htbp]
+        \centering
+        \begin{subfigure}[t]{0.49\textwidth}
+            \centering
+            {\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.4pt}\color{codeBorder}%
+            \fbox{\includegraphics[width=\linewidth,height=0.415\textheight,keepaspectratio]{#1}}}%
+            \caption{#2}
+        \end{subfigure}
+        \hfill
+        \begin{subfigure}[t]{0.49\textwidth}
+            \centering
+            {\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.4pt}\color{codeBorder}%
+            \fbox{\includegraphics[width=\linewidth,height=0.415\textheight,keepaspectratio]{#3}}}%
+            \caption{#4}
+        \end{subfigure}
+        \caption{#5}
+    \end{figure}
+}
+
+% Lệnh chèn 1 ảnh chép tay lẻ (dùng khi luồng có tổng số trang lẻ)
+\newcommand{\handwrittensingle}[2]{%
+    \begin{figure}[htbp]
+        \centering
+        {\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.4pt}\color{codeBorder}%
+        \fbox{\includegraphics[width=0.49\textwidth,height=0.415\textheight,keepaspectratio]{#1}}}%
+        \caption{#2}
+    \end{figure}
+}
+
+% Khung chờ cho các luồng chưa bổ sung ảnh minh chứng
+\newcommand{\handwrittenplaceholder}[1]{%
+    \begin{tcolorbox}[
+        colback=codeBackground,
+        colframe=codeBorder,
+        arc=3pt,
+        boxrule=0.6pt,
+        left=10pt,
+        right=10pt,
+        top=8pt,
+        bottom=8pt
+    ]
+        \small\textit{Đang cập nhật ảnh minh chứng chép tay cho #1.}
+    \end{tcolorbox}
+}
+
+\chapter{Minh chứng phân tích chép tay các luồng xử lý hệ thống}\label{app:handwritten-flows}
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Tổng hợp phân công minh chứng chép tay bảy luồng xử lý hệ thống}
+    \label{tab:appendix-flows}
+    \begin{tabularx}{\textwidth}{c >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{3.8cm} c}
+        \toprule
+        \textbf{STT} & \textbf{Luồng xử lý và endpoint} & \textbf{Thành viên} & \textbf{Số trang} \\
+        \midrule
+        01 & Đăng ký tài khoản và kiểm định chính sách mật khẩu \newline \footnotesize\texttt{POST /api/v1/users} & \memberOneName & 8 \\
+        02 & Đăng nhập, chống brute-force và cấp phát cặp token \newline \footnotesize\texttt{POST /api/v1/auth/tokens} & \textit{Đang cập nhật} & -- \\
+        03 & Tự động xoay vòng refresh token 1-RTT và phát hiện replay khi gặp 401 \newline \footnotesize\texttt{POST /api/v1/auth/token-rotations} & \textit{Đang cập nhật} & -- \\
+        04 & Hỏi đáp khoa học RAG và streaming LLM qua SSE \newline \footnotesize\texttt{POST /api/v1/rag/chat/stream} & \textit{Đang cập nhật} & -- \\
+        05 & Đồng bộ lịch sử hội thoại offline-first và phân trang UUIDv7 cursor \newline \footnotesize\texttt{GET /api/v1/chat-sessions} & \textit{Đang cập nhật} & -- \\
+        06 & Đổi tên và xóa mềm idempotent phiên chat \newline \footnotesize\texttt{PATCH, DELETE /api/v1/chat-sessions/:id} & \textit{Đang cập nhật} & -- \\
+        07 & Đối chiếu trích dẫn và tra cứu bài báo khoa học \newline \footnotesize\texttt{GET /api/v1/papers/:paper\_id, ?ids=...} & \textit{Đang cập nhật} & -- \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\clearpage
+
+% ------------------------------------------------------------------------------
+\section{Luồng 01: Đăng ký tài khoản và kiểm định chính sách mật khẩu}\label{sec:app-flow-01}
+\noindent{\small\textbf{Thành viên thực hiện:} \memberOneName \hfill \textbf{Endpoint:} {\footnotesize\texttt{POST /api/v1/users}}}\par\smallskip
+
+\handwrittenpair
+    {assets/hand-written/Vuong/user_registration_flow_1.jpg}{Trang 1}
+    {assets/hand-written/Vuong/user_registration_flow_2.jpg}{Trang 2}
+    {Minh chứng chép tay Luồng 01 (trang 1--2).}
+
+\handwrittenpair
+    {assets/hand-written/Vuong/user_registration_flow_3.jpg}{Trang 3}
+    {assets/hand-written/Vuong/user_registration_flow_4.jpg}{Trang 4}
+    {Minh chứng chép tay Luồng 01 (trang 3--4).}
+
+\handwrittenpair
+    {assets/hand-written/Vuong/user_registration_flow_5.jpg}{Trang 5}
+    {assets/hand-written/Vuong/user_registration_flow_6.jpg}{Trang 6}
+    {Minh chứng chép tay Luồng 01 (trang 5--6).}
+
+\handwrittenpair
+    {assets/hand-written/Vuong/user_registration_flow_7.jpg}{Trang 7}
+    {assets/hand-written/Vuong/user_registration_flow_8.jpg}{Trang 8}
+    {Minh chứng chép tay Luồng 01 (trang 7--8).}
+
+\clearpage
+
+% ------------------------------------------------------------------------------
+\section{Luồng 02: Đăng nhập, chống brute-force và cấp phát cặp token}\label{sec:app-flow-02}
+\noindent{\small\textbf{Thành viên thực hiện:} \textit{Đang cập nhật} \hfill \textbf{Endpoint:} {\footnotesize\texttt{POST /api/v1/auth/tokens}}}\par\smallskip
+
+\handwrittenplaceholder{Luồng 02}
+% \handwrittenpair
+%     {assets/hand-written/<Folder>/<file_1>.jpg}{Trang 1}
+%     {assets/hand-written/<Folder>/<file_2>.jpg}{Trang 2}
+%     {Minh chứng chép tay Luồng 02 (trang 1--2).}
+
+% ------------------------------------------------------------------------------
+% \clearpage
+\section{Luồng 03: Tự động xoay vòng refresh token 1-RTT và phát hiện replay khi gặp 401}\label{sec:app-flow-03}
+\noindent{\small\textbf{Thành viên thực hiện:} \textit{Đang cập nhật} \hfill \textbf{Endpoint:} {\footnotesize\texttt{POST /api/v1/auth/token-rotations}}}\par\smallskip
+
+\handwrittenplaceholder{Luồng 03}
+% \handwrittenpair
+%     {assets/hand-written/<Folder>/<file_1>.jpg}{Trang 1}
+%     {assets/hand-written/<Folder>/<file_2>.jpg}{Trang 2}
+%     {Minh chứng chép tay Luồng 03 (trang 1--2).}
+
+% ------------------------------------------------------------------------------
+% \clearpage
+\section{Luồng 04: Hỏi đáp khoa học RAG và streaming LLM qua SSE}\label{sec:app-flow-04}
+\noindent{\small\textbf{Thành viên thực hiện:} \textit{Đang cập nhật} \hfill \textbf{Endpoint:} {\footnotesize\texttt{POST /api/v1/rag/chat/stream}}}\par\smallskip
+
+\handwrittenplaceholder{Luồng 04}
+% \handwrittenpair
+%     {assets/hand-written/<Folder>/<file_1>.jpg}{Trang 1}
+%     {assets/hand-written/<Folder>/<file_2>.jpg}{Trang 2}
+%     {Minh chứng chép tay Luồng 04 (trang 1--2).}
+
+% ------------------------------------------------------------------------------
+% \clearpage
+\section{Luồng 05: Đồng bộ lịch sử hội thoại offline-first và phân trang UUIDv7 cursor}\label{sec:app-flow-05}
+\noindent{\small\textbf{Thành viên thực hiện:} \textit{Đang cập nhật} \hfill \textbf{Endpoint:} {\footnotesize\texttt{GET /api/v1/chat-sessions}}}\par\smallskip
+
+\handwrittenplaceholder{Luồng 05}
+% \handwrittenpair
+%     {assets/hand-written/<Folder>/<file_1>.jpg}{Trang 1}
+%     {assets/hand-written/<Folder>/<file_2>.jpg}{Trang 2}
+%     {Minh chứng chép tay Luồng 05 (trang 1--2).}
+
+% ------------------------------------------------------------------------------
+% \clearpage
+\section{Luồng 06: Đổi tên và xóa mềm idempotent phiên chat}\label{sec:app-flow-06}
+\noindent{\small\textbf{Thành viên thực hiện:} \textit{Đang cập nhật} \hfill \textbf{Endpoint:} {\footnotesize\texttt{PATCH, DELETE /api/v1/chat-sessions/:id}}}\par\smallskip
+
+\handwrittenplaceholder{Luồng 06}
+% \handwrittenpair
+%     {assets/hand-written/<Folder>/<file_1>.jpg}{Trang 1}
+%     {assets/hand-written/<Folder>/<file_2>.jpg}{Trang 2}
+%     {Minh chứng chép tay Luồng 06 (trang 1--2).}
+
+% ------------------------------------------------------------------------------
+% \clearpage
+\section{Luồng 07: Đối chiếu trích dẫn và tra cứu bài báo khoa học}\label{sec:app-flow-07}
+\noindent{\small\textbf{Thành viên thực hiện:} \textit{Đang cập nhật} \hfill \textbf{Endpoint:} {\footnotesize\texttt{GET /api/v1/papers/:paper\_id, ?ids=...}}}\par\smallskip
+
+\handwrittenplaceholder{Luồng 07}
+% \handwrittenpair
+%     {assets/hand-written/<Folder>/<file_1>.jpg}{Trang 1}
+%     {assets/hand-written/<Folder>/<file_2>.jpg}{Trang 2}
+%     {Minh chứng chép tay Luồng 07 (trang 1--2).}
+
+\endgroup
